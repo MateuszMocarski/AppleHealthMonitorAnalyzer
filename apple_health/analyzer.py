@@ -83,3 +83,6 @@ class WorkoutAnalyzer:
                 else None
             ),
         )
+        
+    def summarize_month(self, year: int, month: int) -> list[DailySummary]:
+        raise NotImplementedError
