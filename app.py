@@ -38,6 +38,7 @@ def main() -> None:
                 analyzer = WorkoutAnalyzer(workouts)
 
                 print(f"Loaded {len(workouts)} workouts.")
+                # TODO: temporary debug output
                 day = sorted(analyzer.workouts_by_day())[0]
 
                 print()

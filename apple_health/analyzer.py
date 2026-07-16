@@ -32,8 +32,6 @@ class WorkoutAnalyzer:
         ]
     
     def summarize_day(self, day: date) -> DailySummary:
-        
-        from collections import defaultdict
 
         grouped: dict[WorkoutType, list[Workout]] = defaultdict(list)
 
@@ -48,8 +46,14 @@ class WorkoutAnalyzer:
         return DailySummary(
             date=day,
             activities=activities,
-            total_duration_minutes=0,
-            total_active_energy_kcal=0,
+            total_duration_minutes=sum(
+                activity.duration_minutes
+                for activity in activities
+            ),
+            total_active_energy_kcal=sum(
+                activity.active_energy_kcal
+                for activity in activities
+            ),
         )
         
     def _build_activity_summary(
