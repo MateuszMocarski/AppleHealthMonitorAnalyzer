@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from apple_health.enums import WorkoutType
+
 
 @dataclass(slots=True)
 class Workout:
-    activity_type: str
+    activity_type: WorkoutType
 
     source_name: str
     source_version: str | None
