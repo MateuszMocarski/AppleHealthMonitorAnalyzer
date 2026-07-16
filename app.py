@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from apple_health.importer import AppleHealthImporter
+from apple_health.parser import AppleHealthParser
 
 
 def main() -> None:
@@ -25,7 +26,24 @@ def main() -> None:
 
     match args.command:
         case "import":
-            AppleHealthImporter(args.file).run()
+            importer = AppleHealthImporter(args.file)
+
+            archive, xml_stream = importer.open_export()
+
+            try:
+                parser = AppleHealthParser(xml_stream)
+                workouts = parser.parse()
+
+                print(f"Loaded {len(workouts)} workouts.")
+
+                if workouts:
+                    print()
+                    print("First workout:")
+                    print(workouts[0])
+
+            finally:
+                xml_stream.close()
+                archive.close()
 
 
 if __name__ == "__main__":
