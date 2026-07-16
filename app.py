@@ -1,29 +1,31 @@
-from pathlib import Path
+from __future__ import annotations
+
 import argparse
+from pathlib import Path
+
+from apple_health.importer import AppleHealthImporter
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="AppleHealthMonitorAnalyzer",
-        description="Apple Health export analyzer",
     )
 
     parser.add_argument(
         "command",
         choices=["import"],
-        help="Command to execute",
     )
 
     parser.add_argument(
         "file",
         type=Path,
-        help="Path to export.zip",
     )
 
     args = parser.parse_args()
 
-    print(f"Command : {args.command}")
-    print(f"File    : {args.file.resolve()}")
+    match args.command:
+        case "import":
+            AppleHealthImporter(args.file).run()
 
 
 if __name__ == "__main__":
