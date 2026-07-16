@@ -8,6 +8,8 @@ from apple_health.enums import WorkoutType
 
 @dataclass(slots=True)
 class Workout:
+    apple_activity_type: str
+    
     activity_type: WorkoutType
 
     source_name: str

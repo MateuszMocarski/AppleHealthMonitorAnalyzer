@@ -55,6 +55,7 @@ class AppleHealthParser:
                 distance = float(child.attrib["sum"])
 
         return Workout(
+            apple_activity_type=element.attrib["workoutActivityType"],
             activity_type=self._parse_workout_type(
                 element.attrib["workoutActivityType"]
             ),

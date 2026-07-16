@@ -5,6 +5,7 @@ from pathlib import Path
 
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
+from apple_health.analyzer import WorkoutAnalyzer
 
 
 def main() -> None:
@@ -34,12 +35,20 @@ def main() -> None:
                 parser = AppleHealthParser(xml_stream)
                 workouts = parser.parse()
 
-                print(f"Loaded {len(workouts)} workouts.")
+                analyzer = WorkoutAnalyzer(workouts)
 
-                if workouts:
-                    print()
-                    print("First workout:")
-                    print(workouts[0])
+                print(f"Loaded {len(workouts)} workouts.")
+                day = sorted(analyzer.workouts_by_day())[0]
+
+                print()
+                print(day)
+                print()
+
+                summary = analyzer.summarize_day(day)
+                print(summary)
+                
+                for workout in analyzer.workouts_for_day(day):
+                    print(workout.apple_activity_type, "->", workout.activity_type)
 
             finally:
                 xml_stream.close()
