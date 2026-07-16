@@ -45,8 +45,13 @@ def main() -> None:
                 print(day)
                 print()
 
-                summary = analyzer.summarize_day(day)
-                print(summary)
+                summaries = analyzer.summarize_month(2026, 5)
+
+                print(f"May 2026: {len(summaries)} active days")
+
+                if summaries:
+                    print()
+                    print(summaries[0])
                 
                 for workout in analyzer.workouts_for_day(day):
                     print(workout.apple_activity_type, "->", workout.activity_type)

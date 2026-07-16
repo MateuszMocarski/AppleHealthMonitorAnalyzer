@@ -84,5 +84,13 @@ class WorkoutAnalyzer:
             ),
         )
         
-    def summarize_month(self, year: int, month: int) -> list[DailySummary]:
-        raise NotImplementedError
+    def summarize_month(
+        self,
+        year: int,
+        month: int,
+    ) -> list[DailySummary]:
+        return [
+            self.summarize_day(day)
+            for day in sorted(self.workouts_by_day())
+            if day.year == year and day.month == month
+        ]
