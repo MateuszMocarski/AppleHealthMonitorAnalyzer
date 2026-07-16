@@ -6,6 +6,7 @@ from pathlib import Path
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.analyzer import WorkoutAnalyzer
+from apple_health.renderer import ConsoleRenderer
 
 
 def main() -> None:
@@ -36,25 +37,13 @@ def main() -> None:
                 workouts = parser.parse()
 
                 analyzer = WorkoutAnalyzer(workouts)
+                renderer = ConsoleRenderer()
 
                 print(f"Loaded {len(workouts)} workouts.")
-                # TODO: temporary debug output
-                day = sorted(analyzer.workouts_by_day())[0]
-
-                print()
-                print(day)
                 print()
 
                 summaries = analyzer.summarize_month(2026, 5)
-
-                print(f"May 2026: {len(summaries)} active days")
-
-                if summaries:
-                    print()
-                    print(summaries[0])
-                
-                for workout in analyzer.workouts_for_day(day):
-                    print(workout.apple_activity_type, "->", workout.activity_type)
+                renderer.render_month(summaries)
 
             finally:
                 xml_stream.close()
