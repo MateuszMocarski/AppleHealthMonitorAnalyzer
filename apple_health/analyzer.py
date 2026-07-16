@@ -12,32 +12,31 @@ from apple_health.report_models import DailySummary
 class WorkoutAnalyzer:
     def __init__(self, workouts: list[Workout]) -> None:
         self.workouts = workouts
+        self._workouts_by_day = self._group_workouts_by_day()
 
-    def workouts_by_day(self) -> dict[date, list[Workout]]:
+    def _group_workouts_by_day(self) -> dict[date, list[Workout]]:
         workouts_by_day: dict[date, list[Workout]] = defaultdict(list)
 
         for workout in self.workouts:
             workouts_by_day[workout.start.date()].append(workout)
 
         return dict(workouts_by_day)
-    
-    def active_days(self) -> int:
-        return len(self.workouts_by_day())
-    
-    def workouts_for_day(self, day: date) -> list[Workout]:
-        return [
-            workout
-            for workout in self.workouts
-            if workout.start.date() == day
-        ]
-    
-    def summarize_day(self, day: date) -> DailySummary:
 
+    def workouts_by_day(self) -> dict[date, list[Workout]]:
+        return self._workouts_by_day
+
+    def active_days(self) -> int:
+        return len(self._workouts_by_day)
+
+    def workouts_for_day(self, day: date) -> list[Workout]:
+        return self._workouts_by_day.get(day, [])
+
+    def summarize_day(self, day: date) -> DailySummary:
         grouped: dict[WorkoutType, list[Workout]] = defaultdict(list)
 
         for workout in self.workouts_for_day(day):
             grouped[workout.activity_type].append(workout)
-        
+
         activities = [
             self._build_activity_summary(activity_type, workouts)
             for activity_type, workouts in grouped.items()
@@ -55,7 +54,7 @@ class WorkoutAnalyzer:
                 for activity in activities
             ),
         )
-        
+
     def _build_activity_summary(
         self,
         activity_type: WorkoutType,
