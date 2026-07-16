@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+
+.venv/
+venv/
+
+cache/
+reports/
+
+*.db
+
+.idea/
+.vscode/
+
+exports/

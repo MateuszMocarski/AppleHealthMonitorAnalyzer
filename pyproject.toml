@@ -1,0 +1,22 @@
+[project]
+name = "AppleHealthMonitorAnalyzer"
+version = "0.1.0"
+description = "Apple Health export analyzer"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = []
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+]
