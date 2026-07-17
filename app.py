@@ -23,8 +23,24 @@ def main() -> None:
         "file",
         type=Path,
     )
+    
+    parser.add_argument(
+    "-y",
+    "--year",
+    type=int,
+)
+
+    parser.add_argument(
+        "-m",
+        "--month",
+        type=int,
+        choices=range(1, 13),
+    )
 
     args = parser.parse_args()
+    
+    if (args.year is None) != (args.month is None):
+        parser.error("--year and --month must be provided together.")
 
     match args.command:
         case "import":
@@ -42,7 +58,11 @@ def main() -> None:
                 print(f"Loaded {len(workouts)} workouts.")
                 print()
 
-                summaries = analyzer.summarize_month(2026, 5)
+                if args.year is not None and args.month is not None:
+                    summaries = analyzer.summarize_month(args.year, args.month)
+                else:
+                    summaries = analyzer.summarize_month(2026, 5)
+                
                 renderer.render_month(summaries)
 
             finally:
