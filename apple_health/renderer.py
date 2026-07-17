@@ -5,9 +5,11 @@ from apple_health.report_models import DailySummary
 from apple_health.report_models import MonthlySummary
 from apple_health.enums import WorkoutType
 
+import calendar
+
 class ConsoleRenderer:
     def render_month(self, monthly_summary: MonthlySummary) -> None:
-        self._render_month_summary(monthly_summary)
+        self.render_month_summary(monthly_summary)
 
         print()
 
@@ -38,13 +40,14 @@ class ConsoleRenderer:
 
         print()
         
-    def _render_month_summary(
+    def render_month_summary(
         self,
         summary: MonthlySummary,
     ) -> None:
-        print("Month summary")
-        print("=============")
-        print()
+        
+        header = f"Month summary for {calendar.month_name[summary.month]}-{summary.year}"
+        print(header)
+        print("=" * len(header))
         
         for activity in summary.activities:
             print(activity.activity_type.value.title())

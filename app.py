@@ -37,6 +37,12 @@ def main() -> None:
         type=int,
         choices=range(1, 13),
     )
+    
+    parser.add_argument(
+        "--month-summary",
+        action="store_true",
+        help="Show only the monthly summary",
+    )
 
     args = parser.parse_args()
     
@@ -66,7 +72,10 @@ def main() -> None:
                 
                 monthly_summary = analyzer.summarize_month(year, month)
 
-                renderer.render_month(monthly_summary)
+                if args.month_summary:
+                    renderer.render_month_summary(monthly_summary)
+                else:
+                    renderer.render_month(monthly_summary)
 
             finally:
                 xml_stream.close()
