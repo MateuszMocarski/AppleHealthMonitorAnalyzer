@@ -26,3 +26,10 @@ class DailySummary:
 
     total_duration_minutes: float
     total_active_energy_kcal: float
+    
+@dataclass(slots=True)
+class MonthlySummary:
+    year: int
+    month: int
+
+    days: list[DailySummary]

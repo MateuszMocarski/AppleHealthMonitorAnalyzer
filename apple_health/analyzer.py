@@ -7,6 +7,7 @@ from apple_health.enums import WorkoutType
 from apple_health.models import Workout
 from apple_health.report_models import ActivitySummary
 from apple_health.report_models import DailySummary
+from apple_health.report_models import MonthlySummary
 
 
 class WorkoutAnalyzer:
@@ -89,8 +90,14 @@ class WorkoutAnalyzer:
         year: int,
         month: int,
     ) -> list[DailySummary]:
-        return [
+        daily_summaries = [
             self.summarize_day(day)
             for day in sorted(self.workouts_by_day())
             if day.year == year and day.month == month
         ]
+
+        return MonthlySummary(
+            year=year,
+            month=month,
+            days=daily_summaries,
+        )

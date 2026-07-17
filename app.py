@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from datetime import date
 
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
@@ -39,8 +40,8 @@ def main() -> None:
 
     args = parser.parse_args()
     
-    if (args.year is None) != (args.month is None):
-        parser.error("--year and --month must be provided together.")
+    if args.year is not None and args.month is None:
+        parser.error("--year requires --month.")
 
     match args.command:
         case "import":
@@ -58,12 +59,14 @@ def main() -> None:
                 print(f"Loaded {len(workouts)} workouts.")
                 print()
 
-                if args.year is not None and args.month is not None:
-                    summaries = analyzer.summarize_month(args.year, args.month)
-                else:
-                    summaries = analyzer.summarize_month(2026, 5)
                 
-                renderer.render_month(summaries)
+                today = date.today()
+                year = args.year if args.year is not None else today.year
+                month = args.month if args.month is not None else today.month
+                
+                monthly_summary = analyzer.summarize_month(year, month)
+
+                renderer.render_month(monthly_summary)
 
             finally:
                 xml_stream.close()

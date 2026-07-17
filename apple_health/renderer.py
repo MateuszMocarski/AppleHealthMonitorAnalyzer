@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from apple_health.report_models import ActivitySummary
 from apple_health.report_models import DailySummary
-
+from apple_health.report_models import MonthlySummary
 
 class ConsoleRenderer:
-    def render_month(self, summaries: list[DailySummary]) -> None:
-        for summary in summaries:
-            self._render_day(summary)
+    def render_month(self, monthly_summary: MonthlySummary) -> None:
+        for daily_summary in monthly_summary.days:
+            self._render_day(daily_summary)
 
     def _render_day(self, summary: DailySummary) -> None:
         print(summary.date)
