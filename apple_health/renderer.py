@@ -6,6 +6,10 @@ from apple_health.report_models import MonthlySummary
 
 class ConsoleRenderer:
     def render_month(self, monthly_summary: MonthlySummary) -> None:
+        self._render_month_summary(monthly_summary)
+
+        print()
+
         for daily_summary in monthly_summary.days:
             self._render_day(daily_summary)
 
@@ -32,3 +36,22 @@ class ConsoleRenderer:
             print(f"  Distance: {activity.distance_km:.2f} km")
 
         print()
+        
+    def _render_month_summary(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        print("Month summary")
+        print("=============")
+        print()
+        
+        for activity in summary.activities:
+            print(activity.activity_type.value.title())
+            print(f"  Sessions: {activity.sessions}")
+            print(f"  Duration: {activity.duration_minutes:.1f} min")
+            print(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
+
+            if activity.distance_km is not None:
+                print(f"  Distance: {activity.distance_km:.2f} km")
+
+            print()

@@ -55,7 +55,44 @@ class WorkoutAnalyzer:
                 for activity in activities
             ),
         )
+        
+    def summarize_month_activities(
+        self,
+        year: int,
+        month: int,
+    ) -> list[ActivitySummary]:
+        monthly_workouts = [
+            workout
+            for day in self.workouts_by_day()
+            if day.year == year and day.month == month
+            for workout in self.workouts_for_day(day)
+        ]
+        
+        activities: dict[WorkoutType, list[Workout]] = {}
 
+        for workout in monthly_workouts:
+            activities.setdefault(workout.activity_type, []).append(workout)
+    
+        summaries: list[ActivitySummary] = []
+
+        for activity_type, workouts in activities.items():
+            distances = [
+                workout.distance_km
+                for workout in workouts
+                if workout.distance_km is not None
+            ]
+
+            summaries.append(
+                ActivitySummary(
+                    activity_type=activity_type,
+                    sessions=len(workouts),
+                    duration_minutes=sum(w.duration_minutes for w in workouts),
+                    active_energy_kcal=sum(w.active_energy_kcal for w in workouts),
+                    distance_km=sum(distances) if distances else None,
+                )
+            )
+        return summaries
+    
     def _build_activity_summary(
         self,
         activity_type: WorkoutType,
@@ -100,4 +137,5 @@ class WorkoutAnalyzer:
             year=year,
             month=month,
             days=daily_summaries,
+            activities=self.summarize_month_activities(year, month),
         )

@@ -33,3 +33,4 @@ class MonthlySummary:
     month: int
 
     days: list[DailySummary]
+    activities: list[ActivitySummary]
