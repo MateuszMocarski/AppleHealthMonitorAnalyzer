@@ -61,10 +61,6 @@ def main() -> None:
 
                 analyzer = WorkoutAnalyzer(workouts)
                 renderer = ConsoleRenderer()
-
-                print(f"Loaded {len(workouts)} workouts.")
-                print()
-
                 
                 today = date.today()
                 year = args.year if args.year is not None else today.year
