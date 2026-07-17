@@ -60,13 +60,13 @@ class ConsoleRenderer:
                 
             divisor = (
                 activity.sessions
-                if activity.activity_type is WorkoutType.CYCLING
+                if activity.activity_type in (WorkoutType.OUTDOOR_CYCLING, WorkoutType.INDOOR_CYCLING)
                 else summary.reporting_days
             )
             
             averaging_label = (
                 "Workout"
-                if activity.activity_type is WorkoutType.CYCLING
+                if activity.activity_type in (WorkoutType.OUTDOOR_CYCLING, WorkoutType.INDOOR_CYCLING)
                 else "Daily"
             )
             

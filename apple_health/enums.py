@@ -4,15 +4,14 @@ from enum import Enum
 class WorkoutType(Enum):
     WALKING = "walking"
     HIKING = "hiking"
-    CYCLING = "cycling"
-    STRENGTH_TRAINING = "strength_training"
-
+    OUTDOOR_CYCLING = "outdoor cycling"
+    INDOOR_CYCLING = "indoor cycling"
+    STRENGTH_TRAINING = "strength training"
     OTHER = "other"
 
-
-APPLE_WORKOUT_TYPES: dict[str, WorkoutType] = {
+APPLE_WORKOUT_TYPES = {
     "HKWorkoutActivityTypeWalking": WorkoutType.WALKING,
     "HKWorkoutActivityTypeHiking": WorkoutType.HIKING,
-    "HKWorkoutActivityTypeCycling": WorkoutType.CYCLING,
+    "HKWorkoutActivityTypeCycling": WorkoutType.OUTDOOR_CYCLING,  # tymczasowo
     "HKWorkoutActivityTypeTraditionalStrengthTraining": WorkoutType.STRENGTH_TRAINING,
 }

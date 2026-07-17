@@ -29,7 +29,24 @@ class AppleHealthParser:
 
         return workouts
 
-    def _parse_workout_type(self, activity_type: str) -> WorkoutType:
+    def _parse_workout_type(
+        self,
+        activity_type: str,
+        element: ET.Element,
+    ) -> WorkoutType:
+        if activity_type == "HKWorkoutActivityTypeCycling":
+            for child in element:
+                if (
+                    child.tag == "MetadataEntry"
+                    and child.attrib.get("key") == "HKIndoorWorkout"
+                ):
+                    if child.attrib.get("value") == "1":
+                        return WorkoutType.INDOOR_CYCLING
+
+                    return WorkoutType.OUTDOOR_CYCLING
+
+            return WorkoutType.OUTDOOR_CYCLING
+
         return APPLE_WORKOUT_TYPES.get(
             activity_type,
             WorkoutType.OTHER,
@@ -57,7 +74,8 @@ class AppleHealthParser:
         return Workout(
             apple_activity_type=element.attrib["workoutActivityType"],
             activity_type=self._parse_workout_type(
-                element.attrib["workoutActivityType"]
+                element.attrib["workoutActivityType"],
+                element,
             ),
             source_name=element.attrib["sourceName"],
             source_version=element.attrib.get("sourceVersion"),
