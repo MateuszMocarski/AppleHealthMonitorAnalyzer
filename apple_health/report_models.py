@@ -32,5 +32,7 @@ class MonthlySummary:
     year: int
     month: int
 
+    reporting_days: int
+
     days: list[DailySummary]
     activities: list[ActivitySummary]

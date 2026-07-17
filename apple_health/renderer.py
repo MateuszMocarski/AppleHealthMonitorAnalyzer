@@ -3,6 +3,7 @@ from __future__ import annotations
 from apple_health.report_models import ActivitySummary
 from apple_health.report_models import DailySummary
 from apple_health.report_models import MonthlySummary
+from apple_health.enums import WorkoutType
 
 class ConsoleRenderer:
     def render_month(self, monthly_summary: MonthlySummary) -> None:
@@ -53,5 +54,28 @@ class ConsoleRenderer:
 
             if activity.distance_km is not None:
                 print(f"  Distance: {activity.distance_km:.2f} km")
+                
+            divisor = (
+                activity.sessions
+                if activity.activity_type is WorkoutType.CYCLING
+                else summary.reporting_days
+            )
+            
+            averaging_label = (
+                "Workout"
+                if activity.activity_type is WorkoutType.CYCLING
+                else "Daily"
+            )
+            
+            avg_duration = activity.duration_minutes / divisor
+            avg_energy = activity.active_energy_kcal / divisor
 
+            if activity.distance_km is not None:
+                avg_distance = activity.distance_km / divisor
+            
+            print()
+            print(f"  Average {averaging_label} Duration: {avg_duration:.1f} min")
+            print(f"  Average {averaging_label} Energy:   {avg_energy:.0f} kcal")
+            if activity.distance_km is not None:
+                print(f"  Average {averaging_label} Distance: {avg_distance:.2f} km")
             print()

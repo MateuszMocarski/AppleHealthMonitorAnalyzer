@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from calendar import monthrange
 from datetime import date
 
 from apple_health.enums import WorkoutType
@@ -136,6 +137,19 @@ class WorkoutAnalyzer:
         return MonthlySummary(
             year=year,
             month=month,
+            reporting_days=self._reporting_days(year, month),
             days=daily_summaries,
             activities=self.summarize_month_activities(year, month),
         )
+        
+    def _reporting_days(
+        self,
+        year: int,
+        month: int,
+    ) -> int:
+        today = date.today()
+
+        if year == today.year and month == today.month:
+            return today.day
+
+        return monthrange(year, month)[1]
