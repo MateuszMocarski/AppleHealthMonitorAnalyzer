@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import BinaryIO
 
 from apple_health.models import Workout
+from apple_health.models import AppleHealthData
+
 from apple_health.enums import APPLE_WORKOUT_TYPES
 from apple_health.enums import WorkoutType
 
@@ -16,7 +18,7 @@ class AppleHealthParser:
     def __init__(self, xml_stream: BinaryIO) -> None:
         self.xml_stream = xml_stream
 
-    def parse(self) -> list[Workout]:
+    def parse(self) -> AppleHealthData:
         workouts: list[Workout] = []
 
         for _, element in ET.iterparse(self.xml_stream, events=("end",)):
@@ -27,7 +29,10 @@ class AppleHealthParser:
 
             element.clear()
 
-        return workouts
+        return AppleHealthData(
+            workouts=workouts,
+            daily_metrics=[]
+        )
 
     def _parse_workout_type(
         self,
