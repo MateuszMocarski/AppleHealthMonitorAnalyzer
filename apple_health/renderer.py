@@ -95,9 +95,11 @@ class ConsoleRenderer:
         summary: MonthlySummary,
     ) -> None:
         
-        header = f"Month summary for {calendar.month_name[summary.month]}-{summary.year}"
-        print(header)
-        print("=" * len(header))
+        print("Apple Health Monthly Report")
+        print(f"{calendar.month_name[summary.month]} {summary.year}")
+        date_through = f"Data available through: {summary.data_through}"
+        print(date_through)
+        print("=" * len(date_through))
         
         metrics = summary.activity_metrics
 

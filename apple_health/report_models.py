@@ -51,6 +51,10 @@ class MonthlySummary:
     activities: list[ActivitySummary]
     activity_metrics: ActivityMetricsSummary
     
+    @property
+    def data_through(self) -> date:
+        return date(self.year, self.month, self.reporting_days)
+    
 @dataclass(slots=True)
 class ActivityMetricsSummary:
     total_steps: int
