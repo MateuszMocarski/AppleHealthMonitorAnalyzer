@@ -5,7 +5,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 
 from apple_health.constants import APPLE_WATCH_SOURCE
-from apple_health.enums import WorkoutType
+from apple_health.enums import SleepStage, WorkoutType
 from apple_health.models import SleepRecord, Workout
 from apple_health.models import AppleHealthData
 from apple_health.report_models import ActivitySummary, SleepSession
@@ -268,7 +268,33 @@ class SleepAnalyzer:
     def _build_sleep_session(
         self,
         records: list[SleepRecord],
-    ) -> SleepSession:
+    ) -> SleepSession:        
+        core_minutes = self._sum_stage_minutes(
+            records,
+            SleepStage.CORE,
+        )
+
+        deep_minutes = self._sum_stage_minutes(
+            records,
+            SleepStage.DEEP,
+        )
+
+        rem_minutes = self._sum_stage_minutes(
+            records,
+            SleepStage.REM,
+        )
+
+        awake_minutes = self._sum_stage_minutes(
+            records,
+            SleepStage.AWAKE,
+        )
+
+        time_asleep_minutes = (
+            core_minutes
+            + deep_minutes
+            + rem_minutes
+        )
+        
         bedtime = records[0].start
         wake_up = records[-1].end
 
@@ -280,9 +306,20 @@ class SleepAnalyzer:
             time_in_bed_minutes=(
                 wake_up - bedtime
             ).total_seconds() / 60,
-            time_asleep_minutes=0.0,
-            core_minutes=0.0,
-            deep_minutes=0.0,
-            rem_minutes=0.0,
-            awake_minutes=0.0,
+            time_asleep_minutes=time_asleep_minutes,
+            core_minutes=core_minutes,
+            deep_minutes=deep_minutes,
+            rem_minutes=rem_minutes,
+            awake_minutes=awake_minutes,
+        )
+    
+    def _sum_stage_minutes(
+        self,
+        records: list[SleepRecord],
+        stage: SleepStage,
+    ) -> float:
+        return sum(
+            record.duration_minutes
+            for record in records
+            if record.stage == stage
         )
