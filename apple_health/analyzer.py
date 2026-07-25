@@ -310,7 +310,6 @@ class SleepAnalyzer:
         wake_up = records[-1].end
 
         return SleepSession(
-            session_date=wake_up.date(),
             bedtime=bedtime,
             wake_up=wake_up,
             records=records,
@@ -373,7 +372,7 @@ class SleepAnalyzer:
         day: date,
     ) -> SleepSession | None:
         for session in self.sleep_sessions:
-            if session.session_date == day:
+            if session.reporting_date == day:
                 return session
 
         return None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from apple_health.enums import WorkoutType
 from apple_health.models import SleepRecord
@@ -71,8 +71,6 @@ class ActivityMetricsSummary:
     
 @dataclass(slots=True)
 class SleepSession:
-    session_date: date
-    
     bedtime: datetime
     wake_up: datetime
 
@@ -93,6 +91,13 @@ class SleepSession:
             / self.time_in_bed_minutes
             * 100
         )
+        
+    @property
+    def reporting_date(self) -> date:
+        if self.bedtime.hour >= 12:
+            return self.bedtime.date() + timedelta(days=1)
+
+        return self.bedtime.date()
         
 @dataclass(slots=True)
 class SleepMonthlySummary:
