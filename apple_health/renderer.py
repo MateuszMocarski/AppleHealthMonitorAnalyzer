@@ -20,6 +20,9 @@ class ConsoleRenderer:
         print(summary.date)
         print("=" * len(str(summary.date)))
         
+        print("Sleep values are from before the day, so for a particular day, you have sleep statistics and then activities done AFTER that sleep")
+        self._render_daily_sleep(summary)
+        
         self._render_general_activity(
             total_steps=summary.total_steps,
             total_distance_km=summary.total_distance_km,
@@ -27,8 +30,6 @@ class ConsoleRenderer:
         )
 
         print()
-        
-        self._render_daily_sleep(summary)
         
         if not summary.activities:
             if summary.total_steps > 0:
