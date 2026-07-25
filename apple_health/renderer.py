@@ -49,6 +49,29 @@ class ConsoleRenderer:
         print(header)
         print("=" * len(header))
         
+        metrics = summary.activity_metrics
+
+        print("General activity")
+        print("----------------")
+        print("Steps")
+        print("-----")
+        print(f"  Total:         {metrics.total_steps:,}")
+        print(f"  Average daily: {metrics.average_daily_steps:.0f}")
+
+        print()
+
+        print("Walking/Running distance")
+        print("------------------------")
+        print(f"  Total:         {metrics.total_distance_km:.2f} km")
+        print(f"  Average daily: {metrics.average_daily_distance_km:.2f} km")
+
+        print()
+        
+        print(f"Average step length {metrics.average_step_length_cm:.2f} cm")
+        
+        print()
+        print()
+        
         for activity in summary.activities:
             print(activity.activity_type.value.title())
             print(f"  Sessions: {activity.sessions}")

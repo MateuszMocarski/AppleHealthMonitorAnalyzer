@@ -123,11 +123,14 @@ class WorkoutAnalyzer:
             average_daily_steps = total_steps / reporting_days
             average_daily_distance = total_distance / reporting_days
             
+            average_step_length_cm = 100000 * total_distance / total_steps
+            
             return ActivityMetricsSummary(
                 total_steps=total_steps,
                 average_daily_steps=average_daily_steps,
                 total_distance_km=total_distance,
                 average_daily_distance_km=average_daily_distance,
+                average_step_length_cm=average_step_length_cm
             )
    
     def _build_activity_summary(

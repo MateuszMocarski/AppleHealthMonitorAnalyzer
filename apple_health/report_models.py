@@ -47,3 +47,5 @@ class ActivityMetricsSummary:
     total_distance_km: float
 
     average_daily_distance_km: float
+    
+    average_step_length_cm: float
