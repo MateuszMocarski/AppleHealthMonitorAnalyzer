@@ -157,9 +157,10 @@ class ConsoleRenderer:
 
         print("Sleep")
         print("-----")
-        print(f"  Bedtime:     {sleep.bedtime:%H:%M}")
-        print(f"  Wake up:     {sleep.wake_up:%H:%M}")
-        print(f"  Time asleep: {self._format_minutes(sleep.time_asleep_minutes)} ({sleep.awake_minutes:.0f} min awake)")
+        print(f"  Bedtime:          {sleep.bedtime:%H:%M}")
+        print(f"  Wake up:          {sleep.wake_up:%H:%M}")
+        print(f"  Time asleep:      {self._format_minutes(sleep.time_asleep_minutes)} ({sleep.awake_minutes:.0f} min awake)")
+        print(f"  Sleep efficiency: {sleep.sleep_efficiency_percent:.0f}%")
         print()
         
     @staticmethod

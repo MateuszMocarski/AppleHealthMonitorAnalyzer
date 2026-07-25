@@ -79,3 +79,11 @@ class SleepSession:
     deep_minutes: float
     rem_minutes: float
     awake_minutes: float
+
+    @property
+    def sleep_efficiency_percent(self) -> float:
+        return (
+            self.time_asleep_minutes
+            / self.time_in_bed_minutes
+            * 100
+        )
