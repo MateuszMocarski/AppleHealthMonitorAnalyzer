@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, date
 from typing import BinaryIO
 
 from apple_health.models import Workout
 from apple_health.models import AppleHealthData
+from apple_health.models import DailyMetrics
 
 from apple_health.enums import APPLE_WORKOUT_TYPES
 from apple_health.enums import WorkoutType
@@ -20,18 +21,26 @@ class AppleHealthParser:
 
     def parse(self) -> AppleHealthData:
         workouts: list[Workout] = []
+        daily_metrics: dict[date, DailyMetrics] = {}
 
         for _, element in ET.iterparse(self.xml_stream, events=("end",)):
-            if element.tag != "Workout":
-                continue
+            if element.tag == "Workout":
+                workouts.append(self._parse_workout(element))
+                element.clear()
 
-            workouts.append(self._parse_workout(element))
-
-            element.clear()
+            elif element.tag == "Record":
+                self._parse_daily_metrics(
+                    element,
+                    daily_metrics,
+                )
+                element.clear()
 
         return AppleHealthData(
             workouts=workouts,
-            daily_metrics=[]
+            daily_metrics=sorted(
+                daily_metrics.values(),
+                key=lambda metrics: metrics.date,
+            ),
         )
 
     def _parse_workout_type(
@@ -96,3 +105,51 @@ class AppleHealthParser:
             active_energy_kcal=active_energy,
             distance_km=distance,
         )
+    
+    def _parse_daily_metrics(
+        self,
+        element: ET.Element,
+        daily_metrics: dict[date, DailyMetrics],
+    ) -> None:
+        record_type = element.attrib.get("type")
+
+        if record_type not in (
+            "HKQuantityTypeIdentifierStepCount",
+            "HKQuantityTypeIdentifierDistanceWalkingRunning",
+        ):
+            return
+        
+        source_name = element.attrib.get("sourceName", "").replace("\xa0", " ")
+        
+        if "Apple Watch" not in source_name:
+            return
+
+        day = datetime.strptime(
+            element.attrib["startDate"],
+            APPLE_DATE_FORMAT,
+        ).date()
+
+        metrics = daily_metrics.setdefault(
+            day,
+            DailyMetrics(date=day),
+        )
+        
+        value = (element.attrib["value"])
+
+        self._update_daily_metrics(
+            metrics,
+            record_type,
+            value,
+        )
+        
+    def _update_daily_metrics(
+        self,
+        metrics: DailyMetrics,
+        record_type: str,
+        value: str,
+    ) -> None:
+            if record_type == "HKQuantityTypeIdentifierStepCount":
+                metrics.steps += int(value)
+
+            elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
+                metrics.distance_km += float(value)
