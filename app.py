@@ -59,11 +59,12 @@ def main() -> None:
                 parser = AppleHealthParser(xml_stream)
                 apple_health_data = parser.parse()
 
-                analyzer = WorkoutAnalyzer(apple_health_data)
+                sleep_analyzer = SleepAnalyzer(apple_health_data)
+                
+                analyzer = WorkoutAnalyzer(apple_health_data, sleep_analyzer)
                 renderer = ConsoleRenderer()
                 
-                sleep_analyzer = SleepAnalyzer(apple_health_data)
-                sessions = sleep_analyzer.analyze()
+                
                 
                 today = date.today()
                 year = args.year if args.year is not None else today.year

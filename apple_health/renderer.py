@@ -28,6 +28,8 @@ class ConsoleRenderer:
 
         print()
         
+        self._render_sleep(summary)
+        
         if not summary.activities:
             if summary.total_steps > 0:
                 print("No workouts.")
@@ -43,7 +45,7 @@ class ConsoleRenderer:
             self._render_activity(activity)
 
         print("Total")
-        print(f"  Duration: {summary.total_duration_minutes:.1f} min")
+        print(f"  Duration: {self._format_minutes(summary.total_duration_minutes)}")
         print(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
         print("-" * 60)
         print()
@@ -51,7 +53,7 @@ class ConsoleRenderer:
     def _render_activity(self, activity: ActivitySummary) -> None:
         print(activity.activity_type.value.title())
         print(f"  Sessions: {activity.sessions}")
-        print(f"  Duration: {activity.duration_minutes:.1f} min")
+        print(f"  Duration: {self._format_minutes(activity.duration_minutes)}")
         print(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
 
         if activity.distance_km is not None:
@@ -116,7 +118,7 @@ class ConsoleRenderer:
         for activity in summary.activities:
             print(activity.activity_type.value.title())
             print(f"  Sessions: {activity.sessions}")
-            print(f"  Duration: {activity.duration_minutes:.1f} min")
+            print(f"  Duration: {self._format_minutes(activity.duration_minutes)}")
             print(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
 
             if activity.distance_km is not None:
@@ -141,8 +143,29 @@ class ConsoleRenderer:
                 avg_distance = activity.distance_km / divisor
             
             print()
-            print(f"  Average {averaging_label} Duration: {avg_duration:.1f} min")
+            print(f"  Average {averaging_label} Duration: {self._format_minutes(avg_duration)}")
             print(f"  Average {averaging_label} Energy:   {avg_energy:.0f} kcal")
             if activity.distance_km is not None:
                 print(f"  Average {averaging_label} Distance: {avg_distance:.2f} km")
             print()
+            
+    def _render_sleep(self, summary: DailySummary) -> None:
+        if summary.sleep_session is None:
+            return
+
+        sleep = summary.sleep_session
+
+        print("Sleep")
+        print("-----")
+        print(f"  Bedtime:     {sleep.bedtime:%H:%M}")
+        print(f"  Wake up:     {sleep.wake_up:%H:%M}")
+        print(f"  Time asleep: {self._format_minutes(sleep.time_asleep_minutes)} ({sleep.awake_minutes:.0f} min awake)")
+        print()
+        
+    @staticmethod
+    def _format_minutes(minutes: float) -> str:
+        total_minutes = round(minutes)
+
+        hours, mins = divmod(total_minutes, 60)
+
+        return f"{hours} h {mins} min"

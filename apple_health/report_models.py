@@ -30,6 +30,8 @@ class DailySummary:
     
     total_steps: int
     total_distance_km: float
+    
+    sleep_session: SleepSession | None = None
 
     @property
     def average_step_length_cm(self) -> float:

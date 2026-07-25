@@ -15,12 +15,15 @@ from apple_health.report_models import ActivityMetricsSummary
 
 
 class WorkoutAnalyzer:
-    def __init__(self, health_data: AppleHealthData) -> None:
+    def __init__(self, health_data: AppleHealthData, sleep_analyzer: SleepAnalyzer) -> None:
         self.workouts = health_data.workouts
         self.daily_metrics = health_data.daily_metrics
 
         self._workouts_by_day = self._group_workouts_by_day()
         self._daily_metrics_by_day = self._group_daily_metrics_by_day()
+        
+        sleep_analyzer: SleepAnalyzer
+        self.sleep_analyzer = sleep_analyzer
 
     def _group_workouts_by_day(self) -> dict[date, list[Workout]]:
         workouts_by_day: dict[date, list[Workout]] = defaultdict(list)
@@ -57,7 +60,12 @@ class WorkoutAnalyzer:
 
         total_steps = metrics.steps if metrics else 0
         total_distance_km = metrics.distance_km if metrics else 0.0
-
+        
+        sleep_session = (
+            self.sleep_analyzer.session_for_day(day)
+            if self.sleep_analyzer
+            else None
+        )
         return DailySummary(
             date=day,
             activities=activities,
@@ -71,6 +79,7 @@ class WorkoutAnalyzer:
             ),
             total_steps=total_steps,
             total_distance_km=total_distance_km,
+            sleep_session=sleep_session,
         )
         
     def summarize_month_activities(
@@ -231,6 +240,7 @@ class SleepAnalyzer:
         health_data: AppleHealthData,
     ) -> None:
         self.sleep_records = health_data.sleep_records
+        self.sleep_sessions = self.analyze()
 
     def analyze(self) -> list[SleepSession]:
         watch_sleep_records = [
@@ -323,3 +333,12 @@ class SleepAnalyzer:
             for record in records
             if record.stage == stage
         )
+    def session_for_day(
+        self,
+        day: date,
+    ) -> SleepSession | None:
+        for session in self.sleep_sessions:
+            if session.session_date == day:
+                return session
+
+        return None
