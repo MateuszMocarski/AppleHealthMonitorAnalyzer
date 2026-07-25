@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 
+from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import WorkoutType
-from apple_health.models import Workout
+from apple_health.models import SleepRecord, Workout
 from apple_health.models import AppleHealthData
-from apple_health.report_models import ActivitySummary
+from apple_health.report_models import ActivitySummary, SleepSession
 from apple_health.report_models import DailySummary
 from apple_health.report_models import MonthlySummary
 from apple_health.report_models import ActivityMetricsSummary
@@ -221,3 +222,67 @@ class WorkoutAnalyzer:
             date(year, month, day)
             for day in range(1, self._reporting_days(year, month) + 1)
         ]
+
+class SleepAnalyzer:
+    SESSION_GAP_THRESHOLD = timedelta(minutes=30)
+
+    def __init__(
+        self,
+        health_data: AppleHealthData,
+    ) -> None:
+        self.sleep_records = health_data.sleep_records
+
+    def analyze(self) -> list[SleepSession]:
+        watch_sleep_records = [
+            record
+            for record in self.sleep_records
+            if APPLE_WATCH_SOURCE in record.source_name
+        ]
+
+        sessions: list[SleepSession] = []
+        current_session: list[SleepRecord] = []
+
+        for record in watch_sleep_records:
+            if not current_session:
+                current_session.append(record)
+                continue
+
+            previous = current_session[-1]
+            gap = record.start - previous.end
+
+            if gap <= self.SESSION_GAP_THRESHOLD:
+                current_session.append(record)
+            else:
+                sessions.append(
+                    self._build_sleep_session(current_session)
+                )
+                current_session = [record]
+
+        if current_session:
+            sessions.append(
+                self._build_sleep_session(current_session)
+            )
+
+        return sessions
+
+    def _build_sleep_session(
+        self,
+        records: list[SleepRecord],
+    ) -> SleepSession:
+        bedtime = records[0].start
+        wake_up = records[-1].end
+
+        return SleepSession(
+            session_date=wake_up.date(),
+            bedtime=bedtime,
+            wake_up=wake_up,
+            records=records,
+            time_in_bed_minutes=(
+                wake_up - bedtime
+            ).total_seconds() / 60,
+            time_asleep_minutes=0.0,
+            core_minutes=0.0,
+            deep_minutes=0.0,
+            rem_minutes=0.0,
+            awake_minutes=0.0,
+        )

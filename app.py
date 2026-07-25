@@ -6,7 +6,7 @@ from datetime import date
 
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
-from apple_health.analyzer import WorkoutAnalyzer
+from apple_health.analyzer import SleepAnalyzer, WorkoutAnalyzer
 from apple_health.renderer import ConsoleRenderer
 
 
@@ -61,6 +61,9 @@ def main() -> None:
 
                 analyzer = WorkoutAnalyzer(apple_health_data)
                 renderer = ConsoleRenderer()
+                
+                sleep_analyzer = SleepAnalyzer(apple_health_data)
+                sessions = sleep_analyzer.analyze()
                 
                 today = date.today()
                 year = args.year if args.year is not None else today.year

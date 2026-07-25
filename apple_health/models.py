@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, date
 
-from apple_health.enums import WorkoutType
+from apple_health.enums import WorkoutType, SleepStage
 
 
 @dataclass(slots=True)
@@ -22,7 +22,18 @@ class Workout:
 
     active_energy_kcal: float | None = None
     distance_km: float | None = None
-    
+
+@dataclass(slots=True)
+class SleepRecord:
+    stage: SleepStage
+
+    source_name: str
+    source_version: str | None
+
+    start: datetime
+    end: datetime
+
+    duration_minutes: float    
     
 @dataclass
 class DailyMetrics:
@@ -34,3 +45,4 @@ class DailyMetrics:
 class AppleHealthData:
     workouts: list[Workout]
     daily_metrics: list[DailyMetrics]
+    sleep_records: list[SleepRecord]

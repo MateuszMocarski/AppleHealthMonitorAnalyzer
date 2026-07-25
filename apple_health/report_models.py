@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from apple_health.enums import WorkoutType
+from apple_health.models import SleepRecord
 
 
 @dataclass(slots=True)
@@ -59,3 +60,20 @@ class ActivityMetricsSummary:
     average_daily_distance_km: float
     
     average_step_length_cm: float
+    
+@dataclass(slots=True)
+class SleepSession:
+    session_date: date
+    
+    bedtime: datetime
+    wake_up: datetime
+
+    records: list[SleepRecord]
+    
+    time_in_bed_minutes: float
+    time_asleep_minutes: float
+
+    core_minutes: float
+    deep_minutes: float
+    rem_minutes: float
+    awake_minutes: float

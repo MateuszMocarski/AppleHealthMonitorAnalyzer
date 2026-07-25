@@ -7,8 +7,11 @@ from typing import BinaryIO
 from apple_health.models import Workout
 from apple_health.models import AppleHealthData
 from apple_health.models import DailyMetrics
+from apple_health.models import SleepRecord
 
+from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import APPLE_WORKOUT_TYPES
+from apple_health.enums import SleepStage
 from apple_health.enums import WorkoutType
 
 
@@ -22,6 +25,7 @@ class AppleHealthParser:
     def parse(self) -> AppleHealthData:
         workouts: list[Workout] = []
         daily_metrics: dict[date, DailyMetrics] = {}
+        sleep_records: list[SleepRecord] = []
 
         for _, element in ET.iterparse(self.xml_stream, events=("end",)):
             if element.tag == "Workout":
@@ -29,10 +33,19 @@ class AppleHealthParser:
                 element.clear()
 
             elif element.tag == "Record":
-                self._parse_daily_metrics(
-                    element,
-                    daily_metrics,
-                )
+                record_type = element.attrib.get("type")
+
+                if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
+                    sleep_records.append(
+                        self._parse_sleep_record(element)
+                    )
+
+                else:
+                    self._parse_daily_metrics(
+                        element,
+                        daily_metrics,
+                    )
+
                 element.clear()
 
         return AppleHealthData(
@@ -41,6 +54,7 @@ class AppleHealthParser:
                 daily_metrics.values(),
                 key=lambda metrics: metrics.date,
             ),
+            sleep_records=sleep_records,
         )
 
     def _parse_workout_type(
@@ -119,9 +133,9 @@ class AppleHealthParser:
         ):
             return
         
-        source_name = element.attrib.get("sourceName", "").replace("\xa0", " ")
+        source_name = element.attrib.get("sourceName", "")
         
-        if "Apple Watch" not in source_name:
+        if APPLE_WATCH_SOURCE not in source_name:
             return
 
         day = datetime.strptime(
@@ -153,3 +167,52 @@ class AppleHealthParser:
 
             elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
                 metrics.distance_km += float(value)
+                
+    def _parse_sleep_record(
+        self,
+        element: ET.Element,
+    ) -> SleepRecord:
+        start = datetime.strptime(
+            element.attrib["startDate"],
+            APPLE_DATE_FORMAT,
+)
+
+        end = datetime.strptime(
+            element.attrib["endDate"],
+            APPLE_DATE_FORMAT,
+        )
+        
+        return SleepRecord(
+            stage=self._parse_sleep_stage(element.attrib["value"]),
+            source_name=element.attrib["sourceName"],
+            source_version=element.attrib.get("sourceVersion"),
+            start=start,
+            end=end,
+            duration_minutes=(end - start).total_seconds() / 60,
+        )
+        
+    def _parse_sleep_stage(
+        self,
+        value: str,
+    ) -> SleepStage:
+        match value:
+            case "HKCategoryValueSleepAnalysisInBed":
+                return SleepStage.IN_BED
+
+            case "HKCategoryValueSleepAnalysisAsleepUnspecified":
+                return SleepStage.UNSPECIFIED
+
+            case "HKCategoryValueSleepAnalysisAsleepCore":
+                return SleepStage.CORE
+
+            case "HKCategoryValueSleepAnalysisAsleepDeep":
+                return SleepStage.DEEP
+
+            case "HKCategoryValueSleepAnalysisAsleepREM":
+                return SleepStage.REM
+
+            case "HKCategoryValueSleepAnalysisAwake":
+                return SleepStage.AWAKE
+
+            case _:
+                return SleepStage.OTHER

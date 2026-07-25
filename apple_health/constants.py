@@ -1,0 +1,1 @@
+APPLE_WATCH_SOURCE = "Apple\xa0Watch"
