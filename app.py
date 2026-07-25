@@ -59,7 +59,7 @@ def main() -> None:
                 parser = AppleHealthParser(xml_stream)
                 apple_health_data = parser.parse()
 
-                analyzer = WorkoutAnalyzer(apple_health_data.workouts)
+                analyzer = WorkoutAnalyzer(apple_health_data)
                 renderer = ConsoleRenderer()
                 
                 today = date.today()

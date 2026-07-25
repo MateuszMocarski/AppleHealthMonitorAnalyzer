@@ -6,14 +6,18 @@ from datetime import date
 
 from apple_health.enums import WorkoutType
 from apple_health.models import Workout
+from apple_health.models import AppleHealthData
 from apple_health.report_models import ActivitySummary
 from apple_health.report_models import DailySummary
 from apple_health.report_models import MonthlySummary
+from apple_health.report_models import ActivityMetricsSummary
 
 
 class WorkoutAnalyzer:
-    def __init__(self, workouts: list[Workout]) -> None:
-        self.workouts = workouts
+    def __init__(self, health_data: AppleHealthData) -> None:
+        self.workouts = health_data.workouts
+        self.daily_metrics = health_data.daily_metrics
+
         self._workouts_by_day = self._group_workouts_by_day()
 
     def _group_workouts_by_day(self) -> dict[date, list[Workout]]:
@@ -94,6 +98,38 @@ class WorkoutAnalyzer:
             )
         return summaries
     
+    def summarize_month_metrics(
+        self,
+        year: int,
+        month: int,
+    ) -> ActivityMetricsSummary:    
+            monthly_metrics = [
+                metrics
+                for metrics in self.daily_metrics
+                if metrics.date.year == year
+                and metrics.date.month == month
+            ]
+            total_steps = sum(
+                metrics.steps
+                for metrics in monthly_metrics
+            )
+
+            total_distance = sum(
+                metrics.distance_km
+                for metrics in monthly_metrics
+            )
+            reporting_days = self._reporting_days(year, month)
+
+            average_daily_steps = total_steps / reporting_days
+            average_daily_distance = total_distance / reporting_days
+            
+            return ActivityMetricsSummary(
+                total_steps=total_steps,
+                average_daily_steps=average_daily_steps,
+                total_distance_km=total_distance,
+                average_daily_distance_km=average_daily_distance,
+            )
+   
     def _build_activity_summary(
         self,
         activity_type: WorkoutType,
@@ -140,6 +176,7 @@ class WorkoutAnalyzer:
             reporting_days=self._reporting_days(year, month),
             days=daily_summaries,
             activities=self.summarize_month_activities(year, month),
+            activity_metrics=self.summarize_month_metrics(year, month),
         )
         
     def _reporting_days(

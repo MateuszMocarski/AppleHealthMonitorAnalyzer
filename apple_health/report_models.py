@@ -36,3 +36,14 @@ class MonthlySummary:
 
     days: list[DailySummary]
     activities: list[ActivitySummary]
+    activity_metrics: ActivityMetricsSummary
+    
+@dataclass(slots=True)
+class ActivityMetricsSummary:
+    total_steps: int
+
+    average_daily_steps: float
+
+    total_distance_km: float
+
+    average_daily_distance_km: float
