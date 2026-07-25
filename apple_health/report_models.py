@@ -27,6 +27,16 @@ class DailySummary:
     total_duration_minutes: float
     total_active_energy_kcal: float
     
+    total_steps: int
+    total_distance_km: float
+
+    @property
+    def average_step_length_cm(self) -> float:
+        if self.total_steps == 0:
+            return 0.0
+
+        return self.total_distance_km * 100000 / self.total_steps
+
 @dataclass(slots=True)
 class MonthlySummary:
     year: int

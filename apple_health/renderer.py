@@ -19,7 +19,15 @@ class ConsoleRenderer:
     def _render_day(self, summary: DailySummary) -> None:
         print(summary.date)
         print("=" * len(str(summary.date)))
+        
+        self._render_general_activity(
+            total_steps=summary.total_steps,
+            total_distance_km=summary.total_distance_km,
+            average_step_length_cm=summary.average_step_length_cm,
+        )
 
+        print()
+        
         for activity in summary.activities:
             self._render_activity(activity)
 
@@ -40,6 +48,35 @@ class ConsoleRenderer:
 
         print()
         
+    def _render_general_activity(
+        self,
+        total_steps: int,
+        total_distance_km: float,
+        average_step_length_cm: float,
+        average_daily_steps: float | None = None,
+        average_daily_distance_km: float | None = None,
+    ) -> None:
+            print("General activity")
+            print("----------------")
+
+            print("Steps")
+            print("-----")
+            print(f"  Total:         {total_steps:,}")
+
+            if average_daily_steps is not None:
+                print(f"  Average daily: {average_daily_steps:.0f}")
+
+            print()
+
+            print("Walking/Running distance")
+            print("------------------------")
+            print(f"  Total:               {total_distance_km:.2f} km")
+
+            if average_daily_distance_km is not None:
+                print(f"  Average daily:       {average_daily_distance_km:.2f} km")
+
+            print(f"  Average step length: {average_step_length_cm:.2f} cm")
+        
     def render_month_summary(
         self,
         summary: MonthlySummary,
@@ -51,25 +88,18 @@ class ConsoleRenderer:
         
         metrics = summary.activity_metrics
 
-        print("General activity")
-        print("----------------")
-        print("Steps")
-        print("-----")
-        print(f"  Total:         {metrics.total_steps:,}")
-        print(f"  Average daily: {metrics.average_daily_steps:.0f}")
-
-        print()
-
-        print("Walking/Running distance")
-        print("------------------------")
-        print(f"  Total:         {metrics.total_distance_km:.2f} km")
-        print(f"  Average daily: {metrics.average_daily_distance_km:.2f} km")
-
-        print()
-        
-        print(f"Average step length {metrics.average_step_length_cm:.2f} cm")
+        self._render_general_activity(
+            total_steps=metrics.total_steps,
+            total_distance_km=metrics.total_distance_km,
+            average_step_length_cm=metrics.average_step_length_cm,
+            average_daily_steps=metrics.average_daily_steps,
+            average_daily_distance_km=metrics.average_daily_distance_km,
+        )        
         
         print()
+        
+        print("Activities")
+        print("----------")
         print()
         
         for activity in summary.activities:

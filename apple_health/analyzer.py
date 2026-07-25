@@ -19,6 +19,7 @@ class WorkoutAnalyzer:
         self.daily_metrics = health_data.daily_metrics
 
         self._workouts_by_day = self._group_workouts_by_day()
+        self._daily_metrics_by_day = self._group_daily_metrics_by_day()
 
     def _group_workouts_by_day(self) -> dict[date, list[Workout]]:
         workouts_by_day: dict[date, list[Workout]] = defaultdict(list)
@@ -36,6 +37,9 @@ class WorkoutAnalyzer:
 
     def workouts_for_day(self, day: date) -> list[Workout]:
         return self._workouts_by_day.get(day, [])
+    
+    def daily_metrics_for_day(self, day: date):
+        return self._daily_metrics_by_day.get(day)
 
     def summarize_day(self, day: date) -> DailySummary:
         grouped: dict[WorkoutType, list[Workout]] = defaultdict(list)
@@ -47,6 +51,8 @@ class WorkoutAnalyzer:
             self._build_activity_summary(activity_type, workouts)
             for activity_type, workouts in grouped.items()
         ]
+        
+        metrics = self.daily_metrics_for_day(day)
 
         return DailySummary(
             date=day,
@@ -59,6 +65,8 @@ class WorkoutAnalyzer:
                 activity.active_energy_kcal
                 for activity in activities
             ),
+            total_steps=metrics.steps,
+            total_distance_km=metrics.distance_km,
         )
         
     def summarize_month_activities(
@@ -181,6 +189,14 @@ class WorkoutAnalyzer:
             activities=self.summarize_month_activities(year, month),
             activity_metrics=self.summarize_month_metrics(year, month),
         )
+        
+    def _group_daily_metrics_by_day(self):
+        daily_metrics_by_day = {}
+
+        for metrics in self.daily_metrics:
+            daily_metrics_by_day[metrics.date] = metrics
+
+        return daily_metrics_by_day
         
     def _reporting_days(
         self,
