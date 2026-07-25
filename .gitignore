@@ -8,6 +8,7 @@ cache/
 reports/
 
 *.db
+*.txt
 
 .idea/
 .vscode/
