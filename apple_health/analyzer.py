@@ -54,6 +54,9 @@ class WorkoutAnalyzer:
         
         metrics = self.daily_metrics_for_day(day)
 
+        total_steps = metrics.steps if metrics else 0
+        total_distance_km = metrics.distance_km if metrics else 0.0
+
         return DailySummary(
             date=day,
             activities=activities,
@@ -65,8 +68,8 @@ class WorkoutAnalyzer:
                 activity.active_energy_kcal
                 for activity in activities
             ),
-            total_steps=metrics.steps,
-            total_distance_km=metrics.distance_km,
+            total_steps=total_steps,
+            total_distance_km=total_distance_km,
         )
         
     def summarize_month_activities(
@@ -177,8 +180,7 @@ class WorkoutAnalyzer:
     ) -> list[DailySummary]:
         daily_summaries = [
             self.summarize_day(day)
-            for day in sorted(self.workouts_by_day())
-            if day.year == year and day.month == month
+            for day in self._days_in_month(year, month)
         ]
 
         return MonthlySummary(
@@ -209,3 +211,13 @@ class WorkoutAnalyzer:
             return today.day
 
         return monthrange(year, month)[1]
+    
+    def _days_in_month(
+        self,
+        year: int,
+        month: int,
+    ) -> list[date]:
+        return [
+            date(year, month, day)
+            for day in range(1, self._reporting_days(year, month) + 1)
+        ]

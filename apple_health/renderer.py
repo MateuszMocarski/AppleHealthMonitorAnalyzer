@@ -28,6 +28,17 @@ class ConsoleRenderer:
 
         print()
         
+        if not summary.activities:
+            if summary.total_steps > 0:
+                print("No workouts.")
+            else:
+                print("No activities.")
+
+            print("-" * 60)
+            print()
+
+            return
+        
         for activity in summary.activities:
             self._render_activity(activity)
 
