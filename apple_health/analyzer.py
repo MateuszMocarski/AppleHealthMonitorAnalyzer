@@ -22,6 +22,11 @@ class WorkoutAnalyzer:
         self._workouts_by_day = self._group_workouts_by_day()
         self._daily_metrics_by_day = self._group_daily_metrics_by_day()
         
+        self.last_data_day = max(
+            metrics.date
+            for metrics in self.daily_metrics
+        )
+        
         sleep_analyzer: SleepAnalyzer
         self.sleep_analyzer = sleep_analyzer
 
@@ -216,10 +221,11 @@ class WorkoutAnalyzer:
         year: int,
         month: int,
     ) -> int:
-        today = date.today()
-
-        if year == today.year and month == today.month:
-            return today.day
+        if (
+            year == self.last_data_day.year
+            and month == self.last_data_day.month
+        ):
+            return self.last_data_day.day
 
         return monthrange(year, month)[1]
     
