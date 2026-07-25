@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import SleepStage, WorkoutType
 from apple_health.models import SleepRecord, Workout
 from apple_health.models import AppleHealthData
-from apple_health.report_models import ActivitySummary, SleepSession
+from apple_health.report_models import ActivitySummary, SleepMonthlySummary, SleepSession
 from apple_health.report_models import DailySummary
 from apple_health.report_models import MonthlySummary
 from apple_health.report_models import ActivityMetricsSummary
@@ -200,6 +200,7 @@ class WorkoutAnalyzer:
             days=daily_summaries,
             activities=self.summarize_month_activities(year, month),
             activity_metrics=self.summarize_month_metrics(year, month),
+            sleep_summary=self.sleep_analyzer.summarize_month(year, month),
         )
         
     def _group_daily_metrics_by_day(self):
@@ -322,6 +323,40 @@ class SleepAnalyzer:
             rem_minutes=rem_minutes,
             awake_minutes=awake_minutes,
         )
+    def summarize_month(self, year: int, month: int) -> SleepMonthlySummary:
+        sessions = [
+            session
+            for session in self.sleep_sessions
+            if session.bedtime.year == year
+            and session.bedtime.month == month
+]
+
+        bedtimes = [s.bedtime.time() for s in sessions]
+        wake_ups = [s.wake_up.time() for s in sessions]
+
+        sleep_minutes = [s.time_asleep_minutes for s in sessions]
+        awake_minutes = [s.awake_minutes for s in sessions]
+
+        efficiency = [s.sleep_efficiency_percent for s in sessions]
+
+        core = [s.core_minutes for s in sessions]
+        deep = [s.deep_minutes for s in sessions]
+        rem = [s.rem_minutes for s in sessions]
+        
+        return SleepMonthlySummary(
+            total_sessions=len(sessions),
+
+            average_bedtime=self._average_time(bedtimes),
+            average_wake_up=self._average_time(wake_ups),
+
+            average_sleep_minutes=self._average(sleep_minutes),
+            average_awake_minutes=self._average(awake_minutes),
+            average_sleep_efficiency=self._average(efficiency),
+
+            average_core_minutes=self._average(core),
+            average_deep_minutes=self._average(deep),
+            average_rem_minutes=self._average(rem),
+        )
     
     def _sum_stage_minutes(
         self,
@@ -342,3 +377,47 @@ class SleepAnalyzer:
                 return session
 
         return None
+    
+    @staticmethod
+    def _average_time(times: list[time]) -> time:
+        """
+        Calculates the average time of day.
+
+        Times are shifted around midnight so that typical sleep hours
+        become a linear range:
+
+            23:30 -> -30
+            00:30 ->  30
+            02:00 -> 120
+        """
+
+        shifted_minutes = []
+
+        if not times:
+            raise ValueError("Cannot calculate average of an empty time collection.")
+        
+        for t in times:
+            minutes = t.hour * 60 + t.minute
+
+            if minutes >= 12 * 60:
+                minutes -= 24 * 60
+
+            shifted_minutes.append(minutes)
+
+        average = sum(shifted_minutes) / len(shifted_minutes)
+
+        if average < 0:
+            average += 24 * 60
+
+        average = round(average)
+
+        hours, minutes = divmod(average, 60)
+
+        return time(hour=hours, minute=minutes)
+    
+    @staticmethod
+    def _average(values: list[float]) -> float:
+        if not values:
+            raise ValueError("Cannot calculate average of an empty collection.")
+
+        return sum(values) / len(values)

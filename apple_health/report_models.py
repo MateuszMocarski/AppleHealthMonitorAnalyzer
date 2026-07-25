@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from apple_health.enums import WorkoutType
 from apple_health.models import SleepRecord
@@ -51,6 +51,8 @@ class MonthlySummary:
     activities: list[ActivitySummary]
     activity_metrics: ActivityMetricsSummary
     
+    sleep_summary: SleepMonthlySummary
+    
     @property
     def data_through(self) -> date:
         return date(self.year, self.month, self.reporting_days)
@@ -91,3 +93,18 @@ class SleepSession:
             / self.time_in_bed_minutes
             * 100
         )
+        
+@dataclass(slots=True)
+class SleepMonthlySummary:
+    total_sessions: int
+
+    average_bedtime: time
+    average_wake_up: time
+
+    average_sleep_minutes: float
+    average_awake_minutes: float
+    average_sleep_efficiency: float
+
+    average_core_minutes: float
+    average_deep_minutes: float
+    average_rem_minutes: float
