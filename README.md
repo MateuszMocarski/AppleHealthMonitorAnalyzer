@@ -232,6 +232,49 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 
 ## Report Format
 
+The application generates a structured, human-readable console report that summarizes monthly activity, sleep statistics, and daily health metrics.
+
+The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
+
+```mermaid
+flowchart TD
+
+    A["Monthly Report"]
+    B["General Activity"]
+    C["Sleep Summary"]
+    D["Activity Summary"]
+    E["Daily Reports"]
+    F["Daily Sleep"]
+    G["Daily Activity"]
+    H["Workout Details"]
+
+    A --> B
+    A --> C
+    A --> D
+    A --> E
+
+    E --> F
+    E --> G
+    G --> H
+```
+
+### Report Structure
+
+The report consists of four major sections:
+
+- **Monthly Overview** – reporting period and aggregated statistics.
+- **General Activity** – steps, walking/running distance and average step length.
+- **Sleep Summary** – monthly sleep statistics, average bedtime, wake-up time and sleep efficiency.
+- **Daily Reports** – detailed day-by-day breakdown of activities and sleep sessions.
+
+### Design Goals
+
+- Human-readable console output.
+- Consistent formatting throughout the report.
+- Monthly overview followed by progressively more detailed information.
+- Aggregated metrics presented before individual workout sessions.
+- Report generation remains independent of its presentation layer, allowing additional output formats to be added in the future.
+
 
 ## Interpretation Notes
 
