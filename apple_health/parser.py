@@ -157,10 +157,10 @@ class AppleHealthParser:
 
         elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
             metrics.distance_km += float(value)
-        
+
         elif record_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
             metrics.active_energy += float(value)
-        
+
         elif record_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
             metrics.basal_energy += float(value)
 

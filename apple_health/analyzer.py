@@ -65,7 +65,7 @@ class WorkoutAnalyzer:
 
         active_energy_kcal = metrics.active_energy
         basal_energy_kcal = metrics.basal_energy
-        
+
         total_steps = metrics.steps if metrics else 0
         total_distance_km = metrics.distance_km if metrics else 0.0
 
@@ -130,11 +130,11 @@ class WorkoutAnalyzer:
         total_steps = sum(metrics.steps for metrics in monthly_metrics)
 
         total_distance = sum(metrics.distance_km for metrics in monthly_metrics)
-        
+
         total_basal_energy_kcal = sum(metrics.basal_energy for metrics in monthly_metrics)
-        
+
         total_active_energy_kcal = sum(metrics.active_energy for metrics in monthly_metrics)
-        
+
         reporting_days = self._reporting_days(year, month)
 
         average_daily_steps = total_steps / reporting_days

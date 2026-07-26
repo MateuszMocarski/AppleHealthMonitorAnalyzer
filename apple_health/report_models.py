@@ -31,7 +31,7 @@ class DailySummary:
 
     total_steps: int
     total_distance_km: float
-    
+
     active_energy_kcal: float
     basal_energy_kcal: float
 
@@ -43,7 +43,7 @@ class DailySummary:
             return 0.0
 
         return self.total_distance_km * 100000 / self.total_steps
-    
+
     @property
     def tdee_kcal(self) -> float:
         return self.active_energy_kcal + self.basal_energy_kcal
@@ -78,15 +78,14 @@ class ActivityMetricsSummary:
     average_daily_distance_km: float
 
     average_step_length_cm: float
-    
+
     average_basal_energy_kcal: float
-    
+
     average_active_energy_kcal: float
-    
+
     @property
     def average_tdee_kcal(self) -> float:
         return self.average_active_energy_kcal + self.average_basal_energy_kcal
-        
 
 
 @dataclass(slots=True)
