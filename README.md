@@ -8,6 +8,7 @@
 - 📊 Deterministic and comparable reports
 - 🤖 AI-friendly report format
 
+
 ## Overview
 
 Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports.
@@ -17,6 +18,7 @@ The application parses Apple Health XML exports, reconstructs sleep sessions, ag
 Unlike the Apple Health application, which focuses on browsing recorded data, Apple Health Monitor Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
 
 The generated reports are intended to serve as a solid foundation for both personal analysis and AI-assisted interpretation, providing meaningful insights without requiring direct access to raw Apple Health data.
+
 
 ## Project Philosophy
 
@@ -32,6 +34,7 @@ Every design decision follows a simple principle:
 
 This philosophy makes the reports suitable for long-term trend analysis,
 independent verification, and AI-assisted interpretation.
+
 
 ## Features
 
@@ -72,11 +75,16 @@ independent verification, and AI-assisted interpretation.
 - Comparable reports across time
 - Extensible architecture
 
+
 ## Installation
+
 
 ## Usage
 
+
 ## Project Architecture
+
+The application follows a layered architecture that separates data import, parsing, analysis, and presentation. Each component has a single responsibility, making the codebase easier to maintain, test, and extend.
 
 ```mermaid
 flowchart TD
@@ -125,8 +133,6 @@ flowchart TD
     class H output;
 ```
 
-The application follows a layered architecture that separates data import, parsing, analysis, and presentation. Each component has a single responsibility, making the codebase easier to maintain, test, and extend.
-
 The diagram is organized into five logical layers, each with a clearly defined responsibility.
 
 | Layer | Responsibility |
@@ -167,7 +173,7 @@ Separating report generation from rendering makes it easy to support additional 
 Transforms the report model into a human-readable console report.
 The renderer contains no business logic and is responsible solely for presentation.
 
-### Design Principles
+### Architectural Principles
 
 - Single Responsibility Principle for every major component.
 - Clear separation between parsing, analysis, and presentation.
@@ -175,18 +181,71 @@ The renderer contains no business logic and is responsible solely for presentati
 - Deterministic report generation — the same input always produces the same output.
 - Report models are presentation-agnostic, allowing multiple output formats to reuse the same analysis results.
 
+
 ## Domain Model
+
+The domain model represents the in-memory structure of Apple Health data after it has been parsed from the XML export.
+It serves as the single source of truth for all analyses and report generation.
+
+```mermaid
+classDiagram
+
+class AppleHealthData {
+    +workouts
+    +dailyMetrics
+    +sleepRecords
+}
+
+class Workout
+class DailyMetrics
+class SleepRecord
+
+AppleHealthData "1" o-- "*" Workout
+AppleHealthData "1" o-- "*" DailyMetrics
+AppleHealthData "1" o-- "*" SleepRecord
+```
+#### AppleHealthData
+
+Acts as the root of the application's domain model.
+It aggregates all imported health data and serves as the single source of truth for every analysis performed by the application.
+
+#### Workout
+
+Represents a single workout session imported from Apple Health, including activity type, timing, duration, distance and energy expenditure.
+
+#### DailyMetrics
+
+Stores aggregated daily metrics such as total step count and walking/running distance.
+
+#### SleepRecord
+
+Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorded by Apple Health.
+
+### Domain Model Principles
+
+- XML-independent domain representation.
+- Strongly typed domain objects.
+- Single source of truth (AppleHealthData).
+- Domain model contains data only.
+- Business logic is implemented by analyzers rather than entities.
+
 
 ## Report Format
 
+
 ## Interpretation Notes
+
 
 ## Design Principles
 
+
 ## AI Analysis
+
 
 ## Versioning
 
+
 ## Roadmap
+
 
 ## License
