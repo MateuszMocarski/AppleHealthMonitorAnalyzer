@@ -13,7 +13,7 @@ from apple_health.report_models import (
 
 class ConsoleRenderer:
     def render_month(self, monthly_summary: MonthlySummary) -> None:
-        self._render_month_summary(monthly_summary)
+        self.render_month_summary(monthly_summary)
 
         print()
 
@@ -129,7 +129,7 @@ class ConsoleRenderer:
 
         print(f"  Average step length: {average_step_length_cm:.2f} cm")
 
-    def _render_month_summary(
+    def render_month_summary(
         self,
         summary: MonthlySummary,
     ) -> None:
