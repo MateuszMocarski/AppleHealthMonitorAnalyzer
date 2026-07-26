@@ -52,6 +52,7 @@ independent verification, and AI-assisted interpretation.
 - Steps, distance, active energy, exercise time, and stand hours
 - Workout aggregation by activity type
 - Daily and monthly workout statistics
+- Daily energy expenditure analysis (Basal Energy, Active Energy, TDEE)
 
 ### Sleep Analysis
 
@@ -291,6 +292,7 @@ flowchart TD
     E["Daily Reports"]
     G["Daily Activity"]
     F["Daily Sleep"]
+    I["Daily Energy Expenditure"]
 
     H["Workout Details"]
 
@@ -301,6 +303,7 @@ flowchart TD
 
     E --> G
     E --> F
+    E --> I
     G --> H
 ```
 
