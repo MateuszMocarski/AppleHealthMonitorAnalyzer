@@ -33,24 +33,35 @@ class ConsoleRenderer:
         )
 
         print()
+        
+
 
         if not summary.activities:
             if summary.total_steps > 0:
                 print("No workouts.")
             else:
                 print("No activities.")
-
+            
+            print()
+            self._render_day_enpenditures(summary)
             print("-" * 60)
             print()
 
             return
 
+        print("Workouts")
+        print("--------")
         for activity in summary.activities:
             self._render_activity(activity)
 
-        print("Total")
+        print("Workouts summary")
+        print("----------------")
         print(f"  Duration: {self._format_minutes(summary.total_duration_minutes)}")
         print(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
+        print()
+        
+        self._render_day_enpenditures(summary)
+        
         print("-" * 60)
         print()
 
@@ -99,7 +110,14 @@ class ConsoleRenderer:
                 )
 
         print()
-
+    
+    def _render_day_enpenditures(self, summary: DailySummary) -> None:
+        print("Daily energy expenditure")
+        print("------------------------")
+        print(f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal")
+        print(f"  Active energy:  {summary.active_energy_kcal:.0f} kcal")
+        print(f"  TDEE:           {summary.tdee_kcal:.0f} kcal")
+        
     def _render_general_activity(
         self,
         total_steps: int,
@@ -156,8 +174,8 @@ class ConsoleRenderer:
 
         print()
 
-        print("Activities")
-        print("----------")
+        print("Workouts")
+        print("--------")
         print()
 
         for activity in summary.activities:
@@ -165,6 +183,12 @@ class ConsoleRenderer:
                 activity,
                 reporting_days=summary.reporting_days,
             )
+            
+        print("Average energy expenditure")
+        print("--------------------------")
+        print(f"  Basal energy:   {summary.activity_metrics.average_basal_energy_kcal:.0f} kcal")
+        print(f"  Active energy:  {summary.activity_metrics.average_active_energy_kcal:.0f} kcal")
+        print(f"  TDEE:           {summary.activity_metrics.average_tdee_kcal:.0f} kcal")
 
     def _render_daily_sleep(self, summary: DailySummary) -> None:
         if summary.sleep_session is None:
