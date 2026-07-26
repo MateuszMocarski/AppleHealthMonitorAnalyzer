@@ -289,8 +289,9 @@ flowchart TD
     C["Sleep Summary"]
     D["Activity Summary"]
     E["Daily Reports"]
-    F["Daily Sleep"]
     G["Daily Activity"]
+    F["Daily Sleep"]
+
     H["Workout Details"]
 
     A --> B
@@ -298,8 +299,8 @@ flowchart TD
     A --> D
     A --> E
 
-    E --> F
     E --> G
+    E --> F
     G --> H
 ```
 
