@@ -367,7 +367,11 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 ```
 
 
-## Roadmap
+## Future Development
+
+The project currently fulfills its original purpose and is considered feature-complete.
+
+Future updates, if any, will primarily focus on technical improvements, maintainability, and code quality rather than new business functionality.
 
 
 ## License
