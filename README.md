@@ -276,7 +276,39 @@ The report consists of four major sections:
 - Report generation remains independent of its presentation layer, allowing additional output formats to be added in the future.
 
 
-## Interpretation Notes
+## Report Interpretation
+
+The report is intended to provide meaningful trends rather than medical or scientific conclusions. Several metrics require proper interpretation due to the way Apple Health records and aggregates data.
+
+### Sleep
+
+Sleep statistics are calculated from recorded sleep stages and may differ from values reported directly by Apple Health.
+
+Short interruptions, missing stages or incomplete recordings may affect sleep duration and efficiency calculations.
+
+### Activities
+
+Workout statistics are based solely on activities explicitly recorded in Apple Health.
+
+Walking distance and step count are reported independently and should not be interpreted as direct indicators of workout intensity.
+
+### Daily Metrics
+
+Daily summaries aggregate all available records for a given calendar day.
+
+If Apple Health contains incomplete or missing data, the report reflects the available information without attempting to estimate missing values.
+
+### Data Quality
+
+The accuracy of every metric depends entirely on the quality of the exported Apple Health data.
+
+The application does not modify, interpolate or infer missing values.
+
+### General Notes
+
+- The report is designed for long-term trend analysis rather than day-to-day fluctuations.
+- Missing data is reported as missing whenever possible.
+- All calculations are deterministic — identical input data always produces identical results.
 
 
 ## Design Principles
