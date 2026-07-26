@@ -76,10 +76,55 @@ independent verification, and AI-assisted interpretation.
 - Extensible architecture
 
 
-## Installation
-
-
 ## Usage
+
+Run the application from the command line using the `import` command followed by the path to the Apple Health export archive.
+
+### Basic Usage
+
+```bash
+python app.py import export.zip
+```
+
+Analyzes the current month of the current year.
+
+### Analyze a Specific Month
+
+```bash
+python app.py import export.zip --month 7
+```
+
+Analyzes the specified month of the current year.
+
+### Analyze a Specific Year and Month
+
+```bash
+python app.py import export.zip --year 2025 --month 12
+```
+
+Both `--year` and `--month` can be used together to analyze a specific month from a different year.
+
+### Show Only Monthly Summary
+
+```bash
+python app.py import export.zip --month 7 --month-summary
+```
+
+Displays only the aggregated monthly statistics without the detailed daily report.
+
+### Command Line Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `import` | Imports and analyzes an Apple Health export archive. |
+| `file` | Path to the exported Apple Health ZIP archive. |
+| `--month` | Month to analyze (`1`–`12`). Uses the current year if `--year` is omitted. |
+| `--year` | Year to analyze. Can only be used together with `--month`. |
+| `--month-summary` | Displays only the monthly summary. |
+
+> **Note:** `--year` cannot be used without `--month`.
+
+The application processes the archive and generates a structured console report containing monthly summaries, activity statistics and sleep analysis.
 
 
 ## Project Architecture
@@ -311,16 +356,21 @@ The application does not modify, interpolate or infer missing values.
 - All calculations are deterministic — identical input data always produces identical results.
 
 
-## Design Principles
-
-
 ## AI Analysis
 
+The generated report is designed to be consumed not only by humans but also by Large Language Models (LLMs).
 
-## Versioning
+Prompt example:
+```bash
+Analyze the following Apple Health report. Focus on long-term trends rather than isolated daily values. Identify improvements, regressions, unusual patterns, consistency of physical activity, sleep quality, recovery and possible lifestyle observations. Base your conclusions only on the provided report and clearly distinguish facts from assumptions.
+```
 
 
 ## Roadmap
 
 
 ## License
+
+MIT License
+
+See LICENSE for details.
