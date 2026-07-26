@@ -8,7 +8,8 @@ class WorkoutType(Enum):
     INDOOR_CYCLING = "indoor cycling"
     STRENGTH_TRAINING = "strength training"
     OTHER = "other"
-    
+
+
 class SleepStage(Enum):
     IN_BED = auto()
 
@@ -19,8 +20,9 @@ class SleepStage(Enum):
     AWAKE = auto()
 
     UNSPECIFIED = auto()
-    
+
     OTHER = auto()
+
 
 APPLE_WORKOUT_TYPES = {
     "HKWorkoutActivityTypeWalking": WorkoutType.WALKING,

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import zipfile
 from pathlib import Path
-from zipfile import ZipFile
-from zipfile import ZipExtFile
+from zipfile import ZipExtFile, ZipFile
 
 
 class AppleHealthImporter:
@@ -19,15 +18,12 @@ class AppleHealthImporter:
         xml_files = [
             file
             for file in archive.namelist()
-            if file.lower().endswith(".xml")
-            and "cda" not in file.lower()
+            if file.lower().endswith(".xml") and "cda" not in file.lower()
         ]
 
         if len(xml_files) != 1:
             archive.close()
 
-            raise RuntimeError(
-                f"Expected exactly one export XML, found {len(xml_files)}."
-            )
+            raise RuntimeError(f"Expected exactly one export XML, found {len(xml_files)}.")
 
         return archive, archive.open(xml_files[0])

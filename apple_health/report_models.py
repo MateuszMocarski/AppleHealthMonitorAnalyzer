@@ -18,7 +18,8 @@ class ActivitySummary:
     active_energy_kcal: float
 
     distance_km: float | None
-    
+
+
 @dataclass(slots=True)
 class DailySummary:
     date: date
@@ -27,10 +28,10 @@ class DailySummary:
 
     total_duration_minutes: float
     total_active_energy_kcal: float
-    
+
     total_steps: int
     total_distance_km: float
-    
+
     sleep_session: SleepSession | None = None
 
     @property
@@ -39,6 +40,7 @@ class DailySummary:
             return 0.0
 
         return self.total_distance_km * 100000 / self.total_steps
+
 
 @dataclass(slots=True)
 class MonthlySummary:
@@ -50,13 +52,14 @@ class MonthlySummary:
     days: list[DailySummary]
     activities: list[ActivitySummary]
     activity_metrics: ActivityMetricsSummary
-    
+
     sleep_summary: SleepMonthlySummary
-    
+
     @property
     def data_through(self) -> date:
         return date(self.year, self.month, self.reporting_days)
-    
+
+
 @dataclass(slots=True)
 class ActivityMetricsSummary:
     total_steps: int
@@ -66,16 +69,17 @@ class ActivityMetricsSummary:
     total_distance_km: float
 
     average_daily_distance_km: float
-    
+
     average_step_length_cm: float
-    
+
+
 @dataclass(slots=True)
 class SleepSession:
     bedtime: datetime
     wake_up: datetime
 
     records: list[SleepRecord]
-    
+
     time_in_bed_minutes: float
     time_asleep_minutes: float
 
@@ -86,19 +90,16 @@ class SleepSession:
 
     @property
     def sleep_efficiency_percent(self) -> float:
-        return (
-            self.time_asleep_minutes
-            / self.time_in_bed_minutes
-            * 100
-        )
-        
+        return self.time_asleep_minutes / self.time_in_bed_minutes * 100
+
     @property
     def reporting_date(self) -> date:
         if self.bedtime.hour >= 12:
             return self.bedtime.date() + timedelta(days=1)
 
         return self.bedtime.date()
-        
+
+
 @dataclass(slots=True)
 class SleepMonthlySummary:
     total_sessions: int

@@ -1,19 +1,12 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import BinaryIO
 
-from apple_health.models import Workout
-from apple_health.models import AppleHealthData
-from apple_health.models import DailyMetrics
-from apple_health.models import SleepRecord
-
 from apple_health.constants import APPLE_WATCH_SOURCE
-from apple_health.enums import APPLE_WORKOUT_TYPES
-from apple_health.enums import SleepStage
-from apple_health.enums import WorkoutType
-
+from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
+from apple_health.models import AppleHealthData, DailyMetrics, SleepRecord, Workout
 
 APPLE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
@@ -36,9 +29,7 @@ class AppleHealthParser:
                 record_type = element.attrib.get("type")
 
                 if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
-                    sleep_records.append(
-                        self._parse_sleep_record(element)
-                    )
+                    sleep_records.append(self._parse_sleep_record(element))
 
                 else:
                     self._parse_daily_metrics(
@@ -64,10 +55,7 @@ class AppleHealthParser:
     ) -> WorkoutType:
         if activity_type == "HKWorkoutActivityTypeCycling":
             for child in element:
-                if (
-                    child.tag == "MetadataEntry"
-                    and child.attrib.get("key") == "HKIndoorWorkout"
-                ):
+                if child.tag == "MetadataEntry" and child.attrib.get("key") == "HKIndoorWorkout":
                     if child.attrib.get("value") == "1":
                         return WorkoutType.INDOOR_CYCLING
 
@@ -79,7 +67,7 @@ class AppleHealthParser:
             activity_type,
             WorkoutType.OTHER,
         )
-    
+
     def _parse_workout(self, element: ET.Element) -> Workout:
         active_energy: float | None = None
         distance: float | None = None
@@ -119,7 +107,7 @@ class AppleHealthParser:
             active_energy_kcal=active_energy,
             distance_km=distance,
         )
-    
+
     def _parse_daily_metrics(
         self,
         element: ET.Element,
@@ -132,9 +120,9 @@ class AppleHealthParser:
             "HKQuantityTypeIdentifierDistanceWalkingRunning",
         ):
             return
-        
+
         source_name = element.attrib.get("sourceName", "")
-        
+
         if APPLE_WATCH_SOURCE not in source_name:
             return
 
@@ -147,27 +135,27 @@ class AppleHealthParser:
             day,
             DailyMetrics(date=day),
         )
-        
-        value = (element.attrib["value"])
+
+        value = element.attrib["value"]
 
         self._update_daily_metrics(
             metrics,
             record_type,
             value,
         )
-        
+
     def _update_daily_metrics(
         self,
         metrics: DailyMetrics,
         record_type: str,
         value: str,
     ) -> None:
-            if record_type == "HKQuantityTypeIdentifierStepCount":
-                metrics.steps += int(value)
+        if record_type == "HKQuantityTypeIdentifierStepCount":
+            metrics.steps += int(value)
 
-            elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
-                metrics.distance_km += float(value)
-                
+        elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
+            metrics.distance_km += float(value)
+
     def _parse_sleep_record(
         self,
         element: ET.Element,
@@ -175,13 +163,13 @@ class AppleHealthParser:
         start = datetime.strptime(
             element.attrib["startDate"],
             APPLE_DATE_FORMAT,
-)
+        )
 
         end = datetime.strptime(
             element.attrib["endDate"],
             APPLE_DATE_FORMAT,
         )
-        
+
         return SleepRecord(
             stage=self._parse_sleep_stage(element.attrib["value"]),
             source_name=element.attrib["sourceName"],
@@ -190,7 +178,7 @@ class AppleHealthParser:
             end=end,
             duration_minutes=(end - start).total_seconds() / 60,
         )
-        
+
     def _parse_sleep_stage(
         self,
         value: str,

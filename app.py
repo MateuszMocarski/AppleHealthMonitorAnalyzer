@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from datetime import date
+from pathlib import Path
 
+from apple_health.analyzer import SleepAnalyzer, WorkoutAnalyzer
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
-from apple_health.analyzer import SleepAnalyzer, WorkoutAnalyzer
 from apple_health.renderer import ConsoleRenderer
 
 
@@ -24,12 +24,12 @@ def main() -> None:
         "file",
         type=Path,
     )
-    
+
     parser.add_argument(
-    "-y",
-    "--year",
-    type=int,
-)
+        "-y",
+        "--year",
+        type=int,
+    )
 
     parser.add_argument(
         "-m",
@@ -37,7 +37,7 @@ def main() -> None:
         type=int,
         choices=range(1, 13),
     )
-    
+
     parser.add_argument(
         "--month-summary",
         action="store_true",
@@ -45,7 +45,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    
+
     if args.year is not None and args.month is None:
         parser.error("--year requires --month.")
 
@@ -60,16 +60,14 @@ def main() -> None:
                 apple_health_data = parser.parse()
 
                 sleep_analyzer = SleepAnalyzer(apple_health_data)
-                
+
                 analyzer = WorkoutAnalyzer(apple_health_data, sleep_analyzer)
                 renderer = ConsoleRenderer()
-                
-                
-                
+
                 today = date.today()
                 year = args.year if args.year is not None else today.year
                 month = args.month if args.month is not None else today.month
-                
+
                 monthly_summary = analyzer.summarize_month(year, month)
 
                 if args.month_summary:
