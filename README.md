@@ -49,10 +49,11 @@ independent verification, and AI-assisted interpretation.
 
 - Daily activity summaries
 - Monthly activity summaries
-- Steps, distance, active energy, exercise time, and stand hours
+- Steps, distance, active energy and exercise time
 - Workout aggregation by activity type
 - Daily and monthly workout statistics
 - Daily energy expenditure analysis (Basal Energy, Active Energy, TDEE)
+- Daily and monthly weight statistics
 
 ### Sleep Analysis
 
@@ -261,7 +262,7 @@ Represents a single workout session imported from Apple Health, including activi
 
 #### DailyMetrics
 
-Stores aggregated daily metrics such as total step count and walking/running distance.
+Stores aggregated daily metrics such as weight, total step count and walking/running distance.
 
 #### SleepRecord
 
@@ -293,6 +294,7 @@ flowchart TD
     G["Daily Activity"]
     F["Daily Sleep"]
     I["Daily Energy Expenditure"]
+    J["Weight"]
 
     H["Workout Details"]
 
@@ -304,6 +306,7 @@ flowchart TD
     E --> G
     E --> F
     E --> I
+    E --> J
     G --> H
 ```
 
