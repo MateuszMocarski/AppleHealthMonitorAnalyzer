@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import BinaryIO
 
-from apple_health.constants import APPLE_WATCH_SOURCE, APPLE_HEALTH_APP_SOURCE
+from apple_health.constants import APPLE_HEALTH_APP_SOURCE, APPLE_WATCH_SOURCE
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
 from apple_health.models import AppleHealthData, DailyMetrics, SleepRecord, Workout
 
@@ -116,7 +116,7 @@ class AppleHealthParser:
         record_type = element.attrib.get("type")
 
         record_source = ""
-        
+
         if record_type in (
             "HKQuantityTypeIdentifierStepCount",
             "HKQuantityTypeIdentifierDistanceWalkingRunning",
@@ -124,13 +124,11 @@ class AppleHealthParser:
             "HKQuantityTypeIdentifierBasalEnergyBurned",
         ):
             record_source = APPLE_WATCH_SOURCE
-        elif record_type in (
-            "HKQuantityTypeIdentifierBodyMass",
-        ):
+        elif record_type in ("HKQuantityTypeIdentifierBodyMass",):
             record_source = APPLE_HEALTH_APP_SOURCE
         else:
             return
-        
+
         source_name = element.attrib.get("sourceName", "")
 
         if record_source not in source_name:
@@ -171,7 +169,7 @@ class AppleHealthParser:
 
         elif record_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
             metrics.basal_energy += float(value)
-        
+
         elif record_type == "HKQuantityTypeIdentifierBodyMass":
             metrics.weight = float(value)
 

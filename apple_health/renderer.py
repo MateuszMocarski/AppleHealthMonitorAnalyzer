@@ -33,12 +33,12 @@ class ConsoleRenderer:
         )
 
         print()
-        
+
         if summary.weight > 0:
             print(f"Weight: {summary.weight}")
             print("-" * len(f"Weight: {summary.weight}"))
             print()
-        
+
         if not summary.activities:
             if summary.total_steps > 0:
                 print("No workouts.")
