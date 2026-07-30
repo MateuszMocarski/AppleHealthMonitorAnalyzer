@@ -34,7 +34,7 @@ class ConsoleRenderer:
 
         print()
 
-        if summary.weight > 0:
+        if summary.weight is not None:
             print(f"Weight: {summary.weight}")
             print("-" * len(f"Weight: {summary.weight}"))
             print()
@@ -186,6 +186,22 @@ class ConsoleRenderer:
                 activity,
                 reporting_days=summary.reporting_days,
             )
+
+        if summary.activity_metrics.measurements > 0:
+            weight_header = "Body weight:"
+            print(weight_header)
+            print("-" * len(str(weight_header)))
+            print(f"  Average weight:   {summary.activity_metrics.average_weight:.2f} kg")
+            print(f"  Start weight:     {summary.activity_metrics.start_weight:.2f} kg")
+            print(f"  End weight:       {summary.activity_metrics.end_weight:.2f} kg")
+            print(f"  Change:           {summary.activity_metrics.weight_change:+.2f} kg")
+            print(f"  Max weight:       {summary.activity_metrics.max_weight:.2f} kg")
+            print(f"  Min weight:       {summary.activity_metrics.min_weight:.2f} kg")
+            print(
+                f"  Measurements:     {summary.activity_metrics.measurements:.0f}"
+                f"/{summary.reporting_days} days"
+            )
+            print()
 
         print("Average energy expenditure")
         print("--------------------------")

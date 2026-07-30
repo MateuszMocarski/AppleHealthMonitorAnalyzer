@@ -145,6 +145,23 @@ class WorkoutAnalyzer:
 
         average_step_length_cm = 100000 * total_distance / total_steps
 
+        weights = [metrics.weight for metrics in monthly_metrics if metrics.weight is not None]
+
+        if weights:
+            min_weight = min(weights)
+            max_weight = max(weights)
+            start_weight = weights[0]
+            end_weight = weights[-1]
+            measurements = len(weights)
+            average_weight = sum(weights) / len(weights)
+        else:
+            min_weight = None
+            max_weight = None
+            start_weight = None
+            end_weight = None
+            measurements = 0
+            average_weight = None
+
         return ActivityMetricsSummary(
             total_steps=total_steps,
             average_daily_steps=average_daily_steps,
@@ -153,6 +170,12 @@ class WorkoutAnalyzer:
             average_step_length_cm=average_step_length_cm,
             average_basal_energy_kcal=average_basal_energy_kcal,
             average_active_energy_kcal=average_active_energy_kcal,
+            average_weight=average_weight,
+            start_weight=start_weight,
+            end_weight=end_weight,
+            max_weight=max_weight,
+            min_weight=min_weight,
+            measurements=measurements,
         )
 
     def _build_activity_summary(

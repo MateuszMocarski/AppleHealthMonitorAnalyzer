@@ -24,8 +24,6 @@ class ActivitySummary:
 class DailySummary:
     date: date
 
-    weight: float
-
     activities: list[ActivitySummary]
 
     total_duration_minutes: float
@@ -36,6 +34,8 @@ class DailySummary:
 
     active_energy_kcal: float
     basal_energy_kcal: float
+
+    weight: float | None = None
 
     sleep_session: SleepSession | None = None
 
@@ -85,9 +85,20 @@ class ActivityMetricsSummary:
 
     average_active_energy_kcal: float
 
+    average_weight: float
+    start_weight: float
+    end_weight: float
+    max_weight: float
+    min_weight: float
+    measurements: int
+
     @property
     def average_tdee_kcal(self) -> float:
         return self.average_active_energy_kcal + self.average_basal_energy_kcal
+
+    @property
+    def weight_change(self) -> float:
+        return self.end_weight - self.start_weight
 
 
 @dataclass(slots=True)
