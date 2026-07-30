@@ -23,6 +23,8 @@ class ActivitySummary:
 @dataclass(slots=True)
 class DailySummary:
     date: date
+    
+    weight: float
 
     activities: list[ActivitySummary]
 

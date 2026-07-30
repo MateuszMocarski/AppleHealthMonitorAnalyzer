@@ -72,6 +72,7 @@ class WorkoutAnalyzer:
         sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
         return DailySummary(
             date=day,
+            weight=metrics.weight,
             activities=activities,
             total_duration_minutes=sum(activity.duration_minutes for activity in activities),
             total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),

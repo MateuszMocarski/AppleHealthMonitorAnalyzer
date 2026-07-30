@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import BinaryIO
 
-from apple_health.constants import APPLE_WATCH_SOURCE
+from apple_health.constants import APPLE_WATCH_SOURCE, APPLE_HEALTH_APP_SOURCE
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
 from apple_health.models import AppleHealthData, DailyMetrics, SleepRecord, Workout
 
@@ -115,17 +115,25 @@ class AppleHealthParser:
     ) -> None:
         record_type = element.attrib.get("type")
 
-        if record_type not in (
+        record_source = ""
+        
+        if record_type in (
             "HKQuantityTypeIdentifierStepCount",
             "HKQuantityTypeIdentifierDistanceWalkingRunning",
             "HKQuantityTypeIdentifierActiveEnergyBurned",
             "HKQuantityTypeIdentifierBasalEnergyBurned",
         ):
+            record_source = APPLE_WATCH_SOURCE
+        elif record_type in (
+            "HKQuantityTypeIdentifierBodyMass",
+        ):
+            record_source = APPLE_HEALTH_APP_SOURCE
+        else:
             return
-
+        
         source_name = element.attrib.get("sourceName", "")
 
-        if APPLE_WATCH_SOURCE not in source_name:
+        if record_source not in source_name:
             return
 
         day = datetime.strptime(
@@ -163,6 +171,9 @@ class AppleHealthParser:
 
         elif record_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
             metrics.basal_energy += float(value)
+        
+        elif record_type == "HKQuantityTypeIdentifierBodyMass":
+            metrics.weight = float(value)
 
     def _parse_sleep_record(
         self,
