@@ -6,7 +6,13 @@ from typing import BinaryIO
 
 from apple_health.constants import APPLE_HEALTH_APP_SOURCE, APPLE_WATCH_SOURCE
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
-from apple_health.models import AppleHealthData, DailyMetrics, SleepRecord, Workout
+from apple_health.models import (
+    AppleHealthData,
+    DailyMetrics,
+    SleepRecord,
+    WeightMeasurement,
+    Workout,
+)
 
 APPLE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
@@ -115,8 +121,6 @@ class AppleHealthParser:
     ) -> None:
         record_type = element.attrib.get("type")
 
-        record_source = ""
-
         if record_type in (
             "HKQuantityTypeIdentifierStepCount",
             "HKQuantityTypeIdentifierDistanceWalkingRunning",
@@ -124,7 +128,7 @@ class AppleHealthParser:
             "HKQuantityTypeIdentifierBasalEnergyBurned",
         ):
             record_source = APPLE_WATCH_SOURCE
-        elif record_type in ("HKQuantityTypeIdentifierBodyMass",):
+        elif record_type == "HKQuantityTypeIdentifierBodyMass":
             record_source = APPLE_HEALTH_APP_SOURCE
         else:
             return
@@ -134,22 +138,37 @@ class AppleHealthParser:
         if record_source not in source_name:
             return
 
-        day = datetime.strptime(
+        recorded_at = datetime.strptime(
             element.attrib["startDate"],
             APPLE_DATE_FORMAT,
-        ).date()
+        )
+
+        day = recorded_at.date()
 
         metrics = daily_metrics.setdefault(
             day,
             DailyMetrics(date=day),
         )
 
-        value = element.attrib["value"]
+        if record_type == "HKQuantityTypeIdentifierBodyMass":
+            measurement = WeightMeasurement(
+                value=float(element.attrib["value"]),
+                timestamp=recorded_at,
+                is_user_entered=self._is_user_entered(element),
+            )
+
+            if metrics.weight is None or self._should_replace_weight(
+                current=metrics.weight,
+                candidate=measurement,
+            ):
+                metrics.weight = measurement
+
+            return
 
         self._update_daily_metrics(
             metrics,
             record_type,
-            value,
+            element.attrib["value"],
         )
 
     def _update_daily_metrics(
@@ -169,9 +188,6 @@ class AppleHealthParser:
 
         elif record_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
             metrics.basal_energy += float(value)
-
-        elif record_type == "HKQuantityTypeIdentifierBodyMass":
-            metrics.weight = float(value)
 
     def _parse_sleep_record(
         self,
@@ -221,3 +237,24 @@ class AppleHealthParser:
 
             case _:
                 return SleepStage.OTHER
+
+    def _is_user_entered(
+        self,
+        element: ET.Element,
+    ) -> bool:
+        return any(
+            child.tag == "MetadataEntry"
+            and child.attrib.get("key") == "HKWasUserEntered"
+            and child.attrib.get("value") == "1"
+            for child in element
+        )
+
+    def _should_replace_weight(
+        self,
+        current: WeightMeasurement,
+        candidate: WeightMeasurement,
+    ) -> bool:
+        if candidate.is_user_entered != current.is_user_entered:
+            return candidate.is_user_entered
+
+        return candidate.timestamp > current.timestamp

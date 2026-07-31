@@ -39,6 +39,11 @@ class ConsoleRenderer:
             print("-" * len(f"Weight: {summary.weight}"))
             print()
 
+        if summary.weight is None:
+            print("No weight measurement for that day")
+            print("----------------------------------")
+            print()
+
         if not summary.activities:
             if summary.total_steps > 0:
                 print("No workouts.")

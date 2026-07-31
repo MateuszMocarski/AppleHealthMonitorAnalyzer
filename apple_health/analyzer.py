@@ -66,13 +66,17 @@ class WorkoutAnalyzer:
         active_energy_kcal = metrics.active_energy
         basal_energy_kcal = metrics.basal_energy
 
+        weight = (
+            metrics.weight.value if metrics is not None and metrics.weight is not None else None
+        )
+
         total_steps = metrics.steps if metrics else 0
         total_distance_km = metrics.distance_km if metrics else 0.0
 
         sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
         return DailySummary(
             date=day,
-            weight=metrics.weight,
+            weight=weight,
             activities=activities,
             total_duration_minutes=sum(activity.duration_minutes for activity in activities),
             total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
@@ -145,7 +149,9 @@ class WorkoutAnalyzer:
 
         average_step_length_cm = 100000 * total_distance / total_steps
 
-        weights = [metrics.weight for metrics in monthly_metrics if metrics.weight is not None]
+        weights = [
+            metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None
+        ]
 
         if weights:
             min_weight = min(weights)
