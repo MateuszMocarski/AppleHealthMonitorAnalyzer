@@ -66,12 +66,17 @@ class WorkoutAnalyzer:
         active_energy_kcal = metrics.active_energy
         basal_energy_kcal = metrics.basal_energy
 
+        weight = (
+            metrics.weight.value if metrics is not None and metrics.weight is not None else None
+        )
+
         total_steps = metrics.steps if metrics else 0
         total_distance_km = metrics.distance_km if metrics else 0.0
 
         sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
         return DailySummary(
             date=day,
+            weight=weight,
             activities=activities,
             total_duration_minutes=sum(activity.duration_minutes for activity in activities),
             total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
@@ -144,6 +149,25 @@ class WorkoutAnalyzer:
 
         average_step_length_cm = 100000 * total_distance / total_steps
 
+        weights = [
+            metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None
+        ]
+
+        if weights:
+            min_weight = min(weights)
+            max_weight = max(weights)
+            start_weight = weights[0]
+            end_weight = weights[-1]
+            measurements = len(weights)
+            average_weight = sum(weights) / len(weights)
+        else:
+            min_weight = None
+            max_weight = None
+            start_weight = None
+            end_weight = None
+            measurements = 0
+            average_weight = None
+
         return ActivityMetricsSummary(
             total_steps=total_steps,
             average_daily_steps=average_daily_steps,
@@ -152,6 +176,12 @@ class WorkoutAnalyzer:
             average_step_length_cm=average_step_length_cm,
             average_basal_energy_kcal=average_basal_energy_kcal,
             average_active_energy_kcal=average_active_energy_kcal,
+            average_weight=average_weight,
+            start_weight=start_weight,
+            end_weight=end_weight,
+            max_weight=max_weight,
+            min_weight=min_weight,
+            measurements=measurements,
         )
 
     def _build_activity_summary(

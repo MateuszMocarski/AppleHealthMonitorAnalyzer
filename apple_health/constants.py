@@ -1,1 +1,2 @@
 APPLE_WATCH_SOURCE = "Apple\xa0Watch"
+APPLE_HEALTH_APP_SOURCE = "Zdrowie"

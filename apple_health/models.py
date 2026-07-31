@@ -45,6 +45,7 @@ class DailyMetrics:
 
     active_energy: float = 0.0
     basal_energy: float = 0.0
+    weight: WeightMeasurement | None = None
 
 
 @dataclass
@@ -52,3 +53,10 @@ class AppleHealthData:
     workouts: list[Workout]
     daily_metrics: list[DailyMetrics]
     sleep_records: list[SleepRecord]
+
+
+@dataclass(slots=True)
+class WeightMeasurement:
+    value: float
+    timestamp: datetime
+    is_user_entered: bool
