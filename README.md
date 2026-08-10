@@ -200,33 +200,33 @@ The diagram is organized into five logical layers, each with a clearly defined r
 
 #### AppleHealthImporter
 
-Responsible for loading the Apple Health export archive and extracting the XML data required for further processing.
-The importer is intentionally isolated from the parsing logic, allowing the parser to operate independently of the data source.
+    Responsible for loading the Apple Health export archive and extracting the XML data required for further processing.
+    The importer is intentionally isolated from the parsing logic, allowing the parser to operate independently of the data source.
 
 #### AppleHealthParser
 
-Parses Apple Health XML records and converts them into strongly typed domain objects.
-The parser performs data transformation only and does not calculate statistics or generate reports.
+    Parses Apple Health XML records and converts them into strongly typed domain objects.
+    The parser performs data transformation only and does not calculate statistics or generate reports.
 
 #### AppleHealthData (Domain Model Root)
 
-Acts as the central in-memory representation of imported health data.
-All subsequent analysis operates exclusively on this domain model, making it the single source of truth for the application.
+    Acts as the central in-memory representation of imported health data.
+    All subsequent analysis operates exclusively on this domain model, making it the single source of truth for the application.
 
 #### HealthAnalyzer
 
-Processes the domain model and calculates all statistics, summaries, and reporting metrics.
-All business logic is centralized here to ensure deterministic and reproducible reports.
+    Processes the domain model and calculates all statistics, summaries, and reporting metrics.
+    All business logic is centralized here to ensure deterministic and reproducible reports.
 
 #### Health Report
 
-Represents the complete report independently of its presentation.
-Separating report generation from rendering makes it easy to support additional output formats (e.g. HTML, Markdown or PDF) without modifying the analysis layer.
+    Represents the complete report independently of its presentation.
+    Separating report generation from rendering makes it easy to support additional output formats (e.g. HTML, Markdown or PDF) without modifying the analysis layer.
 
 #### ConsoleRenderer
 
-Transforms the report model into a human-readable console report.
-The renderer contains no business logic and is responsible solely for presentation.
+    Transforms the report model into a human-readable console report.
+    The renderer contains no business logic and is responsible solely for presentation.
 
 ### Architectural Principles
 
@@ -298,42 +298,35 @@ DailyMetrics "1" o-- "0..1" NutritionData
 ```
 #### AppleHealthData
 
-Acts as the root of the application's domain model.
-It aggregates all imported health data and serves as the single source of truth for every analysis performed by the application.
+    Acts as the root of the application's domain model.
+    It aggregates all imported health data and serves as the single source of truth for every analysis performed by the application.
 
 #### Workout
 
-Represents a single workout session imported from Apple Health.
-
-It contains the workout type, start and end time, duration, active energy expenditure and, where available, distance.
+    Represents a single workout session imported from Apple Health.
+    It contains the workout type, start and end time, duration, active energy expenditure and, where available, distance.
 
 #### DailyMetrics
 
-Represents aggregated metrics for a single calendar day.
-
-It stores step count, walking/running distance, active and basal energy expenditure, and optional body weight and nutrition data.
-
-Body weight and nutrition are represented by dedicated domain objects because they contain additional information and require their own parsing and aggregation rules.
+    Represents aggregated metrics for a single calendar day.
+    It stores step count, walking/running distance, active and basal energy expenditure, and optional body weight and nutrition data.
+    Body weight and nutrition are represented by dedicated domain objects because they contain additional information and require their own parsing and aggregation rules.
 
 #### WeightMeasurement
 
-Represents the body weight measurement selected for a given day.
-
-It stores the measured value, timestamp and whether the measurement was manually entered by the user.
-
-When multiple eligible body weight records exist for the same day, this information allows the parser to deterministically select the preferred measurement.
+    Represents the body weight measurement selected for a given day.
+    It stores the measured value, timestamp and whether the measurement was manually entered by the user.
+    When multiple eligible body weight records exist for the same day, this information allows the parser to deterministically select the preferred measurement.
 
 #### NutritionData
 
-Represents aggregated nutrition data for a single calendar day.
-
-It stores recorded energy intake together with protein, carbohydrate and fat consumption.
-
-Nutrition data is aggregated from individual Apple Health dietary records before being exposed to the analysis layer.
+    Represents aggregated nutrition data for a single calendar day.
+    It stores recorded energy intake together with protein, carbohydrate and fat consumption.
+    Nutrition data is aggregated from individual Apple Health dietary records before being exposed to the analysis layer.
 
 #### SleepRecord
 
-Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorded by Apple Health.
+    Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorded by Apple Health.
 
 ### Domain Model Principles
 
