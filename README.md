@@ -8,7 +8,6 @@
 - 📊 Deterministic and comparable reports
 - 🤖 AI-friendly report format
 
-
 ## Overview
 
 Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports.
@@ -18,7 +17,6 @@ The application parses Apple Health XML exports, reconstructs sleep sessions, ag
 Unlike the Apple Health application, which focuses on browsing recorded data, Apple Health Monitor Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
 
 The generated reports are intended to serve as a solid foundation for both personal analysis and AI-assisted interpretation, providing meaningful insights without requiring direct access to raw Apple Health data.
-
 
 ## Project Philosophy
 
@@ -34,7 +32,6 @@ Every design decision follows a simple principle:
 
 This philosophy makes the reports suitable for long-term trend analysis,
 independent verification, and AI-assisted interpretation.
-
 
 ## Features
 
@@ -91,7 +88,6 @@ independent verification, and AI-assisted interpretation.
 - Comparable reports across time
 - Extensible architecture
 
-
 ## Usage
 
 Run the application from the command line using the `import` command followed by the path to the Apple Health export archive.
@@ -142,7 +138,6 @@ Displays only the aggregated monthly statistics without the detailed daily repor
 
 The application processes the archive and generates a structured console report containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
 
-
 ## Project Architecture
 
 The application follows a layered architecture that separates data import, parsing, analysis, and presentation. Each component has a single responsibility, making the codebase easier to maintain, test, and extend.
@@ -150,48 +145,46 @@ The application follows a layered architecture that separates data import, parsi
 ```mermaid
 flowchart TD
 
-    %% ===== Nodes =====
+    %% ===== Nodes =====
 
-    A["📦 Apple Health Export<br/><b>export.zip</b>"]
+    A["📦 Apple Health Export<br/><b>export.zip</b>"]
 
-    B["AppleHealthImporter"]
-    C["AppleHealthParser"]
+    B["AppleHealthImporter"]
+    C["AppleHealthParser"]
 
-    D["AppleHealthData<br/><i>Domain Model Root</i>"]
+    D["AppleHealthData<br/><i>Domain Model Root</i>"]
 
-    E["HealthAnalyzer"]
+    E["HealthAnalyzer"]
 
-    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
+    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
 
-    G["ConsoleRenderer"]
+    G["ConsoleRenderer"]
 
-    H["📄 Console Report"]
+    H["📄 Console Report"]
 
+    %% ===== Flow =====
 
-    %% ===== Flow =====
+    A -->|"Load archive"| B
+    B -->|"Extract XML"| C
+    C -->|"Parse records"| D
+    D -->|"Analyze health data"| E
+    E -->|"Build report model"| F
+    F -->|"Render"| G
+    G --> H
 
-    A -->|"Load archive"| B
-    B -->|"Extract XML"| C
-    C -->|"Parse records"| D
-    D -->|"Analyze health data"| E
-    E -->|"Build report model"| F
-    F -->|"Render"| G
-    G --> H
+    %% ===== Colors =====
 
+    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
+    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
+    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
+    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
+    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
 
-    %% ===== Colors =====
-
-    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
-    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
-    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
-    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
-    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
-
-    class A,B,C import;
-    class D domain;
-    class E,F analysis;
-    class G presentation;
-    class H output;
+    class A,B,C import;
+    class D domain;
+    class E,F analysis;
+    class G presentation;
+    class H output;
 ```
 
 The diagram is organized into five logical layers, each with a clearly defined responsibility.
@@ -242,7 +235,6 @@ The renderer contains no business logic and is responsible solely for presentati
 - Deterministic report generation — the same input always produces the same output.
 - Report models are presentation-agnostic, allowing multiple output formats to reuse the same analysis results.
 
-
 ## Domain Model
 
 The domain model represents the in-memory structure of Apple Health data after it has been parsed from the XML export.
@@ -252,9 +244,9 @@ It serves as the single source of truth for all analyses and report generation.
 classDiagram
 
 class AppleHealthData {
-    +workouts
-    +dailyMetrics
-    +sleepRecords
+    +workouts
+    +dailyMetrics
+    +sleepRecords
 }
 
 class Workout
@@ -290,58 +282,60 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 - Domain model contains data only.
 - Business logic is implemented by analyzers rather than entities.
 
-
 ## Report Format
 
-The application generates a structured, human-readable console report that summarizes monthly activity, sleep statistics, and daily health metrics.
+The application generates a structured, human-readable console report that summarizes activity, energy expenditure, body weight, nutrition, sleep, and detailed daily health metrics.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
+
+### Monthly Report Structure
 
 ```mermaid
 flowchart TD
 
-    A["Monthly Report"]
-    B["General Activity"]
-    C["Sleep Summary"]
-    D["Activity Summary"]
+    A["Monthly Report"]
+    B["General Activity"]
+    C["Sleep Summary"]
+    D["Activity Summary"]
     E["Nutrition"]
     F["Body Weight"]
-    G["Energy expenditure"]
+    G["Energy Expenditure"]
     H["Daily Reports"]
-    
 
-    A --> B
-    A --> C
-    A --> D
-    A --> E
+    A --> B
+    A --> C
+    A --> D
+    A --> E
     A --> F
     A --> G
     A --> H
 
 ```
 
+### Daily Report Structure
+
 ```mermaid
 flowchart TD
 
-    A["Daily Report"]
-    B["Sleep"]
-    C["Activities"]
-    D["Weight"]
-    E["Energy Expenditure"] 
+    A["Daily Report"]
+    B["Sleep"]
+    C["Activities"]
+    D["Body Weight"]
+    E["Energy Expenditure"] 
     F["Nutrition"]
 
-    CC["Workout Details"]
+    CC["Workout Details"]
 
-    A --> B
-    A --> C
-    A --> D
-    A --> E
+    A --> B
+    A --> C
+    A --> D
+    A --> E
     A --> F
-    C --> CC
+    C --> CC
 
 ```
 
-### Report Structure
+### Reporting Areas
 
 The report combines aggregated monthly statistics with detailed daily breakdowns.
 
@@ -362,7 +356,6 @@ Key reporting areas include:
 - Monthly overview followed by progressively more detailed information.
 - Aggregated metrics presented before individual workout sessions.
 - Report generation remains independent of its presentation layer, allowing additional output formats to be added in the future.
-
 
 ## Report Interpretation
 
@@ -405,7 +398,6 @@ The application does not modify, interpolate or infer missing values.
 - For in-progress months, averages use completed reporting days only.
 - All calculations are deterministic — identical input data always produces identical results.
 
-
 ## AI Analysis
 
 The generated report is designed to be consumed not only by humans but also by Large Language Models (LLMs).
@@ -415,13 +407,11 @@ Prompt example:
 Analyze the following Apple Health report. Focus on long-term trends rather than isolated daily values. Identify improvements, regressions, unusual patterns, consistency of physical activity, sleep quality, recovery and possible lifestyle observations. Base your conclusions only on the provided report and clearly distinguish facts from assumptions.
 ```
 
-
 ## Future Development
 
 The project currently fulfills its original purpose.
 
 Future development may include additional health metrics when practical needs arise, as well as technical improvements focused on maintainability, code quality and architecture.
-
 
 ## License
 
