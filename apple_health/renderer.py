@@ -69,10 +69,13 @@ class ConsoleRenderer:
             print()
 
         self._render_day_enpenditures(summary)
-
         print()
+
         self._render_day_nutrition(summary)
 
+        if summary.calories_balance_kcal is not None:
+            print()
+            print(f"Calories balance: {summary.calories_balance_kcal:.0f} kcal")
         print("-" * 60)
         print()
 
@@ -233,6 +236,10 @@ class ConsoleRenderer:
         print(f"  Carbs:    {summary.activity_metrics.average_carbohydrates_g:.0f} g")
         print(f"  Fat:      {summary.activity_metrics.average_fat_g:.0f} g")
         print(f"  Calories: {summary.activity_metrics.average_calories_kcal:.0f} kcal")
+
+        if metrics.average_calories_balance is not None:
+            print()
+            print(f"Average calories balance: {metrics.average_calories_balance:.0f} kcal")
 
     def _render_daily_sleep(self, summary: DailySummary) -> None:
         if summary.sleep_session is None:
