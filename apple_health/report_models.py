@@ -52,6 +52,13 @@ class DailySummary:
     def tdee_kcal(self) -> float:
         return self.active_energy_kcal + self.basal_energy_kcal
 
+    @property
+    def calories_balance_kcal(self) -> float:
+        if self.nutrition is None:
+            return None
+
+        return self.nutrition.calories_kcal - self.tdee_kcal
+
 
 @dataclass(slots=True)
 class MonthlySummary:
@@ -106,6 +113,10 @@ class ActivityMetricsSummary:
     @property
     def weight_change(self) -> float:
         return self.end_weight - self.start_weight
+
+    @property
+    def average_calories_balance(self) -> float:
+        return self.average_calories_kcal - self.average_tdee_kcal
 
 
 @dataclass(slots=True)
