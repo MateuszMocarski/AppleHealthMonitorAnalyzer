@@ -25,8 +25,6 @@ class WorkoutAnalyzer:
         self._workouts_by_day = self._group_workouts_by_day()
         self._daily_metrics_by_day = self._group_daily_metrics_by_day()
 
-        self.last_data_day = max(metrics.date for metrics in self.daily_metrics)
-
         sleep_analyzer: SleepAnalyzer
         self.sleep_analyzer = sleep_analyzer
 
@@ -94,11 +92,12 @@ class WorkoutAnalyzer:
         self,
         year: int,
         month: int,
+        reporting_days: int,
     ) -> list[ActivitySummary]:
         monthly_workouts = [
             workout
             for day in self.workouts_by_day()
-            if day.year == year and day.month == month
+            if (day.year == year and day.month == month and day.day <= reporting_days)
             for workout in self.workouts_for_day(day)
         ]
 
@@ -129,11 +128,16 @@ class WorkoutAnalyzer:
         self,
         year: int,
         month: int,
+        reporting_days: int,
     ) -> ActivityMetricsSummary:
         monthly_metrics = [
             metrics
             for metrics in self.daily_metrics
-            if metrics.date.year == year and metrics.date.month == month
+            if (
+                metrics.date.year == year
+                and metrics.date.month == month
+                and metrics.date.day <= reporting_days
+            )
         ]
 
         total_steps = sum(metrics.steps for metrics in monthly_metrics)
@@ -161,19 +165,21 @@ class WorkoutAnalyzer:
             if metrics.nutrition is not None
         )
 
-        reporting_days = self._reporting_days(year, month)
+        average_daily_steps = total_steps / reporting_days if reporting_days else 0.0
+        average_daily_distance = total_distance / reporting_days if reporting_days else 0.0
+        average_basal_energy_kcal = (
+            total_basal_energy_kcal / reporting_days if reporting_days else 0.0
+        )
+        average_active_energy_kcal = (
+            total_active_energy_kcal / reporting_days if reporting_days else 0.0
+        )
 
-        average_daily_steps = total_steps / reporting_days
-        average_daily_distance = total_distance / reporting_days
-        average_basal_energy_kcal = total_basal_energy_kcal / reporting_days
-        average_active_energy_kcal = total_active_energy_kcal / reporting_days
+        average_step_length_cm = 100000 * total_distance / total_steps if total_steps else 0.0
 
-        average_step_length_cm = 100000 * total_distance / total_steps
-
-        average_protein_g = total_protein_g / reporting_days
-        average_carbohyrates_g = total_carbohydrates_g / reporting_days
-        average_fat_g = total_fat_g / reporting_days
-        average_calories_kcal = total_calories_kcal / reporting_days
+        average_protein_g = total_protein_g / reporting_days if reporting_days else 0.0
+        average_carbohyrates_g = total_carbohydrates_g / reporting_days if reporting_days else 0.0
+        average_fat_g = total_fat_g / reporting_days if reporting_days else 0.0
+        average_calories_kcal = total_calories_kcal / reporting_days if reporting_days else 0.0
 
         weights = [
             metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None
@@ -234,16 +240,30 @@ class WorkoutAnalyzer:
         year: int,
         month: int,
     ) -> list[DailySummary]:
+        reporting_days = self._reporting_days(year, month)
+
         daily_summaries = [self.summarize_day(day) for day in self._days_in_month(year, month)]
 
         return MonthlySummary(
             year=year,
             month=month,
-            reporting_days=self._reporting_days(year, month),
+            reporting_days=reporting_days,
             days=daily_summaries,
-            activities=self.summarize_month_activities(year, month),
-            activity_metrics=self.summarize_month_metrics(year, month),
-            sleep_summary=self.sleep_analyzer.summarize_month(year, month),
+            activities=self.summarize_month_activities(
+                year,
+                month,
+                reporting_days,
+            ),
+            activity_metrics=self.summarize_month_metrics(
+                year,
+                month,
+                reporting_days,
+            ),
+            sleep_summary=self.sleep_analyzer.summarize_month(
+                year,
+                month,
+                reporting_days,
+            ),
         )
 
     def _group_daily_metrics_by_day(self):
@@ -286,6 +306,8 @@ class SleepAnalyzer:
     ) -> None:
         self.sleep_records = health_data.sleep_records
         self.sleep_sessions = self.analyze()
+
+        self._primary_sleep_sessions_by_day = self._select_primary_sleep_sessions()
 
     def analyze(self) -> list[SleepSession]:
         watch_sleep_records = [
@@ -355,11 +377,16 @@ class SleepAnalyzer:
             awake_minutes=awake_minutes,
         )
 
-    def summarize_month(self, year: int, month: int) -> SleepMonthlySummary:
+    def summarize_month(
+        self,
+        year: int,
+        month: int,
+        reporting_days: int,
+    ) -> SleepMonthlySummary:
         sessions = [
             session
-            for session in self.sleep_sessions
-            if session.bedtime.year == year and session.bedtime.month == month
+            for day, session in self._primary_sleep_sessions_by_day.items()
+            if (day.year == year and day.month == month and day.day <= reporting_days)
         ]
 
         bedtimes = [s.bedtime.time() for s in sessions]
@@ -397,11 +424,7 @@ class SleepAnalyzer:
         self,
         day: date,
     ) -> SleepSession | None:
-        for session in self.sleep_sessions:
-            if session.reporting_date == day:
-                return session
-
-        return None
+        return self._primary_sleep_sessions_by_day.get(day)
 
     @staticmethod
     def _average_time(times: list[time]) -> time:
@@ -446,3 +469,17 @@ class SleepAnalyzer:
             raise ValueError("Cannot calculate average of an empty collection.")
 
         return sum(values) / len(values)
+
+    def _select_primary_sleep_sessions(
+        self,
+    ) -> dict[date, SleepSession]:
+        primary_sessions: dict[date, SleepSession] = {}
+
+        for session in self.sleep_sessions:
+            day = session.reporting_date
+            current = primary_sessions.get(day)
+
+            if current is None or session.time_asleep_minutes > current.time_asleep_minutes:
+                primary_sessions[day] = session
+
+        return primary_sessions
