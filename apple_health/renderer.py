@@ -34,16 +34,6 @@ class ConsoleRenderer:
 
         print()
 
-        if summary.weight is not None:
-            print(f"Weight: {summary.weight}")
-            print("-" * len(f"Weight: {summary.weight}"))
-            print()
-
-        if summary.weight is None:
-            print("No weight measurement for that day")
-            print("----------------------------------")
-            print()
-
         if not summary.activities:
             if summary.total_steps > 0:
                 print("No workouts.")
@@ -67,6 +57,16 @@ class ConsoleRenderer:
         print(f"  Duration: {self._format_minutes(summary.total_duration_minutes)}")
         print(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
         print()
+        
+        if summary.weight is not None:
+            print(f"Weight: {summary.weight}")
+            print("-" * len(f"Weight: {summary.weight}"))
+            print()
+
+        if summary.weight is None:
+            print("No weight measurement for that day")
+            print("----------------------------------")
+            print()
 
         self._render_day_enpenditures(summary)
 
@@ -173,13 +173,11 @@ class ConsoleRenderer:
 
         print("Apple Health Monthly Report")
         print(f"{calendar.month_name[summary.month]} {summary.year}")
-        date_through = (
-            f"Data available through: {summary.data_through} "
-            "- only full days are used when calculating averages"
-        )
+        date_through = (f"Data available through: {summary.data_through}")
         print(date_through)
         print("=" * len(date_through))
-
+        print()
+        
         metrics = summary.activity_metrics
 
         self._render_general_activity(
@@ -198,7 +196,6 @@ class ConsoleRenderer:
 
         print("Workouts")
         print("--------")
-        print()
 
         for activity in summary.activities:
             self._render_activity(

@@ -13,7 +13,7 @@
 
 Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports.
 
-The application parses Apple Health XML exports, reconstructs sleep sessions, aggregates daily activity metrics, and generates comprehensive reports designed for long-term health and fitness tracking.
+The application parses Apple Health XML exports, reconstructs sleep sessions, aggregates daily activity, energy, body weight, and nutrition metrics, and generates comprehensive reports designed for long-term health and fitness tracking.
 
 Unlike the Apple Health application, which focuses on browsing recorded data, Apple Health Monitor Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
 
@@ -53,7 +53,21 @@ independent verification, and AI-assisted interpretation.
 - Workout aggregation by activity type
 - Daily and monthly workout statistics
 - Daily energy expenditure analysis (Basal Energy, Active Energy, TDEE)
-- Daily and monthly weight statistics
+
+### Body Weight Analysis
+
+- Daily body weight tracking
+- Monthly average, start, end, minimum and maximum weight
+- Monthly body weight change
+- Measurement coverage across the reporting period
+
+### Nutrition Analysis
+
+- Daily nutrition summaries
+- Monthly nutrition summaries
+- Energy intake
+- Protein, carbohydrates and fat tracking
+- Daily averages based on completed reporting days
 
 ### Sleep Analysis
 
@@ -126,7 +140,7 @@ Displays only the aggregated monthly statistics without the detailed daily repor
 
 > **Note:** `--year` cannot be used without `--month`.
 
-The application processes the archive and generates a structured console report containing monthly summaries, activity statistics and sleep analysis.
+The application processes the archive and generates a structured console report containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
 
 
 ## Project Architecture
@@ -136,48 +150,48 @@ The application follows a layered architecture that separates data import, parsi
 ```mermaid
 flowchart TD
 
-    %% ===== Nodes =====
+    %% ===== Nodes =====
 
-    A["📦 Apple Health Export<br/><b>export.zip</b>"]
+    A["📦 Apple Health Export<br/><b>export.zip</b>"]
 
-    B["AppleHealthImporter"]
-    C["AppleHealthParser"]
+    B["AppleHealthImporter"]
+    C["AppleHealthParser"]
 
-    D["AppleHealthData<br/><i>Domain Model Root</i>"]
+    D["AppleHealthData<br/><i>Domain Model Root</i>"]
 
-    E["HealthAnalyzer"]
+    E["HealthAnalyzer"]
 
-    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
+    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
 
-    G["ConsoleRenderer"]
+    G["ConsoleRenderer"]
 
-    H["📄 Console Report"]
-
-
-    %% ===== Flow =====
-
-    A -->|"Load archive"| B
-    B -->|"Extract XML"| C
-    C -->|"Parse records"| D
-    D -->|"Analyze health data"| E
-    E -->|"Build report model"| F
-    F -->|"Render"| G
-    G --> H
+    H["📄 Console Report"]
 
 
-    %% ===== Colors =====
+    %% ===== Flow =====
 
-    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
-    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
-    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
-    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
-    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
+    A -->|"Load archive"| B
+    B -->|"Extract XML"| C
+    C -->|"Parse records"| D
+    D -->|"Analyze health data"| E
+    E -->|"Build report model"| F
+    F -->|"Render"| G
+    G --> H
 
-    class A,B,C import;
-    class D domain;
-    class E,F analysis;
-    class G presentation;
-    class H output;
+
+    %% ===== Colors =====
+
+    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
+    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
+    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
+    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
+    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
+
+    class A,B,C import;
+    class D domain;
+    class E,F analysis;
+    class G presentation;
+    class H output;
 ```
 
 The diagram is organized into five logical layers, each with a clearly defined responsibility.
@@ -238,9 +252,9 @@ It serves as the single source of truth for all analyses and report generation.
 classDiagram
 
 class AppleHealthData {
-    +workouts
-    +dailyMetrics
-    +sleepRecords
+    +workouts
+    +dailyMetrics
+    +sleepRecords
 }
 
 class Workout
@@ -262,7 +276,7 @@ Represents a single workout session imported from Apple Health, including activi
 
 #### DailyMetrics
 
-Stores aggregated daily metrics such as weight, total step count and walking/running distance.
+Stores aggregated daily metrics such as body weight, nutrition, total step count, walking/running distance and energy expenditure.
 
 #### SleepRecord
 
@@ -286,38 +300,60 @@ The report is organized hierarchically, progressing from high-level monthly summ
 ```mermaid
 flowchart TD
 
-    A["Monthly Report"]
-    B["General Activity"]
-    C["Sleep Summary"]
-    D["Activity Summary"]
-    E["Daily Reports"]
-    G["Daily Activity"]
-    F["Daily Sleep"]
-    I["Daily Energy Expenditure"]
-    J["Weight"]
+    A["Monthly Report"]
+    B["General Activity"]
+    C["Sleep Summary"]
+    D["Activity Summary"]
+    E["Nutrition"]
+    F["Body Weight"]
+    G["Energy expenditure"]
+    H["Daily Reports"]
+    
 
-    H["Workout Details"]
+    A --> B
+    A --> C
+    A --> D
+    A --> E
+    A --> F
+    A --> G
+    A --> H
 
-    A --> B
-    A --> C
-    A --> D
-    A --> E
+```
 
-    E --> G
-    E --> F
-    E --> I
-    E --> J
-    G --> H
+```mermaid
+flowchart TD
+
+    A["Daily Report"]
+    B["Sleep"]
+    C["Activities"]
+    D["Weight"]
+    E["Energy Expenditure"] 
+    F["Nutrition"]
+
+    CC["Workout Details"]
+
+    A --> B
+    A --> C
+    A --> D
+    A --> E
+    A --> F
+    C --> CC
+
 ```
 
 ### Report Structure
 
-The report consists of four major sections:
+The report combines aggregated monthly statistics with detailed daily breakdowns.
 
-- **Monthly Overview** – reporting period and aggregated statistics.
+Key reporting areas include:
+
 - **General Activity** – steps, walking/running distance and average step length.
-- **Sleep Summary** – monthly sleep statistics, average bedtime, wake-up time and sleep efficiency.
-- **Daily Reports** – detailed day-by-day breakdown of activities and sleep sessions.
+- **Workout Statistics** – recorded workout sessions, duration, energy and distance.
+- **Energy Expenditure** – basal energy, active energy and TDEE.
+- **Body Weight** – daily measurements and monthly weight statistics.
+- **Nutrition** – daily and monthly energy intake and macronutrient summaries.
+- **Sleep Summary** – sleep duration, stages, efficiency, bedtime and wake-up statistics.
+- **Daily Reports** – day-by-day sleep, activity, workout, energy, body weight and nutrition data.
 
 ### Design Goals
 
@@ -350,6 +386,12 @@ Daily summaries aggregate all available records for a given calendar day.
 
 If Apple Health contains incomplete or missing data, the report reflects the available information without attempting to estimate missing values.
 
+### Nutrition
+
+Nutrition values represent data recorded in Apple Health and are not inferred from other metrics.
+
+For in-progress months, daily nutrition averages are calculated using completed reporting days only. The current day is excluded because its nutrition data may still be incomplete.
+
 ### Data Quality
 
 The accuracy of every metric depends entirely on the quality of the exported Apple Health data.
@@ -360,6 +402,7 @@ The application does not modify, interpolate or infer missing values.
 
 - The report is designed for long-term trend analysis rather than day-to-day fluctuations.
 - Missing data is reported as missing whenever possible.
+- For in-progress months, averages use completed reporting days only.
 - All calculations are deterministic — identical input data always produces identical results.
 
 
@@ -375,9 +418,9 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 ## Future Development
 
-The project currently fulfills its original purpose and is considered feature-complete.
+The project currently fulfills its original purpose.
 
-Future updates, if any, will primarily focus on technical improvements, maintainability, and code quality rather than new business functionality.
+Future development may include additional health metrics when practical needs arise, as well as technical improvements focused on maintainability, code quality and architecture.
 
 
 ## License
