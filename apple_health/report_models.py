@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 from apple_health.enums import WorkoutType
-from apple_health.models import SleepRecord
+from apple_health.models import NutritionData, SleepRecord
 
 
 @dataclass(slots=True)
@@ -36,6 +36,8 @@ class DailySummary:
     basal_energy_kcal: float
 
     weight: float | None = None
+
+    nutrition: NutritionData | None = None
 
     sleep_session: SleepSession | None = None
 
@@ -91,6 +93,11 @@ class ActivityMetricsSummary:
     max_weight: float
     min_weight: float
     measurements: int
+
+    average_protein_g: float
+    average_carbohydrates_g: float
+    average_fat_g: float
+    average_calories_kcal: float
 
     @property
     def average_tdee_kcal(self) -> float:

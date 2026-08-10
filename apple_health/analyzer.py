@@ -63,12 +63,14 @@ class WorkoutAnalyzer:
 
         metrics = self.daily_metrics_for_day(day)
 
-        active_energy_kcal = metrics.active_energy
-        basal_energy_kcal = metrics.basal_energy
+        active_energy_kcal = metrics.active_energy if metrics else 0.0
+        basal_energy_kcal = metrics.basal_energy if metrics else 0.0
 
         weight = (
             metrics.weight.value if metrics is not None and metrics.weight is not None else None
         )
+
+        nutrition = metrics.nutrition if metrics else None
 
         total_steps = metrics.steps if metrics else 0
         total_distance_km = metrics.distance_km if metrics else 0.0
@@ -77,6 +79,7 @@ class WorkoutAnalyzer:
         return DailySummary(
             date=day,
             weight=weight,
+            nutrition=nutrition,
             activities=activities,
             total_duration_minutes=sum(activity.duration_minutes for activity in activities),
             total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
@@ -132,13 +135,31 @@ class WorkoutAnalyzer:
             for metrics in self.daily_metrics
             if metrics.date.year == year and metrics.date.month == month
         ]
-        total_steps = sum(metrics.steps for metrics in monthly_metrics)
 
+        total_steps = sum(metrics.steps for metrics in monthly_metrics)
         total_distance = sum(metrics.distance_km for metrics in monthly_metrics)
 
         total_basal_energy_kcal = sum(metrics.basal_energy for metrics in monthly_metrics)
-
         total_active_energy_kcal = sum(metrics.active_energy for metrics in monthly_metrics)
+
+        total_protein_g = sum(
+            metrics.nutrition.protein_g
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None
+        )
+        total_carbohydrates_g = sum(
+            metrics.nutrition.carbohydrates_g
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None
+        )
+        total_fat_g = sum(
+            metrics.nutrition.fat_g for metrics in monthly_metrics if metrics.nutrition is not None
+        )
+        total_calories_kcal = sum(
+            metrics.nutrition.calories_kcal
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None
+        )
 
         reporting_days = self._reporting_days(year, month)
 
@@ -148,6 +169,11 @@ class WorkoutAnalyzer:
         average_active_energy_kcal = total_active_energy_kcal / reporting_days
 
         average_step_length_cm = 100000 * total_distance / total_steps
+
+        average_protein_g = total_protein_g / reporting_days
+        average_carbohyrates_g = total_carbohydrates_g / reporting_days
+        average_fat_g = total_fat_g / reporting_days
+        average_calories_kcal = total_calories_kcal / reporting_days
 
         weights = [
             metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None
@@ -182,6 +208,10 @@ class WorkoutAnalyzer:
             max_weight=max_weight,
             min_weight=min_weight,
             measurements=measurements,
+            average_protein_g=average_protein_g,
+            average_carbohydrates_g=average_carbohyrates_g,
+            average_fat_g=average_fat_g,
+            average_calories_kcal=average_calories_kcal,
         )
 
     def _build_activity_summary(
@@ -229,10 +259,15 @@ class WorkoutAnalyzer:
         year: int,
         month: int,
     ) -> int:
-        if year == self.last_data_day.year and month == self.last_data_day.month:
-            return self.last_data_day.day
+        today = date.today()
 
-        return monthrange(year, month)[1]
+        if (year, month) < (today.year, today.month):
+            return monthrange(year, month)[1]
+
+        if (year, month) == (today.year, today.month):
+            return today.day - 1
+
+        return 0
 
     def _days_in_month(
         self,

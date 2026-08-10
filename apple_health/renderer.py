@@ -70,6 +70,9 @@ class ConsoleRenderer:
 
         self._render_day_enpenditures(summary)
 
+        print()
+        self._render_day_nutrition(summary)
+
         print("-" * 60)
         print()
 
@@ -126,6 +129,14 @@ class ConsoleRenderer:
         print(f"  Active energy:  {summary.active_energy_kcal:.0f} kcal")
         print(f"  TDEE:           {summary.tdee_kcal:.0f} kcal")
 
+    def _render_day_nutrition(self, summary: DailySummary) -> None:
+        print("Daily nutrition")
+        print("---------------")
+        print(f"  Protein:   {summary.nutrition.protein_g:.0f} g")
+        print(f"  Carbs:     {summary.nutrition.carbohydrates_g:.0f} g")
+        print(f"  Fat:       {summary.nutrition.fat_g:.0f} g")
+        print(f"  Calories:  {summary.nutrition.calories_kcal:.0f} kcal")
+
     def _render_general_activity(
         self,
         total_steps: int,
@@ -162,7 +173,10 @@ class ConsoleRenderer:
 
         print("Apple Health Monthly Report")
         print(f"{calendar.month_name[summary.month]} {summary.year}")
-        date_through = f"Data available through: {summary.data_through}"
+        date_through = (
+            f"Data available through: {summary.data_through} "
+            "- only full days are used when calculating averages"
+        )
         print(date_through)
         print("=" * len(date_through))
 
@@ -213,6 +227,15 @@ class ConsoleRenderer:
         print(f"  Basal energy:   {summary.activity_metrics.average_basal_energy_kcal:.0f} kcal")
         print(f"  Active energy:  {summary.activity_metrics.average_active_energy_kcal:.0f} kcal")
         print(f"  TDEE:           {summary.activity_metrics.average_tdee_kcal:.0f} kcal")
+
+        print()
+
+        print("Average nutrition")
+        print("-----------------")
+        print(f"  Protein:  {summary.activity_metrics.average_protein_g:.0f} g")
+        print(f"  Carbs:    {summary.activity_metrics.average_carbohydrates_g:.0f} g")
+        print(f"  Fat:      {summary.activity_metrics.average_fat_g:.0f} g")
+        print(f"  Calories: {summary.activity_metrics.average_calories_kcal:.0f} kcal")
 
     def _render_daily_sleep(self, summary: DailySummary) -> None:
         if summary.sleep_session is None:
