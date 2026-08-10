@@ -46,6 +46,7 @@ class DailyMetrics:
     active_energy: float = 0.0
     basal_energy: float = 0.0
     weight: WeightMeasurement | None = None
+    nutrition: NutritionData | None = None
 
 
 @dataclass
@@ -60,3 +61,11 @@ class WeightMeasurement:
     value: float
     timestamp: datetime
     is_user_entered: bool
+
+
+@dataclass(slots=True)
+class NutritionData:
+    calories_kcal: float = 0.0
+    protein_g: float = 0.0
+    carbohydrates_g: float = 0.0
+    fat_g: float = 0.0

@@ -9,6 +9,7 @@ from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
 from apple_health.models import (
     AppleHealthData,
     DailyMetrics,
+    NutritionData,
     SleepRecord,
     WeightMeasurement,
     Workout,
@@ -128,7 +129,13 @@ class AppleHealthParser:
             "HKQuantityTypeIdentifierBasalEnergyBurned",
         ):
             record_source = APPLE_WATCH_SOURCE
-        elif record_type == "HKQuantityTypeIdentifierBodyMass":
+        elif record_type in (
+            "HKQuantityTypeIdentifierBodyMass",
+            "HKQuantityTypeIdentifierDietaryEnergyConsumed",
+            "HKQuantityTypeIdentifierDietaryProtein",
+            "HKQuantityTypeIdentifierDietaryCarbohydrates",
+            "HKQuantityTypeIdentifierDietaryFatTotal",
+        ):
             record_source = APPLE_HEALTH_APP_SOURCE
         else:
             return
@@ -162,6 +169,23 @@ class AppleHealthParser:
                 candidate=measurement,
             ):
                 metrics.weight = measurement
+
+            return
+
+        if record_type in (
+            "HKQuantityTypeIdentifierDietaryEnergyConsumed",
+            "HKQuantityTypeIdentifierDietaryProtein",
+            "HKQuantityTypeIdentifierDietaryCarbohydrates",
+            "HKQuantityTypeIdentifierDietaryFatTotal",
+        ):
+            if metrics.nutrition is None:
+                metrics.nutrition = NutritionData()
+
+            self._update_nutrition_data(
+                metrics.nutrition,
+                record_type,
+                element.attrib["value"],
+            )
 
             return
 
@@ -258,3 +282,21 @@ class AppleHealthParser:
             return candidate.is_user_entered
 
         return candidate.timestamp > current.timestamp
+
+    def _update_nutrition_data(
+        self,
+        nutrition: NutritionData,
+        record_type: str,
+        value: str,
+    ) -> None:
+        if record_type == "HKQuantityTypeIdentifierDietaryEnergyConsumed":
+            nutrition.calories_kcal += float(value)
+
+        elif record_type == "HKQuantityTypeIdentifierDietaryProtein":
+            nutrition.protein_g += float(value)
+
+        elif record_type == "HKQuantityTypeIdentifierDietaryCarbohydrates":
+            nutrition.carbohydrates_g += float(value)
+
+        elif record_type == "HKQuantityTypeIdentifierDietaryFatTotal":
+            nutrition.fat_g += float(value)
