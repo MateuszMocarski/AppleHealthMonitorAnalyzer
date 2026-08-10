@@ -65,6 +65,7 @@ independent verification, and AI-assisted interpretation.
 - Energy intake
 - Protein, carbohydrates and fat tracking
 - Daily averages based on completed reporting days
+- Daily and monthly calorie balance based on energy intake and TDEE
 
 ### Sleep Analysis
 
@@ -145,46 +146,46 @@ The application follows a layered architecture that separates data import, parsi
 ```mermaid
 flowchart TD
 
-    %% ===== Nodes =====
+    %% ===== Nodes =====
 
-    A["📦 Apple Health Export<br/><b>export.zip</b>"]
+    A["📦 Apple Health Export<br/><b>export.zip</b>"]
 
-    B["AppleHealthImporter"]
-    C["AppleHealthParser"]
+    B["AppleHealthImporter"]
+    C["AppleHealthParser"]
 
-    D["AppleHealthData<br/><i>Domain Model Root</i>"]
+    D["AppleHealthData<br/><i>Domain Model Root</i>"]
 
-    E["HealthAnalyzer"]
+    E["HealthAnalyzer"]
 
-    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
+    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
 
-    G["ConsoleRenderer"]
+    G["ConsoleRenderer"]
 
-    H["📄 Console Report"]
+    H["📄 Console Report"]
 
-    %% ===== Flow =====
+    %% ===== Flow =====
 
-    A -->|"Load archive"| B
-    B -->|"Extract XML"| C
-    C -->|"Parse records"| D
-    D -->|"Analyze health data"| E
-    E -->|"Build report model"| F
-    F -->|"Render"| G
-    G --> H
+    A -->|"Load archive"| B
+    B -->|"Extract XML"| C
+    C -->|"Parse records"| D
+    D -->|"Analyze health data"| E
+    E -->|"Build report model"| F
+    F -->|"Render"| G
+    G --> H
 
-    %% ===== Colors =====
+    %% ===== Colors =====
 
-    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
-    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
-    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
-    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
-    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
+    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
+    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
+    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
+    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
+    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
 
-    class A,B,C import;
-    class D domain;
-    class E,F analysis;
-    class G presentation;
-    class H output;
+    class A,B,C import;
+    class D domain;
+    class E,F analysis;
+    class G presentation;
+    class H output;
 ```
 
 The diagram is organized into five logical layers, each with a clearly defined responsibility.
@@ -249,13 +250,51 @@ class AppleHealthData {
     +sleepRecords
 }
 
-class Workout
-class DailyMetrics
-class SleepRecord
+class Workout {
+    +activityType
+    +start
+    +end
+    +duration
+    +distance
+    +activeEnergy
+}
+
+class DailyMetrics {
+    +date
+    +steps
+    +distance
+    +activeEnergy
+    +basalEnergy
+    +weight
+    +nutrition
+}
+
+class WeightMeasurement {
+    +value
+    +timestamp
+    +isUserEntered
+}
+
+class NutritionData {
+    +caloriesKcal
+    +proteinG
+    +carbohydratesG
+    +fatG
+}
+
+class SleepRecord {
+    +start
+    +end
+    +stage
+    +sourceName
+}
 
 AppleHealthData "1" o-- "*" Workout
 AppleHealthData "1" o-- "*" DailyMetrics
 AppleHealthData "1" o-- "*" SleepRecord
+
+DailyMetrics "1" o-- "0..1" WeightMeasurement
+DailyMetrics "1" o-- "0..1" NutritionData
 ```
 #### AppleHealthData
 
@@ -264,11 +303,33 @@ It aggregates all imported health data and serves as the single source of truth 
 
 #### Workout
 
-Represents a single workout session imported from Apple Health, including activity type, timing, duration, distance and energy expenditure.
+Represents a single workout session imported from Apple Health.
+
+It contains the workout type, start and end time, duration, active energy expenditure and, where available, distance.
 
 #### DailyMetrics
 
-Stores aggregated daily metrics such as body weight, nutrition, total step count, walking/running distance and energy expenditure.
+Represents aggregated metrics for a single calendar day.
+
+It stores step count, walking/running distance, active and basal energy expenditure, and optional body weight and nutrition data.
+
+Body weight and nutrition are represented by dedicated domain objects because they contain additional information and require their own parsing and aggregation rules.
+
+#### WeightMeasurement
+
+Represents the body weight measurement selected for a given day.
+
+It stores the measured value, timestamp and whether the measurement was manually entered by the user.
+
+When multiple eligible body weight records exist for the same day, this information allows the parser to deterministically select the preferred measurement.
+
+#### NutritionData
+
+Represents aggregated nutrition data for a single calendar day.
+
+It stores recorded energy intake together with protein, carbohydrate and fat consumption.
+
+Nutrition data is aggregated from individual Apple Health dietary records before being exposed to the analysis layer.
 
 #### SleepRecord
 
@@ -278,13 +339,14 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 
 - XML-independent domain representation.
 - Strongly typed domain objects.
-- Single source of truth (AppleHealthData).
-- Domain model contains data only.
-- Business logic is implemented by analyzers rather than entities.
+- AppleHealthData acts as the single source of truth for parsed health data.
+- Domain objects contain data rather than reporting or presentation logic.
+- Related daily metrics are grouped into dedicated domain objects where appropriate.
+- Business rules, aggregation and report generation are implemented by analyzers rather than domain entities.
 
 ## Report Format
 
-The application generates a structured, human-readable console report that summarizes activity, energy expenditure, body weight, nutrition, sleep, and detailed daily health metrics.
+The application generates a structured, human-readable console report that summarizes activity, energy expenditure, calorie balance, body weight, nutrition, sleep, and detailed daily health metrics.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
 
@@ -293,22 +355,24 @@ The report is organized hierarchically, progressing from high-level monthly summ
 ```mermaid
 flowchart TD
 
-    A["Monthly Report"]
-    B["General Activity"]
-    C["Sleep Summary"]
-    D["Activity Summary"]
-    E["Nutrition"]
-    F["Body Weight"]
-    G["Energy Expenditure"]
-    H["Daily Reports"]
+    A["Monthly Report"]
+    B["General Activity"]
+    C["Sleep Summary"]
+    D["Activity Summary"]
+    E["Nutrition"]
+    F["Body Weight"]
+    G["Energy Expenditure"]
+    H["Calorie Balance"]
+    I["Daily Reports"]
 
-    A --> B
-    A --> C
-    A --> D
-    A --> E
-    A --> F
-    A --> G
-    A --> H
+    A --> B
+    A --> C
+    A --> D
+    A --> E
+    A --> F
+    A --> G
+    A --> H
+    A --> I
 
 ```
 
@@ -317,21 +381,23 @@ flowchart TD
 ```mermaid
 flowchart TD
 
-    A["Daily Report"]
-    B["Sleep"]
-    C["Activities"]
-    D["Body Weight"]
-    E["Energy Expenditure"] 
-    F["Nutrition"]
+    A["Daily Report"]
+    B["Sleep"]
+    C["Activities"]
+    D["Body Weight"]
+    E["Energy Expenditure"] 
+    F["Nutrition"]
+    G["Calorie Balance"]
 
-    CC["Workout Details"]
+    CC["Workout Details"]
 
-    A --> B
-    A --> C
-    A --> D
-    A --> E
-    A --> F
-    C --> CC
+    A --> B
+    A --> C
+    C --> CC
+    A --> D
+    A --> E
+    A --> F
+    A --> G
 
 ```
 
