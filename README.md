@@ -73,6 +73,8 @@ independent verification, and AI-assisted interpretation.
 - Sleep stage aggregation
 - Sleep duration and efficiency
 - Average bedtime and wake-up time
+- Configurable daily sleep scoring
+- Monthly sleep score averages and component breakdown
 - Monthly sleep statistics
 
 ### Reporting
@@ -146,46 +148,46 @@ The application follows a layered architecture that separates data import, parsi
 ```mermaid
 flowchart TD
 
-    %% ===== Nodes =====
+    %% ===== Nodes =====
 
-    A["📦 Apple Health Export<br/><b>export.zip</b>"]
+    A["📦 Apple Health Export<br/><b>export.zip</b>"]
 
-    B["AppleHealthImporter"]
-    C["AppleHealthParser"]
+    B["AppleHealthImporter"]
+    C["AppleHealthParser"]
 
-    D["AppleHealthData<br/><i>Domain Model Root</i>"]
+    D["AppleHealthData<br/><i>Domain Model Root</i>"]
 
-    E["HealthAnalyzer"]
+    E["HealthAnalyzer"]
 
-    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
+    F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
 
-    G["ConsoleRenderer"]
+    G["ConsoleRenderer"]
 
-    H["📄 Console Report"]
+    H["📄 Console Report"]
 
-    %% ===== Flow =====
+    %% ===== Flow =====
 
-    A -->|"Load archive"| B
-    B -->|"Extract XML"| C
-    C -->|"Parse records"| D
-    D -->|"Analyze health data"| E
-    E -->|"Build report model"| F
-    F -->|"Render"| G
-    G --> H
+    A -->|"Load archive"| B
+    B -->|"Extract XML"| C
+    C -->|"Parse records"| D
+    D -->|"Analyze health data"| E
+    E -->|"Build report model"| F
+    F -->|"Render"| G
+    G --> H
 
-    %% ===== Colors =====
+    %% ===== Colors =====
 
-    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
-    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
-    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
-    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
-    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
+    classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
+    classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
+    classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
+    classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
+    classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
 
-    class A,B,C import;
-    class D domain;
-    class E,F analysis;
-    class G presentation;
-    class H output;
+    class A,B,C import;
+    class D domain;
+    class E,F analysis;
+    class G presentation;
+    class H output;
 ```
 
 The diagram is organized into five logical layers, each with a clearly defined responsibility.
@@ -339,7 +341,7 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 
 ## Report Format
 
-The application generates a structured, human-readable console report that summarizes activity, energy expenditure, calorie balance, body weight, nutrition, sleep, and detailed daily health metrics.
+The application generates a structured, human-readable console report that summarizes activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
 
@@ -348,25 +350,27 @@ The report is organized hierarchically, progressing from high-level monthly summ
 ```mermaid
 flowchart TD
 
-    A["Monthly Report"]
-    B["General Activity"]
-    C["Sleep Summary"]
-    D["Activity Summary"]
-    E["Nutrition"]
-    F["Body Weight"]
-    G["Energy Expenditure"]
-    H["Calorie Balance"]
-    I["Daily Reports"]
+    A["Monthly Report"]
+    B["General Activity"]
+    C["Sleep Summary"]
+    D["Activity Summary"]
+    E["Nutrition"]
+    F["Body Weight"]
+    G["Energy Expenditure"]
+    H["Calorie Balance"]
+    I["Daily Reports"]
 
-    A --> B
-    A --> C
-    A --> D
-    A --> E
-    A --> F
-    A --> G
-    A --> H
-    A --> I
+    CS["Sleep Score"]
 
+    A --> B
+    A --> C
+    C --> CS
+    A --> D
+    A --> E
+    A --> F
+    A --> G
+    A --> H
+    A --> I
 ```
 
 ### Daily Report Structure
@@ -374,24 +378,25 @@ flowchart TD
 ```mermaid
 flowchart TD
 
-    A["Daily Report"]
-    B["Sleep"]
-    C["Activities"]
-    D["Body Weight"]
-    E["Energy Expenditure"] 
-    F["Nutrition"]
-    G["Calorie Balance"]
+    A["Daily Report"]
+    B["Sleep"]
+    C["Activities"]
+    D["Body Weight"]
+    E["Energy Expenditure"]
+    F["Nutrition"]
+    G["Calorie Balance"]
 
-    CC["Workout Details"]
+    BS["Sleep Score"]
+    CC["Workout Details"]
 
-    A --> B
-    A --> C
-    C --> CC
-    A --> D
-    A --> E
-    A --> F
-    A --> G
-
+    A --> B
+    B --> BS
+    A --> C
+    C --> CC
+    A --> D
+    A --> E
+    A --> F
+    A --> G
 ```
 
 ### Reporting Areas
@@ -406,6 +411,7 @@ Key reporting areas include:
 - **Body Weight** – daily measurements and monthly weight statistics.
 - **Nutrition** – daily and monthly energy intake and macronutrient summaries.
 - **Sleep Summary** – sleep duration, stages, efficiency, bedtime and wake-up statistics.
+- **Sleep Score** – configurable daily scoring based on bedtime, sleep duration and wake-up time, with monthly component averages.
 - **Daily Reports** – day-by-day sleep, activity, workout, energy, body weight and nutrition data.
 
 ### Design Goals
@@ -425,6 +431,20 @@ The report is intended to provide meaningful trends rather than medical or scien
 Sleep statistics are calculated from recorded sleep stages and may differ from values reported directly by Apple Health.
 
 Short interruptions, missing stages or incomplete recordings may affect sleep duration and efficiency calculations.
+
+### Sleep Score
+
+The Daily Sleep Score evaluates adherence to configurable sleep targets using three components: bedtime, sleep duration and wake-up time.
+
+Each component is scored on a 0–100 scale. The final daily score is calculated as a configurable weighted average of the three component scores.
+
+Bedtime scoring rewards going to sleep at or before the configured target and applies penalties for later bedtimes. Sleep duration scoring uses a configurable target and tolerance range, with separate penalty weights for oversleeping and undersleeping. Wake-up scoring is capped using the bedtime and duration results before applying any penalty for waking later than the configured target.
+
+Penalties can be calculated using either step-based or linear progression. Step-based penalties are used by default.
+
+Sleep stages such as Core, Deep and REM remain available for analysis but do not affect the Sleep Score.
+
+Monthly sleep scoring currently reports the average Bedtime Score, Duration Score, Wake-up Score and Total Sleep Score across completed reporting days.
 
 ### Activities
 
@@ -455,7 +475,7 @@ The application does not modify, interpolate or infer missing values.
 - The report is designed for long-term trend analysis rather than day-to-day fluctuations.
 - Missing data is reported as missing whenever possible.
 - For in-progress months, averages use completed reporting days only.
-- All calculations are deterministic — identical input data always produces identical results.
+- All calculations are deterministic — identical input data and identical sleep scoring configuration always produce identical results.
 
 ## AI Analysis
 
@@ -470,7 +490,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project currently fulfills its original purpose.
 
-Future development may include additional health metrics when practical needs arise, as well as technical improvements focused on maintainability, code quality and architecture.
+Future development may include additional health metrics when practical needs arise, monthly sleep consistency scoring and streak-based modifiers, as well as technical improvements focused on maintainability, code quality and architecture.
 
 ## License
 

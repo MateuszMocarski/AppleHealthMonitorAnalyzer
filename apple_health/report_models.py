@@ -5,7 +5,11 @@ from datetime import date, datetime, time, timedelta
 
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData, SleepRecord
-from apple_health.sleep_score_config import BEDTIME_SCORE_WEIGHT, SLEEP_DURATION_SCORE_WEIGHT, WAKE_UP_SCORE_WEIGHT
+from apple_health.sleep_score_config import (
+    BEDTIME_SCORE_WEIGHT,
+    SLEEP_DURATION_SCORE_WEIGHT,
+    WAKE_UP_SCORE_WEIGHT,
+)
 
 
 @dataclass(slots=True)
@@ -41,7 +45,7 @@ class DailySummary:
     nutrition: NutritionData | None = None
 
     sleep_session: SleepSession | None = None
-    
+
     sleep_score: SleepScore | None = None
 
     @property
@@ -163,11 +167,12 @@ class SleepMonthlySummary:
     average_core_minutes: float
     average_deep_minutes: float
     average_rem_minutes: float
-    
+
     average_bedtime_score: float
     average_duration_score: float
     average_wake_up_score: float
     average_sleep_score: float
+
 
 @dataclass(slots=True)
 class SleepScore:
@@ -181,8 +186,4 @@ class SleepScore:
             self.bedtime_score * BEDTIME_SCORE_WEIGHT
             + self.duration_score * SLEEP_DURATION_SCORE_WEIGHT
             + self.wake_up_score * WAKE_UP_SCORE_WEIGHT
-        ) / (
-            BEDTIME_SCORE_WEIGHT
-            + SLEEP_DURATION_SCORE_WEIGHT
-            + WAKE_UP_SCORE_WEIGHT
-        )
+        ) / (BEDTIME_SCORE_WEIGHT + SLEEP_DURATION_SCORE_WEIGHT + WAKE_UP_SCORE_WEIGHT)

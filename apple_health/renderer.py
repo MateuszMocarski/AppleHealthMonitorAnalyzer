@@ -26,7 +26,7 @@ class ConsoleRenderer:
         print("=" * len(str(summary.date)))
 
         self._render_daily_sleep(summary)
-        
+
         if summary.sleep_score is not None:
             self._render_sleep_score(summary.sleep_score)
             print()
@@ -201,11 +201,9 @@ class ConsoleRenderer:
         self._render_monthly_sleep(summary.sleep_summary)
 
         print()
-        
-        self._render_monthly_sleep_score(
-            summary.sleep_summary
-        )
-        
+
+        self._render_monthly_sleep_score(summary.sleep_summary)
+
         print()
 
         print("Workouts")
@@ -307,7 +305,7 @@ class ConsoleRenderer:
         print(f"  Duration: {sleep_score.duration_score:.0f}/100")
         print(f"  Wake-up:  {sleep_score.wake_up_score:.0f}/100")
         print(f"  Total:    {sleep_score.total_score:.0f}/100")
-        
+
     def _render_monthly_sleep_score(
         self,
         summary: SleepMonthlySummary,
