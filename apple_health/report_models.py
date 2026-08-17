@@ -163,6 +163,8 @@ class SleepMonthlySummary:
     average_core_minutes: float
     average_deep_minutes: float
     average_rem_minutes: float
+    
+    average_sleep_score: float | None
 
 @dataclass(slots=True)
 class SleepScore:

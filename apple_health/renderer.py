@@ -201,6 +201,12 @@ class ConsoleRenderer:
         self._render_monthly_sleep(summary.sleep_summary)
 
         print()
+        
+        self._render_monthly_sleep_score(
+            summary.sleep_summary
+        )
+        
+        print()
 
         print("Workouts")
         print("--------")
@@ -301,3 +307,15 @@ class ConsoleRenderer:
         print(f"  Duration: {sleep_score.duration_score:.0f}/100")
         print(f"  Wake-up:  {sleep_score.wake_up_score:.0f}/100")
         print(f"  Total:    {sleep_score.total_score:.0f}/100")
+        
+    def _render_monthly_sleep_score(
+        self,
+        summary: SleepMonthlySummary,
+    ) -> None:
+        header = "Sleep score"
+        print(header)
+        print("-" * len(header))
+
+        print(
+            f"  Average: {summary.average_sleep_score:.0f}/100"
+        )
