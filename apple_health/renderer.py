@@ -316,6 +316,7 @@ class ConsoleRenderer:
         print(header)
         print("-" * len(header))
 
-        print(
-            f"  Average: {summary.average_sleep_score:.0f}/100"
-        )
+        print(f"  Average bedtime:  {summary.average_bedtime_score:.0f}/100")
+        print(f"  Average duration: {summary.average_duration_score:.0f}/100")
+        print(f"  Average wake up:  {summary.average_wake_up_score:.0f}/100")
+        print(f"  Average total:    {summary.average_sleep_score:.0f}/100")

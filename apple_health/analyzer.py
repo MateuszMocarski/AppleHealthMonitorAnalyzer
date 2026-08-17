@@ -469,9 +469,25 @@ class SleepAnalyzer:
         ]
 
         sleep_scores = [
-            self.score_session(session).total_score
+            self.score_session(session)
             for session in sessions
         ]
+        
+        average_bedtime_score = self._average(
+            [score.bedtime_score for score in sleep_scores]
+        )
+
+        average_duration_score = self._average(
+            [score.duration_score for score in sleep_scores]
+        )
+
+        average_wake_up_score = self._average(
+            [score.wake_up_score for score in sleep_scores]
+        )
+
+        average_sleep_score = self._average(
+            [score.total_score for score in sleep_scores]
+        )
 
         return SleepMonthlySummary(
             total_sessions=len(sessions),
@@ -489,10 +505,13 @@ class SleepAnalyzer:
             average_core_minutes=self._average(core),
             average_deep_minutes=self._average(deep),
             average_rem_minutes=self._average(rem),
-            average_sleep_score=self._average(
-                sleep_scores
-            ),
-        )
+            average_bedtime_score=average_bedtime_score,
+            average_duration_score=average_duration_score,
+            average_wake_up_score=average_wake_up_score,
+            average_sleep_score=average_sleep_score,
+            
+            )
+        
 
     def _sum_stage_minutes(
         self,
@@ -739,9 +758,12 @@ class SleepAnalyzer:
         duration_score: float,
     ) -> float:
         wake_up_max_score = (
-            bedtime_score
-            + duration_score
-        ) / 2
+            bedtime_score * WAKE_UP_BEDTIME_WEIGHT
+            + duration_score * WAKE_UP_DURATION_WEIGHT
+        ) / (
+            WAKE_UP_BEDTIME_WEIGHT
+            + WAKE_UP_DURATION_WEIGHT
+        )
 
         wake_up_minutes = (
             self._minutes_relative_to_midnight(
