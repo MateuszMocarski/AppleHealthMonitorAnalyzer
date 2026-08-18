@@ -47,7 +47,7 @@ class TextRenderer:
                 print("No activities.")
 
             print()
-            self._render_day_enpenditures(summary)
+            self._render_day_expenditures(summary)
             print("-" * 60)
             print()
 
@@ -68,13 +68,12 @@ class TextRenderer:
             print(f"Weight: {summary.weight}")
             print("-" * len(f"Weight: {summary.weight}"))
             print()
-
-        if summary.weight is None:
+        else:
             print("No weight measurement for that day")
             print("----------------------------------")
             print()
 
-        self._render_day_enpenditures(summary)
+        self._render_day_expenditures(summary)
         print()
 
         self._render_day_nutrition(summary)
@@ -131,7 +130,7 @@ class TextRenderer:
 
         print()
 
-    def _render_day_enpenditures(self, summary: DailySummary) -> None:
+    def _render_day_expenditures(self, summary: DailySummary) -> None:
         print("Daily energy expenditure")
         print("------------------------")
         print(f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal")
@@ -221,40 +220,13 @@ class TextRenderer:
                 reporting_days=summary.reporting_days,
             )
 
-        if summary.activity_metrics.measurements > 0:
-            weight_header = "Body weight:"
-            print(weight_header)
-            print("-" * len(str(weight_header)))
-            print(f"  Average weight:   {summary.activity_metrics.average_weight:.2f} kg")
-            print(f"  Start weight:     {summary.activity_metrics.start_weight:.2f} kg")
-            print(f"  End weight:       {summary.activity_metrics.end_weight:.2f} kg")
-            print(f"  Change:           {summary.activity_metrics.weight_change:+.2f} kg")
-            print(f"  Max weight:       {summary.activity_metrics.max_weight:.2f} kg")
-            print(f"  Min weight:       {summary.activity_metrics.min_weight:.2f} kg")
-            print(
-                f"  Measurements:     {summary.activity_metrics.measurements:.0f}"
-                f"/{summary.reporting_days} days"
-            )
-            print()
+        self._render_monthly_weight(summary)
 
-        print("Average energy expenditure")
-        print("--------------------------")
-        print(f"  Basal energy:   {summary.activity_metrics.average_basal_energy_kcal:.0f} kcal")
-        print(f"  Active energy:  {summary.activity_metrics.average_active_energy_kcal:.0f} kcal")
-        print(f"  TDEE:           {summary.activity_metrics.average_tdee_kcal:.0f} kcal")
+        self._render_monthly_expenditures(summary)
 
         print()
 
-        print("Average nutrition")
-        print("-----------------")
-        print(f"  Protein:  {summary.activity_metrics.average_protein_g:.0f} g")
-        print(f"  Carbs:    {summary.activity_metrics.average_carbohydrates_g:.0f} g")
-        print(f"  Fat:      {summary.activity_metrics.average_fat_g:.0f} g")
-        print(f"  Calories: {summary.activity_metrics.average_calories_kcal:.0f} kcal")
-
-        if metrics.average_calories_balance is not None:
-            print()
-            print(f"Average calories balance: {metrics.average_calories_balance:.0f} kcal")
+        self._render_monthly_nutrition(summary)
 
     def _render_daily_sleep(self, summary: DailySummary) -> None:
         if summary.sleep_session is None:
@@ -334,3 +306,59 @@ class TextRenderer:
         print(f"  Average bonus:     +{summary.average_bonus:.0f}")
         print(f"  Consistency bonus: +{summary.consistency_bonus:.0f}")
         print(f"  Monthly score:     " f"{summary.monthly_sleep_score:.0f}/120")
+
+    def _render_monthly_weight(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        metrics = summary.activity_metrics
+
+        if metrics.measurements == 0:
+            return
+
+        weight_header = "Body weight:"
+        print(weight_header)
+        print("-" * len(weight_header))
+        print(f"  Average weight:   {metrics.average_weight:.2f} kg")
+        print(f"  Start weight:     {metrics.start_weight:.2f} kg")
+        print(f"  End weight:       {metrics.end_weight:.2f} kg")
+        print(f"  Change:           {metrics.weight_change:+.2f} kg")
+        print(f"  Max weight:       {metrics.max_weight:.2f} kg")
+        print(f"  Min weight:       {metrics.min_weight:.2f} kg")
+        print(
+            f"  Measurements:     {metrics.measurements:.0f}"
+            f"/{summary.reporting_days} days"
+        )
+        print()
+        
+    def _render_monthly_expenditures(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        metrics = summary.activity_metrics
+
+        print("Average energy expenditure")
+        print("--------------------------")
+        print(f"  Basal energy:   {metrics.average_basal_energy_kcal:.0f} kcal")
+        print(f"  Active energy:  {metrics.average_active_energy_kcal:.0f} kcal")
+        print(f"  TDEE:           {metrics.average_tdee_kcal:.0f} kcal")
+        
+    def _render_monthly_nutrition(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        metrics = summary.activity_metrics
+
+        print("Average nutrition")
+        print("-----------------")
+        print(f"  Protein:  {metrics.average_protein_g:.0f} g")
+        print(f"  Carbs:    {metrics.average_carbohydrates_g:.0f} g")
+        print(f"  Fat:      {metrics.average_fat_g:.0f} g")
+        print(f"  Calories: {metrics.average_calories_kcal:.0f} kcal")
+
+        if metrics.average_calories_balance is not None:
+            print()
+            print(
+                f"Average calories balance: "
+                f"{metrics.average_calories_balance:.0f} kcal"
+            )
