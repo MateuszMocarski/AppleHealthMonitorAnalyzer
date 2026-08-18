@@ -4,7 +4,8 @@ import argparse
 from datetime import date
 from pathlib import Path
 
-from apple_health.analyzer import SleepAnalyzer, WorkoutAnalyzer
+from apple_health.analyzer import SleepAnalyzer
+from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderer import ConsoleRenderer
@@ -61,7 +62,7 @@ def main() -> None:
 
                 sleep_analyzer = SleepAnalyzer(apple_health_data)
 
-                analyzer = WorkoutAnalyzer(apple_health_data, sleep_analyzer)
+                analyzer = HealthAnalyzer(apple_health_data, sleep_analyzer)
                 renderer = ConsoleRenderer()
 
                 today = date.today()
