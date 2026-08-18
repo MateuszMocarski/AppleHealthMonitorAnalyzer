@@ -69,9 +69,15 @@ def main() -> None:
                 monthly_summary = analyzer.summarize_month(year, month)
 
                 if args.month_summary:
-                    renderer.render_month_summary(monthly_summary)
+                    print(
+                        renderer.render_month_summary(monthly_summary),
+                        end="",
+                    )
                 else:
-                    renderer.render_month(monthly_summary)
+                    print(
+                        renderer.render_month(monthly_summary),
+                        end="",
+                    )
 
             finally:
                 xml_stream.close()
