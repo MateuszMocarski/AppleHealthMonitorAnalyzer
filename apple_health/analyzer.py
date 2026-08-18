@@ -21,21 +21,21 @@ from apple_health.sleep_score_config import (
     BEDTIME_PENALTY_INTERVAL_MINUTES,
     BEDTIME_PENALTY_POINTS,
     BEDTIME_TARGET,
+    SLEEP_AVERAGE_BONUS_THRESHOLDS,
+    SLEEP_CONSISTENCY_BONUS_THRESHOLDS,
     SLEEP_DURATION_OVERSLEEP_WEIGHT,
     SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
     SLEEP_DURATION_PENALTY_POINTS,
     SLEEP_DURATION_TARGET_MINUTES,
     SLEEP_DURATION_TOLERANCE_MINUTES,
     SLEEP_DURATION_UNDERSLEEP_WEIGHT,
+    SLEEP_MONTHLY_BONUS_ENABLED,
     SLEEP_SCORE_LINEAR_PENALTIES,
     WAKE_UP_BEDTIME_WEIGHT,
     WAKE_UP_DURATION_WEIGHT,
     WAKE_UP_PENALTY_INTERVAL_MINUTES,
     WAKE_UP_PENALTY_POINTS,
     WAKE_UP_TARGET,
-    SLEEP_MONTHLY_BONUS_ENABLED,
-    SLEEP_AVERAGE_BONUS_THRESHOLDS,
-    SLEEP_CONSISTENCY_BONUS_THRESHOLDS,
     validate_sleep_score_config,
 )
 
@@ -453,14 +453,10 @@ class SleepAnalyzer:
         average_wake_up_score = self._average([score.wake_up_score for score in sleep_scores])
 
         average_sleep_score = self._average([score.total_score for score in sleep_scores])
-        
-        average_bonus = self._calculate_average_sleep_bonus(
-            average_sleep_score
-        )
 
-        consistency_bonus = self._calculate_consistency_bonus(
-            sleep_scores
-        )
+        average_bonus = self._calculate_average_sleep_bonus(average_sleep_score)
+
+        consistency_bonus = self._calculate_consistency_bonus(sleep_scores)
 
         return SleepMonthlySummary(
             total_sessions=len(sessions),
@@ -711,7 +707,7 @@ class SleepAnalyzer:
                 return float(bonus)
 
         return 0.0
-    
+
     def _calculate_consistency_bonus(
         self,
         sleep_scores: list[SleepScore],
@@ -722,10 +718,7 @@ class SleepAnalyzer:
         if len(sleep_scores) < 2:
             return 0.0
 
-        standard_deviation = pstdev(
-            score.total_score
-            for score in sleep_scores
-        )
+        standard_deviation = pstdev(score.total_score for score in sleep_scores)
 
         for threshold, bonus in SLEEP_CONSISTENCY_BONUS_THRESHOLDS:
             if standard_deviation < threshold:

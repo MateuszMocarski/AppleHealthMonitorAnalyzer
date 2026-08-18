@@ -328,7 +328,4 @@ class ConsoleRenderer:
 
         print(f"  Average bonus:     +{summary.average_bonus:.0f}")
         print(f"  Consistency bonus: +{summary.consistency_bonus:.0f}")
-        print(
-            f"  Monthly score:     "
-            f"{summary.monthly_sleep_score:.0f}/120"
-        )
+        print(f"  Monthly score:     " f"{summary.monthly_sleep_score:.0f}/120")
