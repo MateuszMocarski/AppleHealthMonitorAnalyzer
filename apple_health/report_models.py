@@ -173,6 +173,13 @@ class SleepMonthlySummary:
     average_wake_up_score: float
     average_sleep_score: float
 
+    average_bonus: float = 0.0
+    consistency_bonus: float = 0.0
+
+    @property
+    def monthly_sleep_score(self) -> float:
+        return self.average_sleep_score + self.average_bonus + self.consistency_bonus
+
 
 @dataclass(slots=True)
 class SleepScore:
