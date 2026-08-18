@@ -22,3 +22,17 @@ NUTRITION_RECORD_TYPES = {
     "HKQuantityTypeIdentifierDietaryCarbohydrates",
     "HKQuantityTypeIdentifierDietaryFatTotal",
 }
+
+WORKOUT_ACTIVE_ENERGY_TYPE = (
+    "HKQuantityTypeIdentifierActiveEnergyBurned"
+)
+
+WORKOUT_WALKING_RUNNING_DISTANCE_TYPE = (
+    "HKQuantityTypeIdentifierDistanceWalkingRunning"
+)
+
+WORKOUT_CYCLING_DISTANCE_TYPE = (
+    "HKQuantityTypeIdentifierDistanceCycling"
+)
+
+WORKOUT_INDOOR_METADATA_KEY = "HKIndoorWorkout"
