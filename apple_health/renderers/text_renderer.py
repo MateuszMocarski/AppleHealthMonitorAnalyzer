@@ -22,6 +22,18 @@ class TextRenderer:
         for daily_summary in monthly_summary.days:
             self._render_day(daily_summary)
 
+    def render_month_summary(
+            self,
+            summary: MonthlySummary,
+        ) -> None:
+            self._render_month_header(summary)
+            self._render_monthly_general_activity(summary)
+            self._render_monthly_sleep_section(summary)
+            self._render_monthly_workouts(summary)
+            self._render_monthly_weight(summary)
+            self._render_monthly_expenditures(summary)
+            self._render_monthly_nutrition(summary)
+
     def _render_day(self, summary: DailySummary) -> None:
         print(summary.date)
         print("=" * len(str(summary.date)))
@@ -174,60 +186,6 @@ class TextRenderer:
 
         print(f"  Average step length: {average_step_length_cm:.2f} cm")
 
-    def render_month_summary(
-        self,
-        summary: MonthlySummary,
-    ) -> None:
-
-        print("Apple Health Monthly Report")
-        print(f"{calendar.month_name[summary.month]} {summary.year}")
-
-        if summary.data_through is None:
-            date_through = "No complete reporting days available."
-        else:
-            date_through = f"Data available through: {summary.data_through}"
-
-        print(date_through)
-        print("=" * len(date_through))
-        print()
-
-        metrics = summary.activity_metrics
-
-        self._render_general_activity(
-            total_steps=metrics.total_steps,
-            total_distance_km=metrics.total_distance_km,
-            average_step_length_cm=metrics.average_step_length_cm,
-            average_daily_steps=metrics.average_daily_steps,
-            average_daily_distance_km=metrics.average_daily_distance_km,
-        )
-
-        print()
-
-        self._render_monthly_sleep(summary.sleep_summary)
-
-        print()
-
-        self._render_monthly_sleep_score(summary.sleep_summary)
-
-        print()
-
-        print("Workouts")
-        print("--------")
-
-        for activity in summary.activities:
-            self._render_activity(
-                activity,
-                reporting_days=summary.reporting_days,
-            )
-
-        self._render_monthly_weight(summary)
-
-        self._render_monthly_expenditures(summary)
-
-        print()
-
-        self._render_monthly_nutrition(summary)
-
     def _render_daily_sleep(self, summary: DailySummary) -> None:
         if summary.sleep_session is None:
             return
@@ -343,6 +301,8 @@ class TextRenderer:
         print(f"  Active energy:  {metrics.average_active_energy_kcal:.0f} kcal")
         print(f"  TDEE:           {metrics.average_tdee_kcal:.0f} kcal")
         
+        print()
+        
     def _render_monthly_nutrition(
         self,
         summary: MonthlySummary,
@@ -362,3 +322,62 @@ class TextRenderer:
                 f"Average calories balance: "
                 f"{metrics.average_calories_balance:.0f} kcal"
             )
+    
+    def _render_month_header(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        print("Apple Health Monthly Report")
+        print(f"{calendar.month_name[summary.month]} {summary.year}")
+
+        if summary.data_through is None:
+            date_through = "No complete reporting days available."
+        else:
+            date_through = f"Data available through: {summary.data_through}"
+
+        print(date_through)
+        print("=" * len(date_through))
+        print()
+        
+    def _render_monthly_general_activity(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        metrics = summary.activity_metrics
+
+        self._render_general_activity(
+            total_steps=metrics.total_steps,
+            total_distance_km=metrics.total_distance_km,
+            average_step_length_cm=metrics.average_step_length_cm,
+            average_daily_steps=metrics.average_daily_steps,
+            average_daily_distance_km=metrics.average_daily_distance_km,
+        )
+
+        print()
+        
+    def _render_monthly_sleep_section(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        self._render_monthly_sleep(summary.sleep_summary)
+
+        print()
+
+        self._render_monthly_sleep_score(summary.sleep_summary)
+
+        print()
+        
+    def _render_monthly_workouts(
+        self,
+        summary: MonthlySummary,
+    ) -> None:
+        print("Workouts")
+        print("--------")
+
+        for activity in summary.activities:
+            self._render_activity(
+                activity,
+                reporting_days=summary.reporting_days,
+            )
+            
+    
