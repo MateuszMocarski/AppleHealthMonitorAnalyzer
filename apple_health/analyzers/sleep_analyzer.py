@@ -33,6 +33,7 @@ from apple_health.sleep_score_config import (
     validate_sleep_score_config,
 )
 
+
 class SleepAnalyzer:
     SESSION_GAP_THRESHOLD = timedelta(minutes=30)
 

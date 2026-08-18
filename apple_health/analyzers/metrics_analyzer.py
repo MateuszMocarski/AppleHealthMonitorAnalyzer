@@ -46,25 +46,13 @@ class MetricsAnalyzer:
             )
         ]
 
-        total_steps = sum(
-            metrics.steps
-            for metrics in monthly_metrics
-        )
+        total_steps = sum(metrics.steps for metrics in monthly_metrics)
 
-        total_distance = sum(
-            metrics.distance_km
-            for metrics in monthly_metrics
-        )
+        total_distance = sum(metrics.distance_km for metrics in monthly_metrics)
 
-        total_basal_energy_kcal = sum(
-            metrics.basal_energy
-            for metrics in monthly_metrics
-        )
+        total_basal_energy_kcal = sum(metrics.basal_energy for metrics in monthly_metrics)
 
-        total_active_energy_kcal = sum(
-            metrics.active_energy
-            for metrics in monthly_metrics
-        )
+        total_active_energy_kcal = sum(metrics.active_energy for metrics in monthly_metrics)
 
         total_protein_g = sum(
             metrics.nutrition.protein_g
@@ -79,9 +67,7 @@ class MetricsAnalyzer:
         )
 
         total_fat_g = sum(
-            metrics.nutrition.fat_g
-            for metrics in monthly_metrics
-            if metrics.nutrition is not None
+            metrics.nutrition.fat_g for metrics in monthly_metrics if metrics.nutrition is not None
         )
 
         total_calories_kcal = sum(
@@ -90,64 +76,30 @@ class MetricsAnalyzer:
             if metrics.nutrition is not None
         )
 
-        average_daily_steps = (
-            total_steps / reporting_days
-            if reporting_days
-            else 0.0
-        )
+        average_daily_steps = total_steps / reporting_days if reporting_days else 0.0
 
-        average_daily_distance = (
-            total_distance / reporting_days
-            if reporting_days
-            else 0.0
-        )
+        average_daily_distance = total_distance / reporting_days if reporting_days else 0.0
 
         average_basal_energy_kcal = (
-            total_basal_energy_kcal / reporting_days
-            if reporting_days
-            else 0.0
+            total_basal_energy_kcal / reporting_days if reporting_days else 0.0
         )
 
         average_active_energy_kcal = (
-            total_active_energy_kcal / reporting_days
-            if reporting_days
-            else 0.0
+            total_active_energy_kcal / reporting_days if reporting_days else 0.0
         )
 
-        average_step_length_cm = (
-            100000 * total_distance / total_steps
-            if total_steps
-            else 0.0
-        )
+        average_step_length_cm = 100000 * total_distance / total_steps if total_steps else 0.0
 
-        average_protein_g = (
-            total_protein_g / reporting_days
-            if reporting_days
-            else 0.0
-        )
+        average_protein_g = total_protein_g / reporting_days if reporting_days else 0.0
 
-        average_carbohydrates_g = (
-            total_carbohydrates_g / reporting_days
-            if reporting_days
-            else 0.0
-        )
+        average_carbohydrates_g = total_carbohydrates_g / reporting_days if reporting_days else 0.0
 
-        average_fat_g = (
-            total_fat_g / reporting_days
-            if reporting_days
-            else 0.0
-        )
+        average_fat_g = total_fat_g / reporting_days if reporting_days else 0.0
 
-        average_calories_kcal = (
-            total_calories_kcal / reporting_days
-            if reporting_days
-            else 0.0
-        )
+        average_calories_kcal = total_calories_kcal / reporting_days if reporting_days else 0.0
 
         weights = [
-            metrics.weight.value
-            for metrics in monthly_metrics
-            if metrics.weight is not None
+            metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None
         ]
 
         if weights:

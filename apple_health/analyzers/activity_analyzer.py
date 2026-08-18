@@ -65,11 +65,7 @@ class ActivityAnalyzer:
         monthly_workouts = [
             workout
             for day in self.workouts_by_day()
-            if (
-                day.year == year
-                and day.month == month
-                and day.day <= reporting_days
-            )
+            if (day.year == year and day.month == month and day.day <= reporting_days)
             for workout in self.workouts_for_day(day)
         ]
 
@@ -88,22 +84,12 @@ class ActivityAnalyzer:
         activity_type: WorkoutType,
         workouts: list[Workout],
     ) -> ActivitySummary:
-        distances = [
-            workout.distance_km
-            for workout in workouts
-            if workout.distance_km is not None
-        ]
+        distances = [workout.distance_km for workout in workouts if workout.distance_km is not None]
 
         return ActivitySummary(
             activity_type=activity_type,
             sessions=len(workouts),
-            duration_minutes=sum(
-                workout.duration_minutes
-                for workout in workouts
-            ),
-            active_energy_kcal=sum(
-                workout.active_energy_kcal or 0
-                for workout in workouts
-            ),
+            duration_minutes=sum(workout.duration_minutes for workout in workouts),
+            active_energy_kcal=sum(workout.active_energy_kcal or 0 for workout in workouts),
             distance_km=sum(distances) if distances else None,
         )

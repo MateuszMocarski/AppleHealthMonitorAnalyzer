@@ -6,27 +6,23 @@ from datetime import date, timedelta
 from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
 from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
-
 from apple_health.models import AppleHealthData
-
 from apple_health.report_models import DailySummary, MonthlySummary
+
 
 class HealthAnalyzer:
     def __init__(self, health_data: AppleHealthData) -> None:
 
         self.activity_analyzer = ActivityAnalyzer(health_data)
-        
+
         self.metrics_analyzer = MetricsAnalyzer(health_data)
-        
+
         self.sleep_analyzer = SleepAnalyzer(health_data)
 
-        self.last_data_day = max(
-            metrics.date
-            for metrics in health_data.daily_metrics
-        )    
+        self.last_data_day = max(metrics.date for metrics in health_data.daily_metrics)
 
     def summarize_day(self, day: date) -> DailySummary:
-        
+
         activities = self.activity_analyzer.summarize_day(day)
 
         metrics = self.metrics_analyzer.metrics_for_day(day)
