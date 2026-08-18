@@ -4,7 +4,13 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import BinaryIO
 
-from apple_health.constants import APPLE_HEALTH_APP_SOURCE, APPLE_WATCH_SOURCE
+from apple_health.constants import (
+    APPLE_HEALTH_APP_SOURCE,
+    APPLE_WATCH_DAILY_METRIC_TYPES, 
+    APPLE_WATCH_SOURCE, 
+    APPLE_HEALTH_DAILY_METRIC_TYPES, 
+    NUTRITION_RECORD_TYPES,
+)
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
 from apple_health.models import (
     AppleHealthData,
@@ -122,22 +128,11 @@ class AppleHealthParser:
     ) -> None:
         record_type = element.attrib.get("type")
 
-        if record_type in (
-            "HKQuantityTypeIdentifierStepCount",
-            "HKQuantityTypeIdentifierDistanceWalkingRunning",
-            "HKQuantityTypeIdentifierActiveEnergyBurned",
-            "HKQuantityTypeIdentifierBasalEnergyBurned",
-        ):
-            record_source = APPLE_WATCH_SOURCE
-        elif record_type in (
-            "HKQuantityTypeIdentifierBodyMass",
-            "HKQuantityTypeIdentifierDietaryEnergyConsumed",
-            "HKQuantityTypeIdentifierDietaryProtein",
-            "HKQuantityTypeIdentifierDietaryCarbohydrates",
-            "HKQuantityTypeIdentifierDietaryFatTotal",
-        ):
-            record_source = APPLE_HEALTH_APP_SOURCE
-        else:
+        record_source = self._expected_source_for_record_type(
+            record_type
+        )
+
+        if record_source is None:
             return
 
         source_name = element.attrib.get("sourceName", "")
@@ -172,12 +167,7 @@ class AppleHealthParser:
 
             return
 
-        if record_type in (
-            "HKQuantityTypeIdentifierDietaryEnergyConsumed",
-            "HKQuantityTypeIdentifierDietaryProtein",
-            "HKQuantityTypeIdentifierDietaryCarbohydrates",
-            "HKQuantityTypeIdentifierDietaryFatTotal",
-        ):
+        if record_type in NUTRITION_RECORD_TYPES:
             if metrics.nutrition is None:
                 metrics.nutrition = NutritionData()
 
@@ -300,3 +290,15 @@ class AppleHealthParser:
 
         elif record_type == "HKQuantityTypeIdentifierDietaryFatTotal":
             nutrition.fat_g += float(value)
+
+    @staticmethod
+    def _expected_source_for_record_type(
+        record_type: str | None,
+    ) -> str | None:
+        if record_type in APPLE_WATCH_DAILY_METRIC_TYPES:
+            return APPLE_WATCH_SOURCE
+
+        if record_type in APPLE_HEALTH_DAILY_METRIC_TYPES:
+            return APPLE_HEALTH_APP_SOURCE
+
+        return None
