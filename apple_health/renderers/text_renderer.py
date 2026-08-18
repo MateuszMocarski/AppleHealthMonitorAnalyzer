@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import calendar
 from contextlib import redirect_stdout
 from io import StringIO
-
-import calendar
 
 from apple_health.enums import WorkoutType
 from apple_health.report_models import (
@@ -27,7 +26,7 @@ class TextRenderer:
             self._render_month(monthly_summary)
 
         return output.getvalue()
-    
+
     def _render_month(
         self,
         monthly_summary: MonthlySummary,
@@ -49,7 +48,7 @@ class TextRenderer:
             self._render_month_summary(summary)
 
         return output.getvalue()
-    
+
     def _render_month_summary(
         self,
         summary: MonthlySummary,
