@@ -6,9 +6,9 @@ from typing import BinaryIO
 
 from apple_health.constants import (
     APPLE_HEALTH_APP_SOURCE,
-    APPLE_WATCH_DAILY_METRIC_TYPES, 
-    APPLE_WATCH_SOURCE, 
-    APPLE_HEALTH_DAILY_METRIC_TYPES, 
+    APPLE_HEALTH_DAILY_METRIC_TYPES,
+    APPLE_WATCH_DAILY_METRIC_TYPES,
+    APPLE_WATCH_SOURCE,
     NUTRITION_RECORD_TYPES,
     WORKOUT_ACTIVE_ENERGY_TYPE,
     WORKOUT_CYCLING_DISTANCE_TYPE,
@@ -83,19 +83,13 @@ class AppleHealthParser:
             for child in element
         )
 
-        return (
-            WorkoutType.INDOOR_CYCLING
-            if is_indoor
-            else WorkoutType.OUTDOOR_CYCLING
-        )
+        return WorkoutType.INDOOR_CYCLING if is_indoor else WorkoutType.OUTDOOR_CYCLING
 
     def _parse_workout(
         self,
         element: ET.Element,
     ) -> Workout:
-        active_energy, distance = self._parse_workout_statistics(
-            element
-        )
+        active_energy, distance = self._parse_workout_statistics(element)
 
         return Workout(
             apple_activity_type=element.attrib["workoutActivityType"],
@@ -125,9 +119,7 @@ class AppleHealthParser:
     ) -> None:
         record_type = element.attrib.get("type")
 
-        record_source = self._expected_source_for_record_type(
-            record_type
-        )
+        record_source = self._expected_source_for_record_type(record_type)
 
         if record_source is None:
             return
@@ -299,7 +291,7 @@ class AppleHealthParser:
             return APPLE_HEALTH_APP_SOURCE
 
         return None
-    
+
     def _parse_workout_statistics(
         self,
         element: ET.Element,
