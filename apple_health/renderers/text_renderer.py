@@ -34,67 +34,21 @@ class TextRenderer:
             self._render_monthly_expenditures(summary)
             self._render_monthly_nutrition(summary)
 
-    def _render_day(self, summary: DailySummary) -> None:
-        print(summary.date)
-        print("=" * len(str(summary.date)))
+    def _render_day(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        self._render_day_header(summary)
+        self._render_daily_sleep_section(summary)
+        self._render_daily_general_activity(summary)
+        self._render_daily_workouts(summary)
 
-        self._render_daily_sleep(summary)
-
-        if summary.sleep_score is not None:
-            self._render_sleep_score(summary.sleep_score)
-            print()
-
-        self._render_general_activity(
-            total_steps=summary.total_steps,
-            total_distance_km=summary.total_distance_km,
-            average_step_length_cm=summary.average_step_length_cm,
-        )
-
-        print()
-
-        if not summary.activities:
-            if summary.total_steps > 0:
-                print("No workouts.")
-            else:
-                print("No activities.")
-
-            print()
+        if summary.activities:
+            self._render_daily_weight(summary)
             self._render_day_expenditures(summary)
-            print("-" * 60)
-            print()
+            self._render_daily_nutrition_section(summary)
 
-            return
-
-        print("Workouts")
-        print("--------")
-        for activity in summary.activities:
-            self._render_activity(activity)
-
-        print("Workouts summary")
-        print("----------------")
-        print(f"  Duration: {self._format_minutes(summary.total_duration_minutes)}")
-        print(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
-        print()
-
-        if summary.weight is not None:
-            print(f"Weight: {summary.weight}")
-            print("-" * len(f"Weight: {summary.weight}"))
-            print()
-        else:
-            print("No weight measurement for that day")
-            print("----------------------------------")
-            print()
-
-        self._render_day_expenditures(summary)
-        print()
-
-        self._render_day_nutrition(summary)
-
-        if summary.calories_balance_kcal is not None:
-            print()
-            print(f"Calories balance: {summary.calories_balance_kcal:.0f} kcal")
-        print("-" * 60)
-        print()
+        self._render_day_footer()
 
     def _render_activity(
         self, activity: ActivitySummary, reporting_days: int | None = None
@@ -380,4 +334,95 @@ class TextRenderer:
                 reporting_days=summary.reporting_days,
             )
             
-    
+    def _render_day_header(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        print(summary.date)
+        print("=" * len(str(summary.date)))
+        
+    def _render_daily_sleep_section(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        self._render_daily_sleep(summary)
+
+        if summary.sleep_score is not None:
+            self._render_sleep_score(summary.sleep_score)
+            print()
+            
+    def _render_daily_general_activity(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        self._render_general_activity(
+            total_steps=summary.total_steps,
+            total_distance_km=summary.total_distance_km,
+            average_step_length_cm=summary.average_step_length_cm,
+        )
+
+        print()
+        
+    def _render_daily_workouts(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        if not summary.activities:
+            if summary.total_steps > 0:
+                print("No workouts.")
+            else:
+                print("No activities.")
+
+            print()
+            return
+
+        print("Workouts")
+        print("--------")
+
+        for activity in summary.activities:
+            self._render_activity(activity)
+
+        print("Workouts summary")
+        print("----------------")
+        print(
+            f"  Duration: "
+            f"{self._format_minutes(summary.total_duration_minutes)}"
+        )
+        print(
+            f"  Energy:   "
+            f"{summary.total_active_energy_kcal:.0f} kcal"
+        )
+        print()
+        
+    def _render_daily_weight(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        if summary.weight is not None:
+            header = f"Weight: {summary.weight}"
+        else:
+            header = "No weight measurement for that day"
+
+        print(header)
+        print("-" * len(header))
+        print()
+        
+    def _render_daily_nutrition_section(
+        self,
+        summary: DailySummary,
+    ) -> None:
+        print()
+
+        self._render_day_nutrition(summary)
+
+        if summary.calories_balance_kcal is not None:
+            print()
+            print(
+                f"Calories balance: "
+                f"{summary.calories_balance_kcal:.0f} kcal"
+            )
+           
+    @staticmethod
+    def _render_day_footer() -> None:
+        print("-" * 60)
+        print()
