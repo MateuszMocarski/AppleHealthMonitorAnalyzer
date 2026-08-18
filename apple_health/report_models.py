@@ -81,8 +81,15 @@ class MonthlySummary:
     sleep_summary: SleepMonthlySummary
 
     @property
-    def data_through(self) -> date:
-        return date(self.year, self.month, self.reporting_days)
+    def data_through(self) -> date | None:
+        if self.reporting_days == 0:
+            return None
+
+        return date(
+            self.year,
+            self.month,
+            self.reporting_days,
+        )
 
 
 @dataclass(slots=True)

@@ -182,7 +182,14 @@ class ConsoleRenderer:
 
         print("Apple Health Monthly Report")
         print(f"{calendar.month_name[summary.month]} {summary.year}")
-        date_through = f"Data available through: {summary.data_through}"
+        
+        if summary.data_through is None:
+            date_through = "No complete reporting days available."
+        else:
+            date_through = (
+                f"Data available through: {summary.data_through}"
+            )
+        
         print(date_through)
         print("=" * len(date_through))
         print()
