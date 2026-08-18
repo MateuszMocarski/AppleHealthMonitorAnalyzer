@@ -75,6 +75,7 @@ independent verification, and AI-assisted interpretation.
 - Average bedtime and wake-up time
 - Configurable daily sleep scoring
 - Monthly sleep score averages and component breakdown
+- Optional configurable monthly sleep score bonuses
 - Monthly sleep statistics
 
 ### Reporting
@@ -411,7 +412,7 @@ Key reporting areas include:
 - **Body Weight** – daily measurements and monthly weight statistics.
 - **Nutrition** – daily and monthly energy intake and macronutrient summaries.
 - **Sleep Summary** – sleep duration, stages, efficiency, bedtime and wake-up statistics.
-- **Sleep Score** – configurable daily scoring based on bedtime, sleep duration and wake-up time, with monthly component averages.
+- **Sleep Score** – configurable daily scoring based on bedtime, sleep duration and wake-up time, with monthly component averages and optional performance and consistency bonuses.
 - **Daily Reports** – day-by-day sleep, activity, workout, energy, body weight and nutrition data.
 
 ### Design Goals
@@ -438,13 +439,26 @@ The Daily Sleep Score evaluates adherence to configurable sleep targets using th
 
 Each component is scored on a 0–100 scale. The final daily score is calculated as a configurable weighted average of the three component scores.
 
-Bedtime scoring rewards going to sleep at or before the configured target and applies penalties for later bedtimes. Sleep duration scoring uses a configurable target and tolerance range, with separate penalty weights for oversleeping and undersleeping. Wake-up scoring is capped using the bedtime and duration results before applying any penalty for waking later than the configured target.
+Bedtime scoring rewards going to sleep at or before the configured target and applies penalties for later bedtimes.
+
+Sleep duration scoring uses a configurable target and tolerance range, with separate penalty weights for oversleeping and undersleeping.
+
+Wake-up scoring uses the Bedtime Score and Duration Score to determine the maximum available Wake-up Score before applying any penalty for waking later than the configured target. The relative influence of bedtime and sleep duration on this maximum score is configurable.
 
 Penalties can be calculated using either step-based or linear progression. Step-based penalties are used by default.
 
 Sleep stages such as Core, Deep and REM remain available for analysis but do not affect the Sleep Score.
 
-Monthly sleep scoring currently reports the average Bedtime Score, Duration Score, Wake-up Score and Total Sleep Score across completed reporting days.
+Monthly sleep scoring reports the average Bedtime Score, Duration Score, Wake-up Score and Total Sleep Score across completed reporting days.
+
+An optional monthly bonus system can extend the monthly score from 0–100 to 0–120. The bonus system consists of two independently calculated components:
+
+- **Average Bonus** – rewards reaching configurable monthly average Sleep Score thresholds.
+- **Consistency Bonus** – rewards consistency based on the population standard deviation of Daily Sleep Scores.
+
+Both bonus threshold sets are configurable. The maximum combined bonus is also configurable and validated against the configured threshold values.
+
+When the monthly bonus system is disabled, the report continues to provide the standard monthly Sleep Score without applying any bonuses.
 
 ### Activities
 
@@ -490,7 +504,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project currently fulfills its original purpose.
 
-Future development may include additional health metrics when practical needs arise, monthly sleep consistency scoring and streak-based modifiers, as well as technical improvements focused on maintainability, code quality and architecture.
+Future development may include additional health metrics when practical needs arise, as well as technical improvements focused on maintainability, code quality and architecture.
 
 ## License
 
