@@ -7,7 +7,7 @@ from pathlib import Path
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
-from apple_health.renderer import ConsoleRenderer
+from apple_health.renderers.renderer import TextRenderer
 
 
 def main() -> None:
@@ -60,7 +60,7 @@ def main() -> None:
                 apple_health_data = parser.parse()
 
                 analyzer = HealthAnalyzer(apple_health_data)
-                renderer = ConsoleRenderer()
+                renderer = TextRenderer()
 
                 today = date.today()
                 year = args.year if args.year is not None else today.year

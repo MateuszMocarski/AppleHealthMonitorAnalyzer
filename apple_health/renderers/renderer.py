@@ -13,7 +13,7 @@ from apple_health.report_models import (
 from apple_health.sleep_score_config import SLEEP_MONTHLY_BONUS_ENABLED
 
 
-class ConsoleRenderer:
+class TextRenderer:
     def render_month(self, monthly_summary: MonthlySummary) -> None:
         self.render_month_summary(monthly_summary)
 
