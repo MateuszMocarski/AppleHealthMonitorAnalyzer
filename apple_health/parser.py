@@ -4,7 +4,17 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import BinaryIO
 
-from apple_health.constants import APPLE_HEALTH_APP_SOURCE, APPLE_WATCH_SOURCE
+from apple_health.constants import (
+    APPLE_HEALTH_APP_SOURCE,
+    APPLE_HEALTH_DAILY_METRIC_TYPES,
+    APPLE_WATCH_DAILY_METRIC_TYPES,
+    APPLE_WATCH_SOURCE,
+    NUTRITION_RECORD_TYPES,
+    WORKOUT_ACTIVE_ENERGY_TYPE,
+    WORKOUT_CYCLING_DISTANCE_TYPE,
+    WORKOUT_INDOOR_METADATA_KEY,
+    WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
+)
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
 from apple_health.models import (
     AppleHealthData,
@@ -60,39 +70,26 @@ class AppleHealthParser:
         activity_type: str,
         element: ET.Element,
     ) -> WorkoutType:
-        if activity_type == "HKWorkoutActivityTypeCycling":
-            for child in element:
-                if child.tag == "MetadataEntry" and child.attrib.get("key") == "HKIndoorWorkout":
-                    if child.attrib.get("value") == "1":
-                        return WorkoutType.INDOOR_CYCLING
+        if activity_type != "HKWorkoutActivityTypeCycling":
+            return APPLE_WORKOUT_TYPES.get(
+                activity_type,
+                WorkoutType.OTHER,
+            )
 
-                    return WorkoutType.OUTDOOR_CYCLING
-
-            return WorkoutType.OUTDOOR_CYCLING
-
-        return APPLE_WORKOUT_TYPES.get(
-            activity_type,
-            WorkoutType.OTHER,
+        is_indoor = any(
+            child.tag == "MetadataEntry"
+            and child.attrib.get("key") == WORKOUT_INDOOR_METADATA_KEY
+            and child.attrib.get("value") == "1"
+            for child in element
         )
 
-    def _parse_workout(self, element: ET.Element) -> Workout:
-        active_energy: float | None = None
-        distance: float | None = None
+        return WorkoutType.INDOOR_CYCLING if is_indoor else WorkoutType.OUTDOOR_CYCLING
 
-        for child in element:
-            if child.tag != "WorkoutStatistics":
-                continue
-
-            statistic_type = child.attrib.get("type")
-
-            if statistic_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
-                active_energy = float(child.attrib["sum"])
-
-            elif statistic_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
-                distance = float(child.attrib["sum"])
-
-            elif statistic_type == "HKQuantityTypeIdentifierDistanceCycling":
-                distance = float(child.attrib["sum"])
+    def _parse_workout(
+        self,
+        element: ET.Element,
+    ) -> Workout:
+        active_energy, distance = self._parse_workout_statistics(element)
 
         return Workout(
             apple_activity_type=element.attrib["workoutActivityType"],
@@ -122,22 +119,9 @@ class AppleHealthParser:
     ) -> None:
         record_type = element.attrib.get("type")
 
-        if record_type in (
-            "HKQuantityTypeIdentifierStepCount",
-            "HKQuantityTypeIdentifierDistanceWalkingRunning",
-            "HKQuantityTypeIdentifierActiveEnergyBurned",
-            "HKQuantityTypeIdentifierBasalEnergyBurned",
-        ):
-            record_source = APPLE_WATCH_SOURCE
-        elif record_type in (
-            "HKQuantityTypeIdentifierBodyMass",
-            "HKQuantityTypeIdentifierDietaryEnergyConsumed",
-            "HKQuantityTypeIdentifierDietaryProtein",
-            "HKQuantityTypeIdentifierDietaryCarbohydrates",
-            "HKQuantityTypeIdentifierDietaryFatTotal",
-        ):
-            record_source = APPLE_HEALTH_APP_SOURCE
-        else:
+        record_source = self._expected_source_for_record_type(record_type)
+
+        if record_source is None:
             return
 
         source_name = element.attrib.get("sourceName", "")
@@ -172,12 +156,7 @@ class AppleHealthParser:
 
             return
 
-        if record_type in (
-            "HKQuantityTypeIdentifierDietaryEnergyConsumed",
-            "HKQuantityTypeIdentifierDietaryProtein",
-            "HKQuantityTypeIdentifierDietaryCarbohydrates",
-            "HKQuantityTypeIdentifierDietaryFatTotal",
-        ):
+        if record_type in NUTRITION_RECORD_TYPES:
             if metrics.nutrition is None:
                 metrics.nutrition = NutritionData()
 
@@ -300,3 +279,39 @@ class AppleHealthParser:
 
         elif record_type == "HKQuantityTypeIdentifierDietaryFatTotal":
             nutrition.fat_g += float(value)
+
+    @staticmethod
+    def _expected_source_for_record_type(
+        record_type: str | None,
+    ) -> str | None:
+        if record_type in APPLE_WATCH_DAILY_METRIC_TYPES:
+            return APPLE_WATCH_SOURCE
+
+        if record_type in APPLE_HEALTH_DAILY_METRIC_TYPES:
+            return APPLE_HEALTH_APP_SOURCE
+
+        return None
+
+    def _parse_workout_statistics(
+        self,
+        element: ET.Element,
+    ) -> tuple[float | None, float | None]:
+        active_energy: float | None = None
+        distance: float | None = None
+
+        for child in element:
+            if child.tag != "WorkoutStatistics":
+                continue
+
+            statistic_type = child.attrib.get("type")
+
+            if statistic_type == WORKOUT_ACTIVE_ENERGY_TYPE:
+                active_energy = float(child.attrib["sum"])
+
+            elif statistic_type in (
+                WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
+                WORKOUT_CYCLING_DISTANCE_TYPE,
+            ):
+                distance = float(child.attrib["sum"])
+
+        return active_energy, distance

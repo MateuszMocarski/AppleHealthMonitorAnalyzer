@@ -80,7 +80,7 @@ independent verification, and AI-assisted interpretation.
 
 ### Reporting
 
-- Human-readable console reports
+- Human-readable text reports
 - Daily and monthly summaries
 - AI-friendly report format
 - Documented calculation methodology
@@ -140,7 +140,7 @@ Displays only the aggregated monthly statistics without the detailed daily repor
 
 > **Note:** `--year` cannot be used without `--month`.
 
-The application processes the archive and generates a structured console report containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
+The application processes the archive and generates a structured text report containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
 
 ## Project Architecture
 
@@ -149,8 +149,6 @@ The application follows a layered architecture that separates data import, parsi
 ```mermaid
 flowchart TD
 
-    %% ===== Nodes =====
-
     A["📦 Apple Health Export<br/><b>export.zip</b>"]
 
     B["AppleHealthImporter"]
@@ -158,25 +156,33 @@ flowchart TD
 
     D["AppleHealthData<br/><i>Domain Model Root</i>"]
 
-    E["HealthAnalyzer"]
+    E["HealthAnalyzer<br/><i>Orchestrator</i>"]
+    EA["ActivityAnalyzer"]
+    EM["MetricsAnalyzer"]
+    ES["SleepAnalyzer"]
 
     F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
 
-    G["ConsoleRenderer"]
+    G["TextRenderer"]
 
-    H["📄 Console Report"]
-
-    %% ===== Flow =====
+    H["📄 Text Report"]
 
     A -->|"Load archive"| B
     B -->|"Extract XML"| C
     C -->|"Parse records"| D
     D -->|"Analyze health data"| E
-    E -->|"Build report model"| F
-    F -->|"Render"| G
-    G --> H
 
-    %% ===== Colors =====
+    E --> EA
+    E --> EM
+    E --> ES
+
+    EA -->|"Activity summaries"| E
+    EM -->|"Daily and monthly metrics"| E
+    ES -->|"Sleep sessions and scores"| E
+
+    E -->|"Build report model"| F
+    F -->|"Render to text"| G
+    G --> H
 
     classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
     classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
@@ -186,7 +192,7 @@ flowchart TD
 
     class A,B,C import;
     class D domain;
-    class E,F analysis;
+    class E,EA,EM,ES,F analysis;
     class G presentation;
     class H output;
 ```
@@ -218,26 +224,42 @@ All subsequent analysis operates exclusively on this domain model, making it the
 
 #### HealthAnalyzer
 
-Processes the domain model and calculates all statistics, summaries, and reporting metrics.
-All business logic is centralized here to ensure deterministic and reproducible reports.
+Acts as the analysis-layer orchestrator.
+It coordinates specialized analyzers and combines their results into daily and monthly report models.
+
+#### ActivityAnalyzer
+
+Processes workout data and builds daily and monthly activity summaries, including workout duration, active energy expenditure and distance.
+
+#### MetricsAnalyzer
+
+Processes aggregated daily metrics and calculates daily and monthly statistics for steps, walking/running distance, energy expenditure, body weight and nutrition.
+
+#### SleepAnalyzer
+
+Reconstructs sleep sessions from Apple Health sleep records, selects the primary sleep session for each reporting day, calculates sleep statistics and applies the configurable Sleep Score model.
 
 #### Health Report
 
 Represents the complete report independently of its presentation.
 Separating report generation from rendering makes it easy to support additional output formats (e.g. HTML, Markdown or PDF) without modifying the analysis layer.
 
-#### ConsoleRenderer
+#### TextRenderer
 
-Transforms the report model into a human-readable console report.
-The renderer contains no business logic and is responsible solely for presentation.
+Transforms the report model into a human-readable text representation.
+The renderer contains no business logic and returns the rendered report as a string, leaving the application layer responsible for deciding where that output is sent.
+
+The renderer is isolated in the `renderers` package so that additional formats such as JSON or XML can be introduced without changing the analysis layer.
 
 ### Architectural Principles
 
 - Single Responsibility Principle for every major component.
-- Clear separation between parsing, analysis, and presentation.
+- Clear separation between parsing, specialized analysis, report construction, rendering, and output.
 - Domain-driven workflow based on an in-memory domain model.
 - Deterministic report generation — the same input always produces the same output.
 - Report models are presentation-agnostic, allowing multiple output formats to reuse the same analysis results.
+- Specialized analyzers separate activity, daily metrics and sleep responsibilities behind a single `HealthAnalyzer` orchestration layer.
+- Renderers produce representations of report models without controlling the final output destination.
 
 ## Domain Model
 
@@ -342,7 +364,7 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 
 ## Report Format
 
-The application generates a structured, human-readable console report that summarizes activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
+The application generates a structured, human-readable text report that summarizes activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
 
@@ -417,7 +439,7 @@ Key reporting areas include:
 
 ### Design Goals
 
-- Human-readable console output.
+- Human-readable text output.
 - Consistent formatting throughout the report.
 - Monthly overview followed by progressively more detailed information.
 - Aggregated metrics presented before individual workout sessions.
@@ -504,7 +526,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project currently fulfills its original purpose.
 
-Future development may include additional health metrics when practical needs arise, as well as technical improvements focused on maintainability, code quality and architecture.
+Future development may include additional health metrics when practical needs arise, additional report renderers such as JSON or XML, and further technical improvements focused on maintainability, code quality and architecture.
 
 ## License
 

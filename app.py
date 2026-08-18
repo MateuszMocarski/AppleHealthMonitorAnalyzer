@@ -4,10 +4,10 @@ import argparse
 from datetime import date
 from pathlib import Path
 
-from apple_health.analyzer import SleepAnalyzer, WorkoutAnalyzer
+from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
-from apple_health.renderer import ConsoleRenderer
+from apple_health.renderers.text_renderer import TextRenderer
 
 
 def main() -> None:
@@ -59,10 +59,8 @@ def main() -> None:
                 parser = AppleHealthParser(xml_stream)
                 apple_health_data = parser.parse()
 
-                sleep_analyzer = SleepAnalyzer(apple_health_data)
-
-                analyzer = WorkoutAnalyzer(apple_health_data, sleep_analyzer)
-                renderer = ConsoleRenderer()
+                analyzer = HealthAnalyzer(apple_health_data)
+                renderer = TextRenderer()
 
                 today = date.today()
                 year = args.year if args.year is not None else today.year
@@ -71,9 +69,15 @@ def main() -> None:
                 monthly_summary = analyzer.summarize_month(year, month)
 
                 if args.month_summary:
-                    renderer.render_month_summary(monthly_summary)
+                    print(
+                        renderer.render_month_summary(monthly_summary),
+                        end="",
+                    )
                 else:
-                    renderer.render_month(monthly_summary)
+                    print(
+                        renderer.render_month(monthly_summary),
+                        end="",
+                    )
 
             finally:
                 xml_stream.close()
