@@ -1,21 +1,12 @@
 from __future__ import annotations
 
-from calendar import monthrange
-from collections import defaultdict
 from datetime import date, time, timedelta
 from statistics import pstdev
 
-from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
-from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
-
 from apple_health.constants import APPLE_WATCH_SOURCE
-from apple_health.enums import SleepStage, WorkoutType
-from apple_health.models import AppleHealthData, SleepRecord, Workout
+from apple_health.enums import SleepStage
+from apple_health.models import AppleHealthData, SleepRecord
 from apple_health.report_models import (
-    ActivityMetricsSummary,
-    ActivitySummary,
-    DailySummary,
-    MonthlySummary,
     SleepMonthlySummary,
     SleepScore,
     SleepSession,

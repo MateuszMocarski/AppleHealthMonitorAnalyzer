@@ -3,20 +3,22 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date, timedelta
 
-from apple_health.analyzer import SleepAnalyzer
 from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
 from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
+from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
+
 from apple_health.models import AppleHealthData
+
 from apple_health.report_models import DailySummary, MonthlySummary
 
 class HealthAnalyzer:
-    def __init__(self, health_data: AppleHealthData, sleep_analyzer: SleepAnalyzer) -> None:
+    def __init__(self, health_data: AppleHealthData) -> None:
 
         self.activity_analyzer = ActivityAnalyzer(health_data)
         
         self.metrics_analyzer = MetricsAnalyzer(health_data)
         
-        self.sleep_analyzer = sleep_analyzer
+        self.sleep_analyzer = SleepAnalyzer(health_data)
 
         self.last_data_day = max(
             metrics.date
