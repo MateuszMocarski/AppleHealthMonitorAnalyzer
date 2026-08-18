@@ -10,6 +10,7 @@ from apple_health.report_models import (
     SleepMonthlySummary,
     SleepScore,
 )
+from apple_health.sleep_score_config import SLEEP_MONTHLY_BONUS_ENABLED
 
 
 class ConsoleRenderer:
@@ -318,3 +319,16 @@ class ConsoleRenderer:
         print(f"  Average duration: {summary.average_duration_score:.0f}/100")
         print(f"  Average wake up:  {summary.average_wake_up_score:.0f}/100")
         print(f"  Average total:    {summary.average_sleep_score:.0f}/100")
+
+        print()
+
+        if not SLEEP_MONTHLY_BONUS_ENABLED:
+            print("  Monthly bonus system: disabled")
+            return
+
+        print(f"  Average bonus:     +{summary.average_bonus:.0f}")
+        print(f"  Consistency bonus: +{summary.consistency_bonus:.0f}")
+        print(
+            f"  Monthly score:     "
+            f"{summary.monthly_sleep_score:.0f}/120"
+        )

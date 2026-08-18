@@ -3,6 +3,7 @@ from __future__ import annotations
 from calendar import monthrange
 from collections import defaultdict
 from datetime import date, time, timedelta
+from statistics import pstdev
 
 from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import SleepStage, WorkoutType
@@ -32,6 +33,9 @@ from apple_health.sleep_score_config import (
     WAKE_UP_PENALTY_INTERVAL_MINUTES,
     WAKE_UP_PENALTY_POINTS,
     WAKE_UP_TARGET,
+    SLEEP_MONTHLY_BONUS_ENABLED,
+    SLEEP_AVERAGE_BONUS_THRESHOLDS,
+    SLEEP_CONSISTENCY_BONUS_THRESHOLDS,
     validate_sleep_score_config,
 )
 
@@ -449,6 +453,14 @@ class SleepAnalyzer:
         average_wake_up_score = self._average([score.wake_up_score for score in sleep_scores])
 
         average_sleep_score = self._average([score.total_score for score in sleep_scores])
+        
+        average_bonus = self._calculate_average_sleep_bonus(
+            average_sleep_score
+        )
+
+        consistency_bonus = self._calculate_consistency_bonus(
+            sleep_scores
+        )
 
         return SleepMonthlySummary(
             total_sessions=len(sessions),
@@ -464,6 +476,8 @@ class SleepAnalyzer:
             average_duration_score=average_duration_score,
             average_wake_up_score=average_wake_up_score,
             average_sleep_score=average_sleep_score,
+            average_bonus=average_bonus,
+            consistency_bonus=consistency_bonus,
         )
 
     def _sum_stage_minutes(
@@ -684,3 +698,37 @@ class SleepAnalyzer:
             duration_score=duration_score,
             wake_up_score=wake_up_score,
         )
+
+    def _calculate_average_sleep_bonus(
+        self,
+        average_sleep_score: float,
+    ) -> float:
+        if not SLEEP_MONTHLY_BONUS_ENABLED:
+            return 0.0
+
+        for threshold, bonus in SLEEP_AVERAGE_BONUS_THRESHOLDS:
+            if average_sleep_score >= threshold:
+                return float(bonus)
+
+        return 0.0
+    
+    def _calculate_consistency_bonus(
+        self,
+        sleep_scores: list[SleepScore],
+    ) -> float:
+        if not SLEEP_MONTHLY_BONUS_ENABLED:
+            return 0.0
+
+        if len(sleep_scores) < 2:
+            return 0.0
+
+        standard_deviation = pstdev(
+            score.total_score
+            for score in sleep_scores
+        )
+
+        for threshold, bonus in SLEEP_CONSISTENCY_BONUS_THRESHOLDS:
+            if standard_deviation < threshold:
+                return float(bonus)
+
+        return 0.0
