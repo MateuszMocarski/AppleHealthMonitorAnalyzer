@@ -13,7 +13,26 @@ from apple_health.report_models import (
     DailySummary,
     MonthlySummary,
     SleepMonthlySummary,
+    SleepScore,
     SleepSession,
+)
+from apple_health.sleep_score_config import (
+    BEDTIME_PENALTY_INTERVAL_MINUTES,
+    BEDTIME_PENALTY_POINTS,
+    BEDTIME_TARGET,
+    SLEEP_DURATION_OVERSLEEP_WEIGHT,
+    SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
+    SLEEP_DURATION_PENALTY_POINTS,
+    SLEEP_DURATION_TARGET_MINUTES,
+    SLEEP_DURATION_TOLERANCE_MINUTES,
+    SLEEP_DURATION_UNDERSLEEP_WEIGHT,
+    SLEEP_SCORE_LINEAR_PENALTIES,
+    WAKE_UP_BEDTIME_WEIGHT,
+    WAKE_UP_DURATION_WEIGHT,
+    WAKE_UP_PENALTY_INTERVAL_MINUTES,
+    WAKE_UP_PENALTY_POINTS,
+    WAKE_UP_TARGET,
+    validate_sleep_score_config,
 )
 
 
@@ -24,6 +43,8 @@ class WorkoutAnalyzer:
 
         self._workouts_by_day = self._group_workouts_by_day()
         self._daily_metrics_by_day = self._group_daily_metrics_by_day()
+
+        self.last_data_day = max(metrics.date for metrics in self.daily_metrics)
 
         sleep_analyzer: SleepAnalyzer
         self.sleep_analyzer = sleep_analyzer
@@ -74,6 +95,11 @@ class WorkoutAnalyzer:
         total_distance_km = metrics.distance_km if metrics else 0.0
 
         sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
+
+        sleep_score = (
+            self.sleep_analyzer.score_session(sleep_session) if sleep_session is not None else None
+        )
+
         return DailySummary(
             date=day,
             weight=weight,
@@ -86,6 +112,7 @@ class WorkoutAnalyzer:
             total_steps=total_steps,
             total_distance_km=total_distance_km,
             sleep_session=sleep_session,
+            sleep_score=sleep_score,
         )
 
     def summarize_month_activities(
@@ -279,13 +306,19 @@ class WorkoutAnalyzer:
         year: int,
         month: int,
     ) -> int:
-        today = date.today()
+        last_complete_day = self.last_data_day - timedelta(days=1)
 
-        if (year, month) < (today.year, today.month):
+        if (year, month) < (
+            last_complete_day.year,
+            last_complete_day.month,
+        ):
             return monthrange(year, month)[1]
 
-        if (year, month) == (today.year, today.month):
-            return today.day - 1
+        if (year, month) == (
+            last_complete_day.year,
+            last_complete_day.month,
+        ):
+            return last_complete_day.day
 
         return 0
 
@@ -304,6 +337,8 @@ class SleepAnalyzer:
         self,
         health_data: AppleHealthData,
     ) -> None:
+        validate_sleep_score_config()
+
         self.sleep_records = health_data.sleep_records
         self.sleep_sessions = self.analyze()
 
@@ -389,17 +424,31 @@ class SleepAnalyzer:
             if (day.year == year and day.month == month and day.day <= reporting_days)
         ]
 
-        bedtimes = [s.bedtime.time() for s in sessions]
-        wake_ups = [s.wake_up.time() for s in sessions]
+        bedtimes = [session.bedtime.time() for session in sessions]
 
-        sleep_minutes = [s.time_asleep_minutes for s in sessions]
-        awake_minutes = [s.awake_minutes for s in sessions]
+        wake_ups = [session.wake_up.time() for session in sessions]
 
-        efficiency = [s.sleep_efficiency_percent for s in sessions]
+        sleep_minutes = [session.time_asleep_minutes for session in sessions]
 
-        core = [s.core_minutes for s in sessions]
-        deep = [s.deep_minutes for s in sessions]
-        rem = [s.rem_minutes for s in sessions]
+        awake_minutes = [session.awake_minutes for session in sessions]
+
+        efficiency = [session.sleep_efficiency_percent for session in sessions]
+
+        core = [session.core_minutes for session in sessions]
+
+        deep = [session.deep_minutes for session in sessions]
+
+        rem = [session.rem_minutes for session in sessions]
+
+        sleep_scores = [self.score_session(session) for session in sessions]
+
+        average_bedtime_score = self._average([score.bedtime_score for score in sleep_scores])
+
+        average_duration_score = self._average([score.duration_score for score in sleep_scores])
+
+        average_wake_up_score = self._average([score.wake_up_score for score in sleep_scores])
+
+        average_sleep_score = self._average([score.total_score for score in sleep_scores])
 
         return SleepMonthlySummary(
             total_sessions=len(sessions),
@@ -411,6 +460,10 @@ class SleepAnalyzer:
             average_core_minutes=self._average(core),
             average_deep_minutes=self._average(deep),
             average_rem_minutes=self._average(rem),
+            average_bedtime_score=average_bedtime_score,
+            average_duration_score=average_duration_score,
+            average_wake_up_score=average_wake_up_score,
+            average_sleep_score=average_sleep_score,
         )
 
     def _sum_stage_minutes(
@@ -427,7 +480,9 @@ class SleepAnalyzer:
         return self._primary_sleep_sessions_by_day.get(day)
 
     @staticmethod
-    def _average_time(times: list[time]) -> time:
+    def _average_time(
+        times: list[time],
+    ) -> time:
         """
         Calculates the average time of day.
 
@@ -439,13 +494,13 @@ class SleepAnalyzer:
             02:00 -> 120
         """
 
-        shifted_minutes = []
-
         if not times:
             raise ValueError("Cannot calculate average of an empty time collection.")
 
-        for t in times:
-            minutes = t.hour * 60 + t.minute
+        shifted_minutes = []
+
+        for value in times:
+            minutes = value.hour * 60 + value.minute
 
             if minutes >= 12 * 60:
                 minutes -= 24 * 60
@@ -459,12 +514,20 @@ class SleepAnalyzer:
 
         average = round(average)
 
-        hours, minutes = divmod(average, 60)
+        hours, minutes = divmod(
+            average,
+            60,
+        )
 
-        return time(hour=hours, minute=minutes)
+        return time(
+            hour=hours,
+            minute=minutes,
+        )
 
     @staticmethod
-    def _average(values: list[float]) -> float:
+    def _average(
+        values: list[float],
+    ) -> float:
         if not values:
             raise ValueError("Cannot calculate average of an empty collection.")
 
@@ -473,7 +536,10 @@ class SleepAnalyzer:
     def _select_primary_sleep_sessions(
         self,
     ) -> dict[date, SleepSession]:
-        primary_sessions: dict[date, SleepSession] = {}
+        primary_sessions: dict[
+            date,
+            SleepSession,
+        ] = {}
 
         for session in self.sleep_sessions:
             day = session.reporting_date
@@ -483,3 +549,138 @@ class SleepAnalyzer:
                 primary_sessions[day] = session
 
         return primary_sessions
+
+    def _calculate_penalty(
+        self,
+        deviation_minutes: float,
+        interval_minutes: float,
+        penalty_points: float,
+    ) -> float:
+        if deviation_minutes <= 0:
+            return 0.0
+
+        if SLEEP_SCORE_LINEAR_PENALTIES:
+            return deviation_minutes / interval_minutes * penalty_points
+
+        return (deviation_minutes // interval_minutes) * penalty_points
+
+    @staticmethod
+    def _minutes_relative_to_midnight(
+        value: time,
+    ) -> int:
+        minutes = value.hour * 60 + value.minute
+
+        if minutes >= 12 * 60:
+            minutes -= 24 * 60
+
+        return minutes
+
+    def _calculate_bedtime_score(
+        self,
+        session: SleepSession,
+    ) -> float:
+        bedtime_minutes = self._minutes_relative_to_midnight(session.bedtime.time())
+
+        target_minutes = self._minutes_relative_to_midnight(BEDTIME_TARGET)
+
+        if bedtime_minutes <= target_minutes:
+            return 100.0
+
+        delay_minutes = bedtime_minutes - target_minutes
+
+        penalty = self._calculate_penalty(
+            deviation_minutes=delay_minutes,
+            interval_minutes=BEDTIME_PENALTY_INTERVAL_MINUTES,
+            penalty_points=BEDTIME_PENALTY_POINTS,
+        )
+
+        return max(
+            0.0,
+            100.0 - penalty,
+        )
+
+    def _calculate_duration_score(
+        self,
+        session: SleepSession,
+    ) -> float:
+        duration_minutes = session.time_asleep_minutes
+
+        lower_bound = SLEEP_DURATION_TARGET_MINUTES - SLEEP_DURATION_TOLERANCE_MINUTES
+
+        upper_bound = SLEEP_DURATION_TARGET_MINUTES + SLEEP_DURATION_TOLERANCE_MINUTES
+
+        if lower_bound <= duration_minutes <= upper_bound:
+            return 100.0
+
+        if duration_minutes < lower_bound:
+            deviation_minutes = lower_bound - duration_minutes
+
+            penalty_weight = SLEEP_DURATION_UNDERSLEEP_WEIGHT
+
+        else:
+            deviation_minutes = duration_minutes - upper_bound
+
+            penalty_weight = SLEEP_DURATION_OVERSLEEP_WEIGHT
+
+        penalty = self._calculate_penalty(
+            deviation_minutes=deviation_minutes,
+            interval_minutes=SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
+            penalty_points=SLEEP_DURATION_PENALTY_POINTS,
+        )
+
+        penalty *= penalty_weight
+
+        return max(
+            0.0,
+            100.0 - penalty,
+        )
+
+    def _calculate_wake_up_score(
+        self,
+        session: SleepSession,
+        bedtime_score: float,
+        duration_score: float,
+    ) -> float:
+        wake_up_max_score = (
+            bedtime_score * WAKE_UP_BEDTIME_WEIGHT + duration_score * WAKE_UP_DURATION_WEIGHT
+        ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
+
+        wake_up_minutes = self._minutes_relative_to_midnight(session.wake_up.time())
+
+        target_minutes = self._minutes_relative_to_midnight(WAKE_UP_TARGET)
+
+        if wake_up_minutes <= target_minutes:
+            return wake_up_max_score
+
+        delay_minutes = wake_up_minutes - target_minutes
+
+        penalty = self._calculate_penalty(
+            deviation_minutes=delay_minutes,
+            interval_minutes=WAKE_UP_PENALTY_INTERVAL_MINUTES,
+            penalty_points=WAKE_UP_PENALTY_POINTS,
+        )
+
+        return max(
+            0.0,
+            wake_up_max_score - penalty,
+        )
+
+    def score_session(
+        self,
+        session: SleepSession,
+    ) -> SleepScore:
+        bedtime_score = self._calculate_bedtime_score(session)
+
+        duration_score = self._calculate_duration_score(session)
+
+        wake_up_score = self._calculate_wake_up_score(
+            session,
+            bedtime_score,
+            duration_score,
+        )
+
+        return SleepScore(
+            bedtime_score=bedtime_score,
+            duration_score=duration_score,
+            wake_up_score=wake_up_score,
+        )

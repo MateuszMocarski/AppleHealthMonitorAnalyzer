@@ -8,6 +8,7 @@ from apple_health.report_models import (
     DailySummary,
     MonthlySummary,
     SleepMonthlySummary,
+    SleepScore,
 )
 
 
@@ -25,6 +26,10 @@ class ConsoleRenderer:
         print("=" * len(str(summary.date)))
 
         self._render_daily_sleep(summary)
+
+        if summary.sleep_score is not None:
+            self._render_sleep_score(summary.sleep_score)
+            print()
 
         self._render_general_activity(
             total_steps=summary.total_steps,
@@ -197,6 +202,10 @@ class ConsoleRenderer:
 
         print()
 
+        self._render_monthly_sleep_score(summary.sleep_summary)
+
+        print()
+
         print("Workouts")
         print("--------")
 
@@ -283,3 +292,29 @@ class ConsoleRenderer:
         hours, mins = divmod(total_minutes, 60)
 
         return f"{hours} h {mins} min"
+
+    def _render_sleep_score(
+        self,
+        sleep_score: SleepScore,
+    ) -> None:
+        header = "Sleep score"
+        print(header)
+        print("-" * len(header))
+
+        print(f"  Bedtime:  {sleep_score.bedtime_score:.0f}/100")
+        print(f"  Duration: {sleep_score.duration_score:.0f}/100")
+        print(f"  Wake-up:  {sleep_score.wake_up_score:.0f}/100")
+        print(f"  Total:    {sleep_score.total_score:.0f}/100")
+
+    def _render_monthly_sleep_score(
+        self,
+        summary: SleepMonthlySummary,
+    ) -> None:
+        header = "Sleep score"
+        print(header)
+        print("-" * len(header))
+
+        print(f"  Average bedtime:  {summary.average_bedtime_score:.0f}/100")
+        print(f"  Average duration: {summary.average_duration_score:.0f}/100")
+        print(f"  Average wake up:  {summary.average_wake_up_score:.0f}/100")
+        print(f"  Average total:    {summary.average_sleep_score:.0f}/100")
