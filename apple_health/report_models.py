@@ -60,7 +60,7 @@ class DailySummary:
         return self.active_energy_kcal + self.basal_energy_kcal
 
     @property
-    def calories_balance_kcal(self) -> float:
+    def calories_balance_kcal(self) -> float | None:
         if self.nutrition is None:
             return None
 
@@ -101,11 +101,11 @@ class ActivityMetricsSummary:
 
     average_active_energy_kcal: float
 
-    average_weight: float
-    start_weight: float
-    end_weight: float
-    max_weight: float
-    min_weight: float
+    average_weight: float | None
+    start_weight: float | None
+    end_weight: float | None
+    max_weight: float | None
+    min_weight: float | None
     measurements: int
 
     average_protein_g: float
@@ -118,7 +118,10 @@ class ActivityMetricsSummary:
         return self.average_active_energy_kcal + self.average_basal_energy_kcal
 
     @property
-    def weight_change(self) -> float:
+    def weight_change(self) -> float | None:
+        if self.start_weight is None or self.end_weight is None:
+            return None
+
         return self.end_weight - self.start_weight
 
     @property
