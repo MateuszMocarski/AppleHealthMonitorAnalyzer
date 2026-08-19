@@ -21,3 +21,7 @@ select = [
     "I",
     "UP",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

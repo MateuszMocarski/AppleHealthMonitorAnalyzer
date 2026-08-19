@@ -1,0 +1,280 @@
+import zipfile
+from pathlib import Path
+
+import pytest
+
+from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.constants import (
+    APPLE_HEALTH_APP_SOURCE,
+    APPLE_WATCH_SOURCE,
+)
+from apple_health.enums import WorkoutType
+from apple_health.importer import AppleHealthImporter
+from apple_health.parser import AppleHealthParser
+from apple_health.renderers.text_renderer import TextRenderer
+
+
+def _create_export_archive(
+    tmp_path: Path,
+) -> Path:
+    archive_path = tmp_path / "export.zip"
+
+    xml = f"""
+        <HealthData>
+            <Record
+                type="HKQuantityTypeIdentifierStepCount"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="8000"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierStepCount"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="9000"
+                startDate="2026-08-02 10:00:00 +0200"
+                endDate="2026-08-02 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierStepCount"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="10000"
+                startDate="2026-08-03 10:00:00 +0200"
+                endDate="2026-08-03 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierDistanceWalkingRunning"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="6.4"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierActiveEnergyBurned"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="700"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierBasalEnergyBurned"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="1900"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierBodyMass"
+                sourceName="{APPLE_HEALTH_APP_SOURCE}"
+                value="80.0"
+                startDate="2026-08-01 08:00:00 +0200"
+                endDate="2026-08-01 08:00:00 +0200">
+                <MetadataEntry
+                    key="HKWasUserEntered"
+                    value="1"
+                />
+            </Record>
+
+            <Record
+                type="HKQuantityTypeIdentifierDietaryEnergyConsumed"
+                sourceName="{APPLE_HEALTH_APP_SOURCE}"
+                value="2000"
+                startDate="2026-08-01 20:00:00 +0200"
+                endDate="2026-08-01 20:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierDietaryProtein"
+                sourceName="{APPLE_HEALTH_APP_SOURCE}"
+                value="150"
+                startDate="2026-08-01 20:00:00 +0200"
+                endDate="2026-08-01 20:00:00 +0200"
+            />
+
+            <Workout
+                workoutActivityType="HKWorkoutActivityTypeWalking"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceVersion="1"
+                startDate="2026-08-01 18:00:00 +0200"
+                endDate="2026-08-01 19:00:00 +0200"
+                duration="60">
+                <WorkoutStatistics
+                    type="HKQuantityTypeIdentifierActiveEnergyBurned"
+                    sum="400"
+                />
+                <WorkoutStatistics
+                    type="HKQuantityTypeIdentifierDistanceWalkingRunning"
+                    sum="5.0"
+                />
+            </Workout>
+
+            <Record
+                type="HKCategoryTypeIdentifierSleepAnalysis"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="HKCategoryValueSleepAnalysisAsleepCore"
+                startDate="2026-08-01 00:00:00 +0200"
+                endDate="2026-08-01 08:00:00 +0200"
+            />
+
+            <Record
+                type="HKCategoryTypeIdentifierSleepAnalysis"
+                sourceName="{APPLE_WATCH_SOURCE}"
+                value="HKCategoryValueSleepAnalysisAsleepCore"
+                startDate="2026-08-02 00:00:00 +0200"
+                endDate="2026-08-02 08:00:00 +0200"
+            />
+        </HealthData>
+        """
+
+    with zipfile.ZipFile(
+        archive_path,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            xml,
+        )
+
+        return archive_path
+
+
+def _run_pipeline(
+    archive_path: Path,
+):
+    importer = AppleHealthImporter(archive_path)
+
+    archive, xml_file = importer.open_export()
+
+    try:
+        health_data = AppleHealthParser(xml_file).parse()
+    finally:
+        xml_file.close()
+        archive.close()
+
+    analyzer = HealthAnalyzer(health_data)
+
+    return analyzer.summarize_month(
+        year=2026,
+        month=8,
+    )
+
+
+# =====================================================================
+# Verifies the complete Apple Health report pipeline from a ZIP archive
+# through importing, parsing and analysis to the final rendered report.
+# =====================================================================
+
+
+def test_full_report_pipeline(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(tmp_path)
+
+    summary = _run_pipeline(archive_path)
+
+    output = TextRenderer().render_month(summary)
+
+    assert summary.reporting_days == 2
+    assert len(summary.days) == 2
+
+    assert "Apple Health Monthly Report" in output
+    assert "August 2026" in output
+    assert "Data available through: 2026-08-02" in output
+
+    assert "General activity" in output
+    assert "Sleep" in output
+    assert "Sleep score" in output
+    assert "Workouts" in output
+    assert "Walking" in output
+    assert "Body weight:" in output
+    assert "Average energy expenditure" in output
+    assert "Average nutrition" in output
+
+    assert "2026-08-01" in output
+    assert "2026-08-02" in output
+
+
+# =====================================================================
+# Verifies that values imported from the Apple Health XML remain correct
+# after parsing, aggregation and construction of the monthly report.
+# =====================================================================
+
+
+def test_full_pipeline_preserves_report_values(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(tmp_path)
+
+    summary = _run_pipeline(archive_path)
+
+    assert summary.reporting_days == 2
+
+    assert summary.activity_metrics.total_steps == 17000
+
+    assert summary.activity_metrics.total_distance_km == pytest.approx(6.4)
+
+    assert summary.activity_metrics.average_daily_steps == 8500.0
+
+    assert len(summary.activities) == 1
+
+    walking = summary.activities[0]
+
+    assert walking.activity_type == WorkoutType.WALKING
+    assert walking.sessions == 1
+    assert walking.duration_minutes == 60
+    assert walking.active_energy_kcal == 400
+    assert walking.distance_km == 5.0
+
+    assert summary.sleep_summary.total_sessions == 2
+
+
+# =====================================================================
+# Verifies that the complete import and analysis pipeline can produce a
+# monthly-only report without rendering individual daily report sections.
+# =====================================================================
+
+
+def test_month_summary_only_pipeline(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(tmp_path)
+
+    summary = _run_pipeline(archive_path)
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Apple Health Monthly Report" in output
+    assert "General activity" in output
+    assert "Sleep score" in output
+    assert "Average nutrition" in output
+
+    assert "\n2026-08-01\n" not in output
+    assert "\n2026-08-02\n" not in output
+
+
+# =====================================================================
+# Verifies that the complete application pipeline produces exactly the
+# approved deterministic text report for a known Apple Health export.
+# =====================================================================
+
+
+def test_full_pipeline_matches_golden_report(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(tmp_path)
+
+    summary = _run_pipeline(archive_path)
+
+    output = TextRenderer().render_month(summary)
+
+    expected_report_path = Path(__file__).parent / "fixtures" / "expected_report.txt"
+
+    expected_output = expected_report_path.read_text(encoding="utf-8")
+
+    assert output == expected_output

@@ -14,3 +14,6 @@ reports/
 .vscode/
 
 exports/
+
+# Allow committed text fixtures used by tests
+!tests/integration/fixtures/*.txt

@@ -1,0 +1,1094 @@
+from datetime import date, datetime, time, timedelta, timezone
+from statistics import pstdev
+
+import pytest
+
+import apple_health.analyzers.sleep_analyzer as sleep_analyzer_module
+from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
+from apple_health.constants import APPLE_WATCH_SOURCE
+from apple_health.enums import SleepStage
+from apple_health.models import AppleHealthData, SleepRecord
+from apple_health.report_models import SleepScore, SleepSession
+from apple_health.sleep_score_config import (
+    BEDTIME_PENALTY_INTERVAL_MINUTES,
+    BEDTIME_PENALTY_POINTS,
+    BEDTIME_SCORE_WEIGHT,
+    BEDTIME_TARGET,
+    SLEEP_AVERAGE_BONUS_THRESHOLDS,
+    SLEEP_CONSISTENCY_BONUS_THRESHOLDS,
+    SLEEP_DURATION_OVERSLEEP_WEIGHT,
+    SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
+    SLEEP_DURATION_PENALTY_POINTS,
+    SLEEP_DURATION_SCORE_WEIGHT,
+    SLEEP_DURATION_TARGET_MINUTES,
+    SLEEP_DURATION_TOLERANCE_MINUTES,
+    SLEEP_DURATION_UNDERSLEEP_WEIGHT,
+    WAKE_UP_BEDTIME_WEIGHT,
+    WAKE_UP_DURATION_WEIGHT,
+    WAKE_UP_PENALTY_INTERVAL_MINUTES,
+    WAKE_UP_PENALTY_POINTS,
+    WAKE_UP_SCORE_WEIGHT,
+    WAKE_UP_TARGET,
+)
+
+# =======
+# Helpers
+# =======
+
+
+def _datetime(
+    day: int,
+    hour: int = 0,
+    minute: int = 0,
+) -> datetime:
+    return datetime(
+        2026,
+        8,
+        day,
+        hour,
+        minute,
+        tzinfo=timezone.utc,
+    )
+
+
+def _sleep_record(
+    start: datetime,
+    end: datetime,
+    stage: SleepStage = SleepStage.CORE,
+    source_name: str = APPLE_WATCH_SOURCE,
+) -> SleepRecord:
+    return SleepRecord(
+        stage=stage,
+        source_name=source_name,
+        source_version=None,
+        start=start,
+        end=end,
+        duration_minutes=(end - start).total_seconds() / 60,
+    )
+
+
+def _health_data(
+    sleep_records: list[SleepRecord],
+) -> AppleHealthData:
+    return AppleHealthData(
+        workouts=[],
+        daily_metrics=[],
+        sleep_records=sleep_records,
+    )
+
+
+def _analyzer(
+    *sleep_records: SleepRecord,
+) -> SleepAnalyzer:
+    return SleepAnalyzer(_health_data(list(sleep_records)))
+
+
+def _analyzer_for_single_sleep(
+    start: datetime,
+    duration: timedelta,
+    stage: SleepStage = SleepStage.CORE,
+) -> SleepAnalyzer:
+    return _analyzer(
+        _sleep_record(
+            start,
+            start + duration,
+            stage,
+        )
+    )
+
+
+def _single_session(
+    start: datetime,
+    duration: timedelta,
+    stage: SleepStage = SleepStage.CORE,
+) -> tuple[SleepAnalyzer, SleepSession]:
+    analyzer = _analyzer_for_single_sleep(
+        start,
+        duration,
+        stage,
+    )
+
+    return analyzer, analyzer.sleep_sessions[0]
+
+
+def _score_sleep(
+    start: datetime,
+    duration: timedelta,
+) -> SleepScore:
+    analyzer, session = _single_session(
+        start,
+        duration,
+    )
+
+    return analyzer.score_session(session)
+
+
+def _wake_up_max_score(
+    score: SleepScore,
+) -> float:
+    return (
+        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
+        + score.duration_score * WAKE_UP_DURATION_WEIGHT
+    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
+
+
+# =====================================================================================
+# Verifies that consecutive sleep stage records are combined into a single
+# sleep session and that stage durations and total sleep time are calculated correctly.
+# =====================================================================================
+
+
+def test_reconstructs_single_sleep_session() -> None:
+    start = _datetime(10, 23, 30)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=2),
+            SleepStage.CORE,
+        ),
+        _sleep_record(
+            start + timedelta(hours=2),
+            start + timedelta(hours=3),
+            SleepStage.DEEP,
+        ),
+        _sleep_record(
+            start + timedelta(hours=3),
+            start + timedelta(hours=5),
+            SleepStage.REM,
+        ),
+    )
+
+    assert len(analyzer.sleep_sessions) == 1
+
+    session = analyzer.sleep_sessions[0]
+
+    assert session.bedtime == start
+    assert session.wake_up == start + timedelta(hours=5)
+    assert session.core_minutes == 120
+    assert session.deep_minutes == 60
+    assert session.rem_minutes == 120
+    assert session.time_asleep_minutes == 300
+
+
+# =================================================================
+# Verifies that sleep records separated by more than the configured
+# session gap threshold are treated as separate sleep sessions.
+# =================================================================
+
+
+def test_splits_sleep_sessions_when_gap_exceeds_threshold() -> None:
+    start = _datetime(10, 23)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=2),
+        ),
+        _sleep_record(
+            start + timedelta(hours=3),
+            start + timedelta(hours=4),
+        ),
+    )
+
+    assert len(analyzer.sleep_sessions) == 2
+
+
+# =============================================================================
+# Verifies the session gap boundary condition: records separated by exactly
+# the configured threshold are still considered part of the same sleep session.
+# =============================================================================
+
+
+def test_keeps_sleep_records_in_same_session_at_gap_threshold() -> None:
+    start = _datetime(10, 23)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=2),
+        ),
+        _sleep_record(
+            start + timedelta(hours=2, minutes=30),
+            start + timedelta(hours=3, minutes=30),
+            SleepStage.REM,
+        ),
+    )
+
+    assert len(analyzer.sleep_sessions) == 1
+
+
+# ============================================================================
+# Verifies that when multiple sleep sessions belong to the same reporting day,
+# the longest session is selected as the primary sleep session.
+# ============================================================================
+
+
+def test_selects_longest_sleep_session_for_reporting_day() -> None:
+    night_start = _datetime(14, 0, 30)
+    nap_start = _datetime(14, 15)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            night_start,
+            night_start + timedelta(hours=7),
+        ),
+        _sleep_record(
+            nap_start,
+            nap_start + timedelta(hours=1),
+        ),
+    )
+
+    session = analyzer.session_for_day(night_start.date())
+
+    assert session is not None
+    assert session.bedtime == night_start
+    assert session.time_asleep_minutes == 420
+
+
+# =============================================================
+# Verifies that only sleep records originating from Apple Watch
+# are used when reconstructing sleep sessions.
+# =============================================================
+
+
+def test_ignores_sleep_records_from_non_watch_sources() -> None:
+    start = _datetime(10, 23)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=7),
+        ),
+        _sleep_record(
+            start + timedelta(hours=8),
+            start + timedelta(hours=9),
+            source_name="Some Other Source",
+        ),
+    )
+
+    assert len(analyzer.sleep_sessions) == 1
+    assert analyzer.sleep_sessions[0].time_asleep_minutes == 420
+
+
+# =================================================================
+# Verifies that a sleep session starting in the evening is assigned
+# to the following calendar day for reporting purposes.
+# =================================================================
+
+
+def test_assigns_evening_sleep_to_next_reporting_day() -> None:
+    start = _datetime(10, 23, 30)
+
+    analyzer, session = _single_session(
+        start,
+        timedelta(hours=7),
+    )
+
+    assert session.reporting_date == date(
+        2026,
+        8,
+        11,
+    )
+    assert analyzer.session_for_day(date(2026, 8, 11)) is session
+
+
+# =====================================================================
+# Verifies the reporting-date boundary condition: a sleep session
+# starting at 12:00 or later is assigned to the following calendar day.
+# =====================================================================
+
+
+def test_assigns_sleep_starting_at_noon_to_next_reporting_day() -> None:
+    _, session = _single_session(
+        _datetime(10, 12),
+        timedelta(hours=1),
+    )
+
+    assert session.reporting_date == date(
+        2026,
+        8,
+        11,
+    )
+
+
+# =====================================================================
+# Verifies that going to bed before the configured bedtime target
+# receives the maximum bedtime score.
+# =====================================================================
+
+
+def test_bedtime_before_target_receives_maximum_score() -> None:
+    score = _score_sleep(
+        _datetime(10, 23, 30),
+        timedelta(hours=8),
+    )
+
+    assert score.bedtime_score == 100.0
+
+
+# =====================================================================
+# Verifies the bedtime target boundary condition: going to bed exactly
+# at the configured target receives the maximum bedtime score.
+# =====================================================================
+
+
+def test_bedtime_at_target_receives_maximum_score() -> None:
+    start = _datetime(
+        11,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
+    )
+
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
+    )
+
+    assert score.bedtime_score == 100.0
+
+
+# =====================================================================
+# Verifies that going to bed one full penalty interval after the target
+# reduces the bedtime score by exactly one configured penalty.
+# =====================================================================
+
+
+def test_bedtime_one_penalty_interval_late_applies_single_penalty() -> None:
+    target = _datetime(
+        11,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
+    )
+    start = target + timedelta(minutes=BEDTIME_PENALTY_INTERVAL_MINUTES)
+
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
+    )
+
+    assert score.bedtime_score == (100.0 - BEDTIME_PENALTY_POINTS)
+
+
+# =====================================================================
+# Verifies that a bedtime deviation smaller than one full penalty
+# interval does not reduce the score when step penalties are enabled.
+# =====================================================================
+
+
+def test_bedtime_partial_penalty_interval_does_not_reduce_score() -> None:
+    target = _datetime(
+        11,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
+    )
+    start = target + timedelta(minutes=BEDTIME_PENALTY_INTERVAL_MINUTES - 1)
+
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
+    )
+
+    assert score.bedtime_score == 100.0
+
+
+# =====================================================================
+# Verifies that sleeping for exactly the configured target duration
+# receives the maximum duration score.
+# =====================================================================
+
+
+def test_duration_at_target_receives_maximum_score() -> None:
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=SLEEP_DURATION_TARGET_MINUTES),
+    )
+
+    assert score.duration_score == 100.0
+
+
+# =====================================================================
+# Verifies the lower duration tolerance boundary: sleeping exactly at
+# the lower acceptable limit still receives the maximum duration score.
+# =====================================================================
+
+
+def test_duration_at_lower_tolerance_boundary_receives_maximum_score() -> None:
+    duration_minutes = SLEEP_DURATION_TARGET_MINUTES - SLEEP_DURATION_TOLERANCE_MINUTES
+
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
+    )
+
+    assert score.duration_score == 100.0
+
+
+# =====================================================================
+# Verifies the upper duration tolerance boundary: sleeping exactly at
+# the upper acceptable limit still receives the maximum duration score.
+# =====================================================================
+
+
+def test_duration_at_upper_tolerance_boundary_receives_maximum_score() -> None:
+    duration_minutes = SLEEP_DURATION_TARGET_MINUTES + SLEEP_DURATION_TOLERANCE_MINUTES
+
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
+    )
+
+    assert score.duration_score == 100.0
+
+
+# =====================================================================
+# Verifies that sleeping one full penalty interval below the lower
+# tolerance boundary applies one undersleep penalty with its weight.
+# =====================================================================
+
+
+def test_duration_one_penalty_interval_underslept_applies_penalty() -> None:
+    duration_minutes = (
+        SLEEP_DURATION_TARGET_MINUTES
+        - SLEEP_DURATION_TOLERANCE_MINUTES
+        - SLEEP_DURATION_PENALTY_INTERVAL_MINUTES
+    )
+
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
+    )
+
+    expected_score = 100.0 - SLEEP_DURATION_PENALTY_POINTS * SLEEP_DURATION_UNDERSLEEP_WEIGHT
+
+    assert score.duration_score == expected_score
+
+
+# =====================================================================
+# Verifies that sleeping one full penalty interval above the upper
+# tolerance boundary applies one oversleep penalty with its weight.
+# =====================================================================
+
+
+def test_duration_one_penalty_interval_overslept_applies_penalty() -> None:
+    duration_minutes = (
+        SLEEP_DURATION_TARGET_MINUTES
+        + SLEEP_DURATION_TOLERANCE_MINUTES
+        + SLEEP_DURATION_PENALTY_INTERVAL_MINUTES
+    )
+
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
+    )
+
+    expected_score = 100.0 - SLEEP_DURATION_PENALTY_POINTS * SLEEP_DURATION_OVERSLEEP_WEIGHT
+
+    assert score.duration_score == expected_score
+
+
+# =====================================================================
+# Verifies that waking up at the configured target does not apply any
+# additional penalty and returns the maximum available wake-up score.
+# =====================================================================
+
+
+def test_wake_up_at_target_receives_maximum_available_score() -> None:
+    start = _datetime(11)
+    duration_minutes = WAKE_UP_TARGET.hour * 60 + WAKE_UP_TARGET.minute
+
+    score = _score_sleep(
+        start,
+        timedelta(minutes=duration_minutes),
+    )
+
+    assert score.wake_up_score == _wake_up_max_score(score)
+
+
+# =====================================================================
+# Verifies that waking up one full penalty interval after the target
+# reduces the wake-up score by exactly one configured penalty.
+# =====================================================================
+
+
+def test_wake_up_one_penalty_interval_late_applies_single_penalty() -> None:
+    start = _datetime(11)
+    wake_up_minutes = (
+        WAKE_UP_TARGET.hour * 60 + WAKE_UP_TARGET.minute + WAKE_UP_PENALTY_INTERVAL_MINUTES
+    )
+
+    score = _score_sleep(
+        start,
+        timedelta(minutes=wake_up_minutes),
+    )
+
+    expected_score = _wake_up_max_score(score) - WAKE_UP_PENALTY_POINTS
+
+    assert score.wake_up_score == expected_score
+
+
+# =====================================================================
+# Verifies that the maximum wake-up score is calculated as the weighted
+# average of the bedtime and duration scores using configured weights.
+# =====================================================================
+
+
+def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
+    score = _score_sleep(
+        _datetime(11, 1),
+        timedelta(hours=7),
+    )
+
+    assert score.wake_up_score <= _wake_up_max_score(score)
+
+
+# =====================================================================
+# Verifies that waking up before the target cannot exceed the weighted
+# maximum derived from the bedtime and duration component scores.
+# =====================================================================
+
+
+def test_wake_up_before_target_is_capped_by_component_scores() -> None:
+    score = _score_sleep(
+        _datetime(11, 1),
+        timedelta(hours=6),
+    )
+
+    assert score.wake_up_score == _wake_up_max_score(score)
+
+
+# =====================================================================
+# Verifies that sufficiently large late wake-up penalties cannot reduce
+# the wake-up score below zero.
+# =====================================================================
+
+
+def test_wake_up_score_never_drops_below_zero() -> None:
+    analyzer = _analyzer(
+        _sleep_record(
+            _datetime(11, 6, 15),
+            _datetime(11, 11, 59),
+        )
+    )
+
+    score = analyzer.score_session(analyzer.sleep_sessions[0])
+
+    assert score.wake_up_score == 0.0
+
+
+# =====================================================================
+# Verifies that the final daily sleep score is calculated as the
+# configured weighted average of bedtime, duration and wake-up scores.
+# =====================================================================
+
+
+def test_total_sleep_score_uses_configured_component_weights() -> None:
+    score = _score_sleep(
+        _datetime(11, 1),
+        timedelta(hours=7),
+    )
+
+    expected_score = (
+        score.bedtime_score * BEDTIME_SCORE_WEIGHT
+        + score.duration_score * SLEEP_DURATION_SCORE_WEIGHT
+        + score.wake_up_score * WAKE_UP_SCORE_WEIGHT
+    ) / (BEDTIME_SCORE_WEIGHT + SLEEP_DURATION_SCORE_WEIGHT + WAKE_UP_SCORE_WEIGHT)
+
+    assert score.total_score == expected_score
+
+
+# =====================================================================
+# Verifies that the final daily sleep score remains within the valid
+# 0-100 range when all component scores are combined.
+# =====================================================================
+
+
+def test_total_sleep_score_stays_within_valid_range() -> None:
+    score = _score_sleep(
+        _datetime(11, 5),
+        timedelta(hours=3),
+    )
+
+    assert 0.0 <= score.total_score <= 100.0
+
+
+# =====================================================================
+# Verifies that the monthly sleep summary calculates the average
+# bedtime, duration and wake-up component scores from daily sleep scores.
+# =====================================================================
+
+
+def test_monthly_summary_calculates_average_component_scores() -> None:
+    first_start = _datetime(1)
+    second_start = _datetime(2, 1)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            first_start,
+            first_start + timedelta(hours=8),
+        ),
+        _sleep_record(
+            second_start,
+            second_start + timedelta(hours=7),
+        ),
+    )
+
+    first_session = analyzer.session_for_day(date(2026, 8, 1))
+    second_session = analyzer.session_for_day(date(2026, 8, 2))
+
+    assert first_session is not None
+    assert second_session is not None
+
+    first_score = analyzer.score_session(first_session)
+    second_score = analyzer.score_session(second_session)
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=2,
+    )
+
+    assert (
+        summary.average_bedtime_score
+        == (first_score.bedtime_score + second_score.bedtime_score) / 2
+    )
+
+    assert (
+        summary.average_duration_score
+        == (first_score.duration_score + second_score.duration_score) / 2
+    )
+
+    assert (
+        summary.average_wake_up_score
+        == (first_score.wake_up_score + second_score.wake_up_score) / 2
+    )
+
+
+# =====================================================================
+# Verifies that the monthly average sleep score is calculated from the
+# final daily sleep scores rather than from independently averaged parts.
+# =====================================================================
+
+
+def test_monthly_summary_calculates_average_total_sleep_score() -> None:
+    first_start = _datetime(1)
+    second_start = _datetime(2, 1)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            first_start,
+            first_start + timedelta(hours=8),
+        ),
+        _sleep_record(
+            second_start,
+            second_start + timedelta(hours=7),
+        ),
+    )
+
+    first_session = analyzer.session_for_day(date(2026, 8, 1))
+    second_session = analyzer.session_for_day(date(2026, 8, 2))
+
+    assert first_session is not None
+    assert second_session is not None
+
+    first_score = analyzer.score_session(first_session)
+    second_score = analyzer.score_session(second_session)
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=2,
+    )
+
+    expected_average = (first_score.total_score + second_score.total_score) / 2
+
+    assert summary.average_sleep_score == expected_average
+
+
+# =====================================================================
+# Verifies that the monthly average bonus is selected from the highest
+# configured threshold satisfied by the average daily sleep score.
+# =====================================================================
+
+
+def test_monthly_average_bonus_uses_matching_threshold() -> None:
+    analyzer = _analyzer_for_single_sleep(
+        _datetime(1),
+        timedelta(hours=8),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=1,
+    )
+
+    expected_bonus = next(
+        (
+            bonus
+            for threshold, bonus in SLEEP_AVERAGE_BONUS_THRESHOLDS
+            if summary.average_sleep_score >= threshold
+        ),
+        0,
+    )
+
+    assert summary.average_bonus == expected_bonus
+
+
+# =====================================================================
+# Verifies that the monthly consistency bonus is selected according to
+# the population standard deviation of the daily total sleep scores.
+# =====================================================================
+
+
+def test_monthly_consistency_bonus_uses_sleep_score_standard_deviation() -> None:
+    starts = [
+        _datetime(1),
+        _datetime(2, 0, 30),
+        _datetime(3, 1),
+    ]
+    durations = [
+        timedelta(hours=8),
+        timedelta(hours=7, minutes=30),
+        timedelta(hours=7),
+    ]
+
+    analyzer = _analyzer(
+        *[
+            _sleep_record(
+                start,
+                start + duration,
+            )
+            for start, duration in zip(
+                starts,
+                durations,
+                strict=True,
+            )
+        ]
+    )
+
+    sleep_scores = []
+
+    for start in starts:
+        session = analyzer.session_for_day(start.date())
+
+        assert session is not None
+
+        sleep_scores.append(analyzer.score_session(session))
+
+    standard_deviation = pstdev(score.total_score for score in sleep_scores)
+
+    expected_bonus = next(
+        (
+            bonus
+            for threshold, bonus in SLEEP_CONSISTENCY_BONUS_THRESHOLDS
+            if standard_deviation < threshold
+        ),
+        0,
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.consistency_bonus == expected_bonus
+
+
+# =====================================================================
+# Verifies that consistency cannot be evaluated from a single daily
+# sleep score and therefore does not grant a consistency bonus.
+# =====================================================================
+
+
+def test_monthly_consistency_bonus_is_zero_for_single_session() -> None:
+    analyzer = _analyzer_for_single_sleep(
+        _datetime(1),
+        timedelta(hours=8),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=1,
+    )
+
+    assert summary.consistency_bonus == 0.0
+
+
+# =====================================================================
+# Verifies that the final monthly sleep score is the sum of the average
+# daily sleep score, average bonus and consistency bonus.
+# =====================================================================
+
+
+def test_monthly_sleep_score_combines_average_and_bonuses() -> None:
+    starts = [
+        _datetime(1),
+        _datetime(2, 0, 30),
+        _datetime(3, 1),
+    ]
+    durations = [
+        timedelta(hours=8),
+        timedelta(hours=7, minutes=30),
+        timedelta(hours=7),
+    ]
+
+    analyzer = _analyzer(
+        *[
+            _sleep_record(
+                start,
+                start + duration,
+            )
+            for start, duration in zip(
+                starts,
+                durations,
+                strict=True,
+            )
+        ]
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    expected_score = summary.average_sleep_score + summary.average_bonus + summary.consistency_bonus
+
+    assert summary.monthly_sleep_score == expected_score
+
+
+# =====================================================================
+# Verifies that awake intervals are tracked separately and are not
+# included in the total amount of time counted as sleep.
+# =====================================================================
+
+
+def test_awake_time_is_excluded_from_total_sleep_time() -> None:
+    start = _datetime(11)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=2),
+            SleepStage.CORE,
+        ),
+        _sleep_record(
+            start + timedelta(hours=2),
+            start + timedelta(hours=2, minutes=30),
+            SleepStage.AWAKE,
+        ),
+        _sleep_record(
+            start + timedelta(hours=2, minutes=30),
+            start + timedelta(hours=4, minutes=30),
+            SleepStage.REM,
+        ),
+    )
+
+    session = analyzer.sleep_sessions[0]
+
+    assert session.time_asleep_minutes == 240
+    assert session.awake_minutes == 30
+    assert session.time_in_bed_minutes == 270
+
+
+# =====================================================================
+# Verifies that sleep efficiency represents the percentage of time in
+# bed that was actually spent asleep.
+# =====================================================================
+
+
+def test_sleep_efficiency_is_calculated_from_sleep_and_time_in_bed() -> None:
+    start = _datetime(11)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=6),
+        ),
+        _sleep_record(
+            start + timedelta(hours=6),
+            start + timedelta(hours=7),
+            SleepStage.AWAKE,
+        ),
+    )
+
+    session = analyzer.sleep_sessions[0]
+
+    expected_efficiency = session.time_asleep_minutes / session.time_in_bed_minutes * 100
+
+    assert session.sleep_efficiency_percent == expected_efficiency
+
+
+# =====================================================================
+# Verifies that an IN_BED interval is not counted as actual sleep when
+# calculating the total amount of time asleep.
+# =====================================================================
+
+
+def test_in_bed_stage_is_not_counted_as_sleep() -> None:
+    start = _datetime(11)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=1),
+            SleepStage.IN_BED,
+        ),
+        _sleep_record(
+            start + timedelta(hours=1),
+            start + timedelta(hours=7),
+        ),
+    )
+
+    assert analyzer.sleep_sessions[0].time_asleep_minutes == 360
+
+
+# =====================================================================
+# Verifies that requesting a sleep session for a day without a primary
+# sleep session returns None instead of an unrelated session.
+# =====================================================================
+
+
+def test_session_for_day_returns_none_when_no_session_exists() -> None:
+    analyzer = _analyzer_for_single_sleep(
+        _datetime(11),
+        timedelta(hours=8),
+    )
+
+    assert analyzer.session_for_day(date(2026, 8, 12)) is None
+
+
+# =====================================================================
+# Verifies that monthly average bedtime is calculated correctly across
+# midnight instead of treating late evening and early morning as distant times.
+# =====================================================================
+
+
+def test_monthly_average_bedtime_handles_midnight_correctly() -> None:
+    first_start = _datetime(1, 23, 30)
+    second_start = _datetime(3, 0, 30)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            first_start,
+            first_start + timedelta(hours=8),
+        ),
+        _sleep_record(
+            second_start,
+            second_start + timedelta(hours=8),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_bedtime == time(
+        0,
+        0,
+    )
+
+
+# =====================================================================
+# Verifies that sufficiently large bedtime penalties cannot reduce the
+# bedtime score below zero.
+# =====================================================================
+
+
+def test_bedtime_score_never_drops_below_zero() -> None:
+    score = _score_sleep(
+        _datetime(11, 11, 45),
+        timedelta(hours=1),
+    )
+
+    assert score.bedtime_score == 0.0
+
+
+# =====================================================================
+# Verifies that sufficiently large undersleep penalties cannot reduce
+# the duration score below zero.
+# =====================================================================
+
+
+def test_duration_score_never_drops_below_zero() -> None:
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=1),
+    )
+
+    assert score.duration_score == 0.0
+
+
+# =====================================================================
+# Verifies that linear penalty mode applies a proportional penalty for
+# deviations smaller than one full configured penalty interval.
+# =====================================================================
+
+
+def test_linear_penalty_mode_applies_proportional_penalty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sleep_analyzer_module,
+        "SLEEP_SCORE_LINEAR_PENALTIES",
+        True,
+    )
+
+    target = _datetime(
+        11,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
+    )
+    deviation_minutes = BEDTIME_PENALTY_INTERVAL_MINUTES - 1
+    start = target + timedelta(minutes=deviation_minutes)
+
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
+    )
+
+    expected_penalty = deviation_minutes / BEDTIME_PENALTY_INTERVAL_MINUTES * BEDTIME_PENALTY_POINTS
+
+    assert score.bedtime_score == pytest.approx(100.0 - expected_penalty)
+
+
+# =====================================================================
+# Verifies that disabling the monthly bonus system prevents both the
+# average and consistency bonuses from being applied.
+# =====================================================================
+
+
+def test_monthly_bonuses_are_zero_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sleep_analyzer_module,
+        "SLEEP_MONTHLY_BONUS_ENABLED",
+        False,
+    )
+
+    analyzer = _analyzer(
+        _sleep_record(
+            _datetime(1),
+            _datetime(1) + timedelta(hours=8),
+        ),
+        _sleep_record(
+            _datetime(2, 1),
+            _datetime(2, 1) + timedelta(hours=7),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=2,
+    )
+
+    assert summary.average_bonus == 0.0
+    assert summary.consistency_bonus == 0.0
+    assert summary.monthly_sleep_score == summary.average_sleep_score
