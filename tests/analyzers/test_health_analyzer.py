@@ -103,11 +103,13 @@ def _health_data(
         daily_metrics=daily_metrics,
         sleep_records=sleep_records or [],
     )
-    
+
+
 # =====================================================================
 # Verifies that summarize_day combines daily metrics into a complete
 # DailySummary with activity, energy, body weight and nutrition data.
 # =====================================================================
+
 
 def test_summarize_day_combines_daily_metrics() -> None:
     nutrition = NutritionData(
@@ -140,9 +142,7 @@ def test_summarize_day_combines_daily_metrics() -> None:
         )
     )
 
-    summary = analyzer.summarize_day(
-        date(2026, 8, 1)
-    )
+    summary = analyzer.summarize_day(date(2026, 8, 1))
 
     assert summary.total_steps == 10000
     assert summary.total_distance_km == 8.0
@@ -152,24 +152,18 @@ def test_summarize_day_combines_daily_metrics() -> None:
     assert summary.nutrition is nutrition
     assert summary.total_duration_minutes == 60
     assert summary.total_active_energy_kcal == 400
-    
+
+
 # =====================================================================
 # Verifies that summarize_day returns safe default values when no
 # DailyMetrics object exists for the requested day.
 # =====================================================================
 
-def test_summarize_day_uses_defaults_when_metrics_are_missing() -> None:
-    analyzer = HealthAnalyzer(
-        _health_data(
-            daily_metrics=[
-                _daily_metrics(2)
-            ]
-        )
-    )
 
-    summary = analyzer.summarize_day(
-        date(2026, 8, 1)
-    )
+def test_summarize_day_uses_defaults_when_metrics_are_missing() -> None:
+    analyzer = HealthAnalyzer(_health_data(daily_metrics=[_daily_metrics(2)]))
+
+    summary = analyzer.summarize_day(date(2026, 8, 1))
 
     assert summary.total_steps == 0
     assert summary.total_distance_km == 0.0
@@ -177,11 +171,13 @@ def test_summarize_day_uses_defaults_when_metrics_are_missing() -> None:
     assert summary.basal_energy_kcal == 0.0
     assert summary.weight is None
     assert summary.nutrition is None
-    
+
+
 # =====================================================================
 # Verifies that a primary sleep session and its calculated SleepScore
 # are attached to the corresponding DailySummary.
 # =====================================================================
+
 
 def test_summarize_day_includes_sleep_session_and_score() -> None:
     sleep_start = datetime(
@@ -208,17 +204,17 @@ def test_summarize_day_includes_sleep_session_and_score() -> None:
         )
     )
 
-    summary = analyzer.summarize_day(
-        date(2026, 8, 1)
-    )
+    summary = analyzer.summarize_day(date(2026, 8, 1))
 
     assert summary.sleep_session is not None
     assert summary.sleep_score is not None
-    
+
+
 # =====================================================================
 # Verifies that the reporting period for the latest data month ends on
 # the day before the final day containing any imported metrics.
 # =====================================================================
+
 
 def test_reporting_days_excludes_last_data_day() -> None:
     analyzer = HealthAnalyzer(
@@ -230,53 +226,56 @@ def test_reporting_days_excludes_last_data_day() -> None:
         )
     )
 
-    assert analyzer._reporting_days(
-        2026,
-        8,
-    ) == 14
-    
+    assert (
+        analyzer._reporting_days(
+            2026,
+            8,
+        )
+        == 14
+    )
+
+
 # =====================================================================
 # Verifies that a month preceding the latest complete-data month uses
 # the full number of calendar days as its reporting period.
 # =====================================================================
 
+
 def test_reporting_days_returns_full_historical_month() -> None:
-    analyzer = HealthAnalyzer(
-        _health_data(
-            daily_metrics=[
-                _daily_metrics(15)
-            ]
+    analyzer = HealthAnalyzer(_health_data(daily_metrics=[_daily_metrics(15)]))
+
+    assert (
+        analyzer._reporting_days(
+            2026,
+            7,
         )
+        == 31
     )
 
-    assert analyzer._reporting_days(
-        2026,
-        7,
-    ) == 31
-    
+
 # =====================================================================
 # Verifies that a month occurring after the latest available complete
 # data period contains zero reporting days.
 # =====================================================================
 
+
 def test_reporting_days_returns_zero_for_future_data_month() -> None:
-    analyzer = HealthAnalyzer(
-        _health_data(
-            daily_metrics=[
-                _daily_metrics(15)
-            ]
+    analyzer = HealthAnalyzer(_health_data(daily_metrics=[_daily_metrics(15)]))
+
+    assert (
+        analyzer._reporting_days(
+            2026,
+            9,
         )
+        == 0
     )
 
-    assert analyzer._reporting_days(
-        2026,
-        9,
-    ) == 0
-    
+
 # =====================================================================
 # Verifies that summarize_month builds a MonthlySummary using only
 # completed reporting days and includes delegated analyzer results.
 # =====================================================================
+
 
 def test_summarize_month_builds_complete_monthly_summary() -> None:
     first_sleep_start = datetime(
