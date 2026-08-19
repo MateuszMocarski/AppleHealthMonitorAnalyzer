@@ -1,0 +1,184 @@
+Apple Health Monthly Report
+August 2026
+Data available through: 2026-08-02
+==================================
+
+General activity
+----------------
+Steps
+-----
+  Total:         17,000
+  Average daily: 8500
+
+Walking/Running distance
+------------------------
+  Total:               6.40 km
+  Average daily:       3.20 km
+  Average step length: 37.65 cm
+
+Sleep
+-----
+  Sessions:           2
+
+  Average bedtime:    00:00
+  Average wake up:    08:00
+
+  Average sleep:      8 h 0 min
+  Average awake:      0 min
+  Average efficiency: 100%
+
+Sleep Stages
+------------
+  Core:               8 h 0 min
+  Deep:               0 h 0 min
+  REM:                0 h 0 min
+
+Sleep score
+-----------
+  Average bedtime:  100/100
+  Average duration: 100/100
+  Average wake up:  100/100
+  Average total:    100/100
+
+  Average bonus:     +15
+  Consistency bonus: +5
+  Monthly score:     120/120
+
+Workouts
+--------
+Walking
+  Sessions: 1
+  Duration: 1 h 0 min
+  Energy:   400 kcal
+  Distance: 5.00 km
+
+  Average Daily Duration: 0 h 30 min
+  Average Daily Energy:   200 kcal
+  Average Daily Distance: 2.50 km
+
+Body weight:
+------------
+  Average weight:   80.00 kg
+  Start weight:     80.00 kg
+  End weight:       80.00 kg
+  Change:           +0.00 kg
+  Max weight:       80.00 kg
+  Min weight:       80.00 kg
+  Measurements:     1/2 days
+
+Average energy expenditure
+--------------------------
+  Basal energy:   950 kcal
+  Active energy:  350 kcal
+  TDEE:           1300 kcal
+
+Average nutrition
+-----------------
+  Protein:  75 g
+  Carbs:    0 g
+  Fat:      0 g
+  Calories: 1000 kcal
+
+Average calories balance: -300 kcal
+
+2026-08-01
+==========
+Sleep
+-----
+  Bedtime:          00:00
+  Wake up:          08:00
+  Time asleep:      8 h 0 min (0 min awake)
+  Sleep efficiency: 100%
+
+Sleep score
+-----------
+  Bedtime:  100/100
+  Duration: 100/100
+  Wake-up:  100/100
+  Total:    100/100
+
+General activity
+----------------
+Steps
+-----
+  Total:         8,000
+
+Walking/Running distance
+------------------------
+  Total:               6.40 km
+  Average step length: 80.00 cm
+
+Workouts
+--------
+Walking
+  Sessions: 1
+  Duration: 1 h 0 min
+  Energy:   400 kcal
+  Distance: 5.00 km
+
+Workouts summary
+----------------
+  Duration: 1 h 0 min
+  Energy:   400 kcal
+
+Weight: 80.0
+------------
+
+Daily energy expenditure
+------------------------
+  Basal energy:   1900 kcal
+  Active energy:  700 kcal
+  TDEE:           2600 kcal
+
+Daily nutrition
+---------------
+  Protein:   150 g
+  Carbs:     0 g
+  Fat:       0 g
+  Calories:  2000 kcal
+
+Calories balance: -600 kcal
+------------------------------------------------------------
+
+2026-08-02
+==========
+Sleep
+-----
+  Bedtime:          00:00
+  Wake up:          08:00
+  Time asleep:      8 h 0 min (0 min awake)
+  Sleep efficiency: 100%
+
+Sleep score
+-----------
+  Bedtime:  100/100
+  Duration: 100/100
+  Wake-up:  100/100
+  Total:    100/100
+
+General activity
+----------------
+Steps
+-----
+  Total:         9,000
+
+Walking/Running distance
+------------------------
+  Total:               0.00 km
+  Average step length: 0.00 cm
+
+No workouts.
+
+No weight measurement for that day
+----------------------------------
+
+Daily energy expenditure
+------------------------
+  Basal energy:   0 kcal
+  Active energy:  0 kcal
+  TDEE:           0 kcal
+
+No nutrition data for that day
+------------------------------
+------------------------------------------------------------
+
