@@ -1,8 +1,9 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, time
 
 import apple_health.renderers.text_renderer as text_renderer_module
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
+from apple_health.renderers.text_renderer import TextRenderer
 from apple_health.report_models import (
     ActivityMetricsSummary,
     ActivitySummary,
@@ -12,8 +13,6 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
-from apple_health.renderers.text_renderer import TextRenderer
-
 
 # =======
 # Helpers
@@ -76,13 +75,9 @@ def _daily_summary(
     return DailySummary(
         date=date(2026, 8, 1),
         activities=activities or [],
-        total_duration_minutes=sum(
-            activity.duration_minutes
-            for activity in (activities or [])
-        ),
+        total_duration_minutes=sum(activity.duration_minutes for activity in (activities or [])),
         total_active_energy_kcal=sum(
-            activity.active_energy_kcal
-            for activity in (activities or [])
+            activity.active_energy_kcal for activity in (activities or [])
         ),
         total_steps=10000,
         total_distance_km=8.0,
@@ -108,9 +103,7 @@ def _monthly_summary(
         reporting_days=reporting_days,
         days=days or [],
         activities=activities or [],
-        activity_metrics=_activity_metrics(
-            measurements=measurements
-        ),
+        activity_metrics=_activity_metrics(measurements=measurements),
         sleep_summary=_sleep_summary(),
     )
 
@@ -119,6 +112,7 @@ def _monthly_summary(
 # Verifies that render_month_summary returns a complete monthly text
 # report containing all major report sections.
 # =====================================================================
+
 
 def test_render_month_summary_contains_all_major_sections() -> None:
     walking = ActivitySummary(
@@ -155,6 +149,7 @@ def test_render_month_summary_contains_all_major_sections() -> None:
 # summary and the detailed daily reports.
 # =====================================================================
 
+
 def test_render_month_includes_daily_reports() -> None:
     renderer = TextRenderer()
 
@@ -176,6 +171,7 @@ def test_render_month_includes_daily_reports() -> None:
 # period contains no weight measurements.
 # =====================================================================
 
+
 def test_monthly_weight_section_is_omitted_without_measurements() -> None:
     renderer = TextRenderer()
 
@@ -192,6 +188,7 @@ def test_monthly_weight_section_is_omitted_without_measurements() -> None:
 # Verifies that missing daily nutrition data is rendered explicitly
 # instead of failing or displaying fabricated nutrition values.
 # =====================================================================
+
 
 def test_daily_report_shows_missing_nutrition_message() -> None:
     renderer = TextRenderer()
@@ -213,6 +210,7 @@ def test_daily_report_shows_missing_nutrition_message() -> None:
 # Verifies that a day with steps but no recorded workout is clearly
 # rendered as having no workouts rather than no activity at all.
 # =====================================================================
+
 
 def test_daily_report_distinguishes_steps_without_workouts() -> None:
     renderer = TextRenderer()
@@ -236,6 +234,7 @@ def test_daily_report_distinguishes_steps_without_workouts() -> None:
 # Sleep Score section to an explicit disabled-state message.
 # =====================================================================
 
+
 def test_monthly_sleep_bonus_disabled_message_is_rendered(
     monkeypatch,
 ) -> None:
@@ -247,9 +246,7 @@ def test_monthly_sleep_bonus_disabled_message_is_rendered(
 
     renderer = TextRenderer()
 
-    output = renderer.render_month_summary(
-        _monthly_summary()
-    )
+    output = renderer.render_month_summary(_monthly_summary())
 
     assert "Monthly bonus system: disabled" in output
     assert "Monthly score:" not in output

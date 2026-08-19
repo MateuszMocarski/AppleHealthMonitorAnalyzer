@@ -23,6 +23,7 @@ def _create_zip(
 # that does not exist raises FileNotFoundError.
 # =====================================================================
 
+
 def test_open_export_raises_when_archive_does_not_exist(
     tmp_path: Path,
 ) -> None:
@@ -38,6 +39,7 @@ def test_open_export_raises_when_archive_does_not_exist(
 # Verifies that an archive containing exactly one valid XML file is
 # opened successfully and returns access to that XML export.
 # =====================================================================
+
 
 def test_open_export_returns_single_xml_file(
     tmp_path: Path,
@@ -66,6 +68,7 @@ def test_open_export_returns_single_xml_file(
 # Verifies that non-XML files contained in the export archive are
 # ignored when locating the Apple Health XML export.
 # =====================================================================
+
 
 def test_open_export_ignores_non_xml_files(
     tmp_path: Path,
@@ -97,6 +100,7 @@ def test_open_export_ignores_non_xml_files(
 # Apple Health export XML file.
 # =====================================================================
 
+
 def test_open_export_ignores_cda_xml_files(
     tmp_path: Path,
 ) -> None:
@@ -125,6 +129,7 @@ def test_open_export_ignores_cda_xml_files(
 # Verifies that an archive containing anything other than exactly one
 # valid export XML file is rejected.
 # =====================================================================
+
 
 @pytest.mark.parametrize(
     "files",
