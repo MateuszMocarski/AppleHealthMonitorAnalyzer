@@ -522,6 +522,38 @@ Prompt example:
 Analyze the following Apple Health report. Focus on long-term trends rather than isolated daily values. Identify improvements, regressions, unusual patterns, consistency of physical activity, sleep quality, recovery and possible lifestyle observations. Base your conclusions only on the provided report and clearly distinguish facts from assumptions.
 ```
 
+## Testing
+
+The project includes a comprehensive automated test suite covering the
+core application logic and the complete report-generation pipeline.
+
+The test suite currently contains **150 test cases**, covering:
+
+-   sleep analysis and scoring
+-   activity and health metrics analysis
+-   Apple Health XML parsing
+-   configuration validation
+-   report models
+-   text rendering
+-   ZIP import handling
+-   end-to-end report generation
+
+Run the complete test suite with:
+
+``` bash
+pytest
+```
+
+Code quality checks:
+
+``` bash
+ruff check .
+black --check .
+```
+
+For a detailed breakdown of the test suite, see
+[`tests/README.md`](tests/README.md).
+
 ## Future Development
 
 The project currently fulfills its original purpose.
