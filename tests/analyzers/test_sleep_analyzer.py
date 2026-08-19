@@ -1,11 +1,14 @@
 from datetime import date, datetime, time, timedelta, timezone
 from statistics import pstdev
 
+import pytest
+
 import apple_health.analyzers.sleep_analyzer as sleep_analyzer_module
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
 from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import SleepStage
 from apple_health.models import AppleHealthData, SleepRecord
+from apple_health.report_models import SleepScore, SleepSession
 from apple_health.sleep_score_config import (
     BEDTIME_PENALTY_INTERVAL_MINUTES,
     BEDTIME_PENALTY_POINTS,
@@ -33,14 +36,30 @@ from apple_health.sleep_score_config import (
 # =======
 
 
+def _datetime(
+    day: int,
+    hour: int = 0,
+    minute: int = 0,
+) -> datetime:
+    return datetime(
+        2026,
+        8,
+        day,
+        hour,
+        minute,
+        tzinfo=timezone.utc,
+    )
+
+
 def _sleep_record(
     start: datetime,
     end: datetime,
-    stage: SleepStage,
+    stage: SleepStage = SleepStage.CORE,
+    source_name: str = APPLE_WATCH_SOURCE,
 ) -> SleepRecord:
     return SleepRecord(
         stage=stage,
-        source_name=APPLE_WATCH_SOURCE,
+        source_name=source_name,
         source_version=None,
         start=start,
         end=end,
@@ -58,6 +77,61 @@ def _health_data(
     )
 
 
+def _analyzer(
+    *sleep_records: SleepRecord,
+) -> SleepAnalyzer:
+    return SleepAnalyzer(_health_data(list(sleep_records)))
+
+
+def _analyzer_for_single_sleep(
+    start: datetime,
+    duration: timedelta,
+    stage: SleepStage = SleepStage.CORE,
+) -> SleepAnalyzer:
+    return _analyzer(
+        _sleep_record(
+            start,
+            start + duration,
+            stage,
+        )
+    )
+
+
+def _single_session(
+    start: datetime,
+    duration: timedelta,
+    stage: SleepStage = SleepStage.CORE,
+) -> tuple[SleepAnalyzer, SleepSession]:
+    analyzer = _analyzer_for_single_sleep(
+        start,
+        duration,
+        stage,
+    )
+
+    return analyzer, analyzer.sleep_sessions[0]
+
+
+def _score_sleep(
+    start: datetime,
+    duration: timedelta,
+) -> SleepScore:
+    analyzer, session = _single_session(
+        start,
+        duration,
+    )
+
+    return analyzer.score_session(session)
+
+
+def _wake_up_max_score(
+    score: SleepScore,
+) -> float:
+    return (
+        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
+        + score.duration_score * WAKE_UP_DURATION_WEIGHT
+    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
+
+
 # =====================================================================================
 # Verifies that consecutive sleep stage records are combined into a single
 # sleep session and that stage durations and total sleep time are calculated correctly.
@@ -65,16 +139,9 @@ def _health_data(
 
 
 def test_reconstructs_single_sleep_session() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        23,
-        30,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(10, 23, 30)
 
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             start,
             start + timedelta(hours=2),
@@ -90,9 +157,7 @@ def test_reconstructs_single_sleep_session() -> None:
             start + timedelta(hours=5),
             SleepStage.REM,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     assert len(analyzer.sleep_sessions) == 1
 
@@ -100,11 +165,9 @@ def test_reconstructs_single_sleep_session() -> None:
 
     assert session.bedtime == start
     assert session.wake_up == start + timedelta(hours=5)
-
     assert session.core_minutes == 120
     assert session.deep_minutes == 60
     assert session.rem_minutes == 120
-
     assert session.time_asleep_minutes == 300
 
 
@@ -115,29 +178,18 @@ def test_reconstructs_single_sleep_session() -> None:
 
 
 def test_splits_sleep_sessions_when_gap_exceeds_threshold() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        23,
-        0,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(10, 23)
 
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             start,
             start + timedelta(hours=2),
-            SleepStage.CORE,
         ),
         _sleep_record(
             start + timedelta(hours=3),
             start + timedelta(hours=4),
-            SleepStage.CORE,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     assert len(analyzer.sleep_sessions) == 2
 
@@ -149,29 +201,19 @@ def test_splits_sleep_sessions_when_gap_exceeds_threshold() -> None:
 
 
 def test_keeps_sleep_records_in_same_session_at_gap_threshold() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        23,
-        0,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(10, 23)
 
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             start,
             start + timedelta(hours=2),
-            SleepStage.CORE,
         ),
         _sleep_record(
             start + timedelta(hours=2, minutes=30),
             start + timedelta(hours=3, minutes=30),
             SleepStage.REM,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     assert len(analyzer.sleep_sessions) == 1
 
@@ -183,38 +225,19 @@ def test_keeps_sleep_records_in_same_session_at_gap_threshold() -> None:
 
 
 def test_selects_longest_sleep_session_for_reporting_day() -> None:
-    night_start = datetime(
-        2026,
-        8,
-        14,
-        0,
-        30,
-        tzinfo=timezone.utc,
-    )
+    night_start = _datetime(14, 0, 30)
+    nap_start = _datetime(14, 15)
 
-    nap_start = datetime(
-        2026,
-        8,
-        14,
-        15,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             night_start,
             night_start + timedelta(hours=7),
-            SleepStage.CORE,
         ),
         _sleep_record(
             nap_start,
             nap_start + timedelta(hours=1),
-            SleepStage.CORE,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     session = analyzer.session_for_day(night_start.date())
 
@@ -230,37 +253,18 @@ def test_selects_longest_sleep_session_for_reporting_day() -> None:
 
 
 def test_ignores_sleep_records_from_non_watch_sources() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        23,
-        0,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(10, 23)
 
-    watch_record = _sleep_record(
-        start,
-        start + timedelta(hours=7),
-        SleepStage.CORE,
-    )
-
-    other_record = SleepRecord(
-        stage=SleepStage.CORE,
-        source_name="Some Other Source",
-        source_version=None,
-        start=start + timedelta(hours=8),
-        end=start + timedelta(hours=9),
-        duration_minutes=60,
-    )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                watch_record,
-                other_record,
-            ]
-        )
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=7),
+        ),
+        _sleep_record(
+            start + timedelta(hours=8),
+            start + timedelta(hours=9),
+            source_name="Some Other Source",
+        ),
     )
 
     assert len(analyzer.sleep_sessions) == 1
@@ -274,33 +278,18 @@ def test_ignores_sleep_records_from_non_watch_sources() -> None:
 
 
 def test_assigns_evening_sleep_to_next_reporting_day() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        23,
-        30,
-        tzinfo=timezone.utc,
+    start = _datetime(10, 23, 30)
+
+    analyzer, session = _single_session(
+        start,
+        timedelta(hours=7),
     )
-
-    records = [
-        _sleep_record(
-            start,
-            start + timedelta(hours=7),
-            SleepStage.CORE,
-        ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
-
-    session = analyzer.sleep_sessions[0]
 
     assert session.reporting_date == date(
         2026,
         8,
         11,
     )
-
     assert analyzer.session_for_day(date(2026, 8, 11)) is session
 
 
@@ -311,28 +300,12 @@ def test_assigns_evening_sleep_to_next_reporting_day() -> None:
 
 
 def test_assigns_sleep_starting_at_noon_to_next_reporting_day() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        12,
-        0,
-        tzinfo=timezone.utc,
+    _, session = _single_session(
+        _datetime(10, 12),
+        timedelta(hours=1),
     )
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=1),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    assert analyzer.sleep_sessions[0].reporting_date == date(
+    assert session.reporting_date == date(
         2026,
         8,
         11,
@@ -346,30 +319,10 @@ def test_assigns_sleep_starting_at_noon_to_next_reporting_day() -> None:
 
 
 def test_bedtime_before_target_receives_maximum_score() -> None:
-    start = datetime(
-        2026,
-        8,
-        10,
-        23,
-        30,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(10, 23, 30),
+        timedelta(hours=8),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-
-    score = analyzer.score_session(session)
 
     assert score.bedtime_score == 100.0
 
@@ -381,30 +334,16 @@ def test_bedtime_before_target_receives_maximum_score() -> None:
 
 
 def test_bedtime_at_target_receives_maximum_score() -> None:
-    start = datetime(
-        2026,
-        8,
+    start = _datetime(
         11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
     )
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
     )
-
-    session = analyzer.sleep_sessions[0]
-
-    score = analyzer.score_session(session)
 
     assert score.bedtime_score == 100.0
 
@@ -416,30 +355,17 @@ def test_bedtime_at_target_receives_maximum_score() -> None:
 
 
 def test_bedtime_one_penalty_interval_late_applies_single_penalty() -> None:
-    start = datetime(
-        2026,
-        8,
+    target = _datetime(
         11,
-        0,
-        BEDTIME_PENALTY_INTERVAL_MINUTES,
-        tzinfo=timezone.utc,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
     )
+    start = target + timedelta(minutes=BEDTIME_PENALTY_INTERVAL_MINUTES)
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
     )
-
-    session = analyzer.sleep_sessions[0]
-
-    score = analyzer.score_session(session)
 
     assert score.bedtime_score == (100.0 - BEDTIME_PENALTY_POINTS)
 
@@ -451,30 +377,17 @@ def test_bedtime_one_penalty_interval_late_applies_single_penalty() -> None:
 
 
 def test_bedtime_partial_penalty_interval_does_not_reduce_score() -> None:
-    start = datetime(
-        2026,
-        8,
+    target = _datetime(
         11,
-        0,
-        BEDTIME_PENALTY_INTERVAL_MINUTES - 1,
-        tzinfo=timezone.utc,
+        BEDTIME_TARGET.hour,
+        BEDTIME_TARGET.minute,
     )
+    start = target + timedelta(minutes=BEDTIME_PENALTY_INTERVAL_MINUTES - 1)
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
     )
-
-    session = analyzer.sleep_sessions[0]
-
-    score = analyzer.score_session(session)
 
     assert score.bedtime_score == 100.0
 
@@ -486,29 +399,10 @@ def test_bedtime_partial_penalty_interval_does_not_reduce_score() -> None:
 
 
 def test_duration_at_target_receives_maximum_score() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=SLEEP_DURATION_TARGET_MINUTES),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=SLEEP_DURATION_TARGET_MINUTES),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     assert score.duration_score == 100.0
 
@@ -522,29 +416,10 @@ def test_duration_at_target_receives_maximum_score() -> None:
 def test_duration_at_lower_tolerance_boundary_receives_maximum_score() -> None:
     duration_minutes = SLEEP_DURATION_TARGET_MINUTES - SLEEP_DURATION_TOLERANCE_MINUTES
 
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=duration_minutes),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     assert score.duration_score == 100.0
 
@@ -558,29 +433,10 @@ def test_duration_at_lower_tolerance_boundary_receives_maximum_score() -> None:
 def test_duration_at_upper_tolerance_boundary_receives_maximum_score() -> None:
     duration_minutes = SLEEP_DURATION_TARGET_MINUTES + SLEEP_DURATION_TOLERANCE_MINUTES
 
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=duration_minutes),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     assert score.duration_score == 100.0
 
@@ -598,29 +454,10 @@ def test_duration_one_penalty_interval_underslept_applies_penalty() -> None:
         - SLEEP_DURATION_PENALTY_INTERVAL_MINUTES
     )
 
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=duration_minutes),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     expected_score = 100.0 - SLEEP_DURATION_PENALTY_POINTS * SLEEP_DURATION_UNDERSLEEP_WEIGHT
 
@@ -640,29 +477,10 @@ def test_duration_one_penalty_interval_overslept_applies_penalty() -> None:
         + SLEEP_DURATION_PENALTY_INTERVAL_MINUTES
     )
 
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=duration_minutes),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=duration_minutes),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     expected_score = 100.0 - SLEEP_DURATION_PENALTY_POINTS * SLEEP_DURATION_OVERSLEEP_WEIGHT
 
@@ -676,38 +494,15 @@ def test_duration_one_penalty_interval_overslept_applies_penalty() -> None:
 
 
 def test_wake_up_at_target_receives_maximum_available_score() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    start = _datetime(11)
     duration_minutes = WAKE_UP_TARGET.hour * 60 + WAKE_UP_TARGET.minute
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=duration_minutes),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    score = _score_sleep(
+        start,
+        timedelta(minutes=duration_minutes),
     )
 
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
-
-    expected_max_score = (
-        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
-        + score.duration_score * WAKE_UP_DURATION_WEIGHT
-    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
-
-    assert score.wake_up_score == expected_max_score
+    assert score.wake_up_score == _wake_up_max_score(score)
 
 
 # =====================================================================
@@ -717,40 +512,17 @@ def test_wake_up_at_target_receives_maximum_available_score() -> None:
 
 
 def test_wake_up_one_penalty_interval_late_applies_single_penalty() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
-
+    start = _datetime(11)
     wake_up_minutes = (
         WAKE_UP_TARGET.hour * 60 + WAKE_UP_TARGET.minute + WAKE_UP_PENALTY_INTERVAL_MINUTES
     )
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=wake_up_minutes),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    score = _score_sleep(
+        start,
+        timedelta(minutes=wake_up_minutes),
     )
 
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
-
-    expected_max_score = (
-        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
-        + score.duration_score * WAKE_UP_DURATION_WEIGHT
-    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
-
-    expected_score = expected_max_score - WAKE_UP_PENALTY_POINTS
+    expected_score = _wake_up_max_score(score) - WAKE_UP_PENALTY_POINTS
 
     assert score.wake_up_score == expected_score
 
@@ -762,36 +534,12 @@ def test_wake_up_one_penalty_interval_late_applies_single_penalty() -> None:
 
 
 def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        1,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11, 1),
+        timedelta(hours=7),
     )
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=7),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
-
-    expected_max_score = (
-        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
-        + score.duration_score * WAKE_UP_DURATION_WEIGHT
-    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
-
-    assert score.wake_up_score <= expected_max_score
+    assert score.wake_up_score <= _wake_up_max_score(score)
 
 
 # =====================================================================
@@ -801,36 +549,12 @@ def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
 
 
 def test_wake_up_before_target_is_capped_by_component_scores() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        1,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11, 1),
+        timedelta(hours=6),
     )
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=6),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
-
-    expected_max_score = (
-        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
-        + score.duration_score * WAKE_UP_DURATION_WEIGHT
-    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
-
-    assert score.wake_up_score == expected_max_score
+    assert score.wake_up_score == _wake_up_max_score(score)
 
 
 # =====================================================================
@@ -840,38 +564,14 @@ def test_wake_up_before_target_is_capped_by_component_scores() -> None:
 
 
 def test_wake_up_score_never_drops_below_zero() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        6,
-        15,
-        tzinfo=timezone.utc,
-    )
-
-    end = datetime(
-        2026,
-        8,
-        11,
-        11,
-        59,
-        tzinfo=timezone.utc,
-    )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    end,
-                    SleepStage.CORE,
-                )
-            ]
+    analyzer = _analyzer(
+        _sleep_record(
+            _datetime(11, 6, 15),
+            _datetime(11, 11, 59),
         )
     )
 
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
+    score = analyzer.score_session(analyzer.sleep_sessions[0])
 
     assert score.wake_up_score == 0.0
 
@@ -883,29 +583,10 @@ def test_wake_up_score_never_drops_below_zero() -> None:
 
 
 def test_total_sleep_score_uses_configured_component_weights() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        1,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11, 1),
+        timedelta(hours=7),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=7),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     expected_score = (
         score.bedtime_score * BEDTIME_SCORE_WEIGHT
@@ -923,29 +604,10 @@ def test_total_sleep_score_uses_configured_component_weights() -> None:
 
 
 def test_total_sleep_score_stays_within_valid_range() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        5,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11, 5),
+        timedelta(hours=3),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=3),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     assert 0.0 <= score.total_score <= 100.0
 
@@ -957,38 +619,19 @@ def test_total_sleep_score_stays_within_valid_range() -> None:
 
 
 def test_monthly_summary_calculates_average_component_scores() -> None:
-    first_start = datetime(
-        2026,
-        8,
-        1,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
+    first_start = _datetime(1)
+    second_start = _datetime(2, 1)
 
-    second_start = datetime(
-        2026,
-        8,
-        2,
-        1,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             first_start,
             first_start + timedelta(hours=8),
-            SleepStage.CORE,
         ),
         _sleep_record(
             second_start,
             second_start + timedelta(hours=7),
-            SleepStage.CORE,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     first_session = analyzer.session_for_day(date(2026, 8, 1))
     second_session = analyzer.session_for_day(date(2026, 8, 2))
@@ -1028,38 +671,19 @@ def test_monthly_summary_calculates_average_component_scores() -> None:
 
 
 def test_monthly_summary_calculates_average_total_sleep_score() -> None:
-    first_start = datetime(
-        2026,
-        8,
-        1,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
+    first_start = _datetime(1)
+    second_start = _datetime(2, 1)
 
-    second_start = datetime(
-        2026,
-        8,
-        2,
-        1,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             first_start,
             first_start + timedelta(hours=8),
-            SleepStage.CORE,
         ),
         _sleep_record(
             second_start,
             second_start + timedelta(hours=7),
-            SleepStage.CORE,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     first_session = analyzer.session_for_day(date(2026, 8, 1))
     second_session = analyzer.session_for_day(date(2026, 8, 2))
@@ -1088,24 +712,10 @@ def test_monthly_summary_calculates_average_total_sleep_score() -> None:
 
 
 def test_monthly_average_bonus_uses_matching_threshold() -> None:
-    start = datetime(
-        2026,
-        8,
-        1,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    analyzer = _analyzer_for_single_sleep(
+        _datetime(1),
+        timedelta(hours=8),
     )
-
-    records = [
-        _sleep_record(
-            start,
-            start + timedelta(hours=8),
-            SleepStage.CORE,
-        )
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
 
     summary = analyzer.summarize_month(
         year=2026,
@@ -1133,35 +743,38 @@ def test_monthly_average_bonus_uses_matching_threshold() -> None:
 
 def test_monthly_consistency_bonus_uses_sleep_score_standard_deviation() -> None:
     starts = [
-        datetime(2026, 8, 1, 0, 0, tzinfo=timezone.utc),
-        datetime(2026, 8, 2, 0, 30, tzinfo=timezone.utc),
-        datetime(2026, 8, 3, 1, 0, tzinfo=timezone.utc),
+        _datetime(1),
+        _datetime(2, 0, 30),
+        _datetime(3, 1),
     ]
-
     durations = [
         timedelta(hours=8),
         timedelta(hours=7, minutes=30),
         timedelta(hours=7),
     ]
 
-    records = [
-        _sleep_record(
-            start,
-            start + duration,
-            SleepStage.CORE,
-        )
-        for start, duration in zip(
-            starts,
-            durations,
-            strict=True,
-        )
-    ]
+    analyzer = _analyzer(
+        *[
+            _sleep_record(
+                start,
+                start + duration,
+            )
+            for start, duration in zip(
+                starts,
+                durations,
+                strict=True,
+            )
+        ]
+    )
 
-    analyzer = SleepAnalyzer(_health_data(records))
+    sleep_scores = []
 
-    sleep_scores = [
-        analyzer.score_session(analyzer.session_for_day(start.date())) for start in starts
-    ]
+    for start in starts:
+        session = analyzer.session_for_day(start.date())
+
+        assert session is not None
+
+        sleep_scores.append(analyzer.score_session(session))
 
     standard_deviation = pstdev(score.total_score for score in sleep_scores)
 
@@ -1190,25 +803,9 @@ def test_monthly_consistency_bonus_uses_sleep_score_standard_deviation() -> None
 
 
 def test_monthly_consistency_bonus_is_zero_for_single_session() -> None:
-    start = datetime(
-        2026,
-        8,
-        1,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    analyzer = _analyzer_for_single_sleep(
+        _datetime(1),
+        timedelta(hours=8),
     )
 
     summary = analyzer.summarize_month(
@@ -1228,30 +825,29 @@ def test_monthly_consistency_bonus_is_zero_for_single_session() -> None:
 
 def test_monthly_sleep_score_combines_average_and_bonuses() -> None:
     starts = [
-        datetime(2026, 8, 1, 0, 0, tzinfo=timezone.utc),
-        datetime(2026, 8, 2, 0, 30, tzinfo=timezone.utc),
-        datetime(2026, 8, 3, 1, 0, tzinfo=timezone.utc),
+        _datetime(1),
+        _datetime(2, 0, 30),
+        _datetime(3, 1),
+    ]
+    durations = [
+        timedelta(hours=8),
+        timedelta(hours=7, minutes=30),
+        timedelta(hours=7),
     ]
 
-    records = [
-        _sleep_record(
-            starts[0],
-            starts[0] + timedelta(hours=8),
-            SleepStage.CORE,
-        ),
-        _sleep_record(
-            starts[1],
-            starts[1] + timedelta(hours=7, minutes=30),
-            SleepStage.CORE,
-        ),
-        _sleep_record(
-            starts[2],
-            starts[2] + timedelta(hours=7),
-            SleepStage.CORE,
-        ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    analyzer = _analyzer(
+        *[
+            _sleep_record(
+                start,
+                start + duration,
+            )
+            for start, duration in zip(
+                starts,
+                durations,
+                strict=True,
+            )
+        ]
+    )
 
     summary = analyzer.summarize_month(
         year=2026,
@@ -1271,16 +867,9 @@ def test_monthly_sleep_score_combines_average_and_bonuses() -> None:
 
 
 def test_awake_time_is_excluded_from_total_sleep_time() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(11)
 
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             start,
             start + timedelta(hours=2),
@@ -1296,9 +885,7 @@ def test_awake_time_is_excluded_from_total_sleep_time() -> None:
             start + timedelta(hours=4, minutes=30),
             SleepStage.REM,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     session = analyzer.sleep_sessions[0]
 
@@ -1314,29 +901,19 @@ def test_awake_time_is_excluded_from_total_sleep_time() -> None:
 
 
 def test_sleep_efficiency_is_calculated_from_sleep_and_time_in_bed() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(11)
 
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             start,
             start + timedelta(hours=6),
-            SleepStage.CORE,
         ),
         _sleep_record(
             start + timedelta(hours=6),
             start + timedelta(hours=7),
             SleepStage.AWAKE,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     session = analyzer.sleep_sessions[0]
 
@@ -1352,16 +929,9 @@ def test_sleep_efficiency_is_calculated_from_sleep_and_time_in_bed() -> None:
 
 
 def test_in_bed_stage_is_not_counted_as_sleep() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
+    start = _datetime(11)
 
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             start,
             start + timedelta(hours=1),
@@ -1370,15 +940,10 @@ def test_in_bed_stage_is_not_counted_as_sleep() -> None:
         _sleep_record(
             start + timedelta(hours=1),
             start + timedelta(hours=7),
-            SleepStage.CORE,
         ),
-    ]
+    )
 
-    analyzer = SleepAnalyzer(_health_data(records))
-
-    session = analyzer.sleep_sessions[0]
-
-    assert session.time_asleep_minutes == 360
+    assert analyzer.sleep_sessions[0].time_asleep_minutes == 360
 
 
 # =====================================================================
@@ -1388,25 +953,9 @@ def test_in_bed_stage_is_not_counted_as_sleep() -> None:
 
 
 def test_session_for_day_returns_none_when_no_session_exists() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
-    )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    analyzer = _analyzer_for_single_sleep(
+        _datetime(11),
+        timedelta(hours=8),
     )
 
     assert analyzer.session_for_day(date(2026, 8, 12)) is None
@@ -1419,38 +968,19 @@ def test_session_for_day_returns_none_when_no_session_exists() -> None:
 
 
 def test_monthly_average_bedtime_handles_midnight_correctly() -> None:
-    first_start = datetime(
-        2026,
-        8,
-        1,
-        23,
-        30,
-        tzinfo=timezone.utc,
-    )
+    first_start = _datetime(1, 23, 30)
+    second_start = _datetime(3, 0, 30)
 
-    second_start = datetime(
-        2026,
-        8,
-        3,
-        0,
-        30,
-        tzinfo=timezone.utc,
-    )
-
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
             first_start,
             first_start + timedelta(hours=8),
-            SleepStage.CORE,
         ),
         _sleep_record(
             second_start,
             second_start + timedelta(hours=8),
-            SleepStage.CORE,
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     summary = analyzer.summarize_month(
         year=2026,
@@ -1471,29 +1001,10 @@ def test_monthly_average_bedtime_handles_midnight_correctly() -> None:
 
 
 def test_bedtime_score_never_drops_below_zero() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        11,
-        45,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11, 11, 45),
+        timedelta(hours=1),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=1),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     assert score.bedtime_score == 0.0
 
@@ -1505,29 +1016,10 @@ def test_bedtime_score_never_drops_below_zero() -> None:
 
 
 def test_duration_score_never_drops_below_zero() -> None:
-    start = datetime(
-        2026,
-        8,
-        11,
-        0,
-        0,
-        tzinfo=timezone.utc,
+    score = _score_sleep(
+        _datetime(11),
+        timedelta(minutes=1),
     )
-
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(minutes=1),
-                    SleepStage.CORE,
-                )
-            ]
-        )
-    )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     assert score.duration_score == 0.0
 
@@ -1539,7 +1031,7 @@ def test_duration_score_never_drops_below_zero() -> None:
 
 
 def test_linear_penalty_mode_applies_proportional_penalty(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         sleep_analyzer_module,
@@ -1547,37 +1039,22 @@ def test_linear_penalty_mode_applies_proportional_penalty(
         True,
     )
 
-    target = datetime(
-        2026,
-        8,
+    target = _datetime(
         11,
         BEDTIME_TARGET.hour,
         BEDTIME_TARGET.minute,
-        tzinfo=timezone.utc,
     )
-
     deviation_minutes = BEDTIME_PENALTY_INTERVAL_MINUTES - 1
-
     start = target + timedelta(minutes=deviation_minutes)
 
-    analyzer = SleepAnalyzer(
-        _health_data(
-            [
-                _sleep_record(
-                    start,
-                    start + timedelta(hours=8),
-                    SleepStage.CORE,
-                )
-            ]
-        )
+    score = _score_sleep(
+        start,
+        timedelta(hours=8),
     )
-
-    session = analyzer.sleep_sessions[0]
-    score = analyzer.score_session(session)
 
     expected_penalty = deviation_minutes / BEDTIME_PENALTY_INTERVAL_MINUTES * BEDTIME_PENALTY_POINTS
 
-    assert score.bedtime_score == (100.0 - expected_penalty)
+    assert score.bedtime_score == pytest.approx(100.0 - expected_penalty)
 
 
 # =====================================================================
@@ -1587,7 +1064,7 @@ def test_linear_penalty_mode_applies_proportional_penalty(
 
 
 def test_monthly_bonuses_are_zero_when_disabled(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         sleep_analyzer_module,
@@ -1595,39 +1072,16 @@ def test_monthly_bonuses_are_zero_when_disabled(
         False,
     )
 
-    starts = [
-        datetime(
-            2026,
-            8,
-            1,
-            0,
-            0,
-            tzinfo=timezone.utc,
-        ),
-        datetime(
-            2026,
-            8,
-            2,
-            1,
-            0,
-            tzinfo=timezone.utc,
-        ),
-    ]
-
-    records = [
+    analyzer = _analyzer(
         _sleep_record(
-            starts[0],
-            starts[0] + timedelta(hours=8),
-            SleepStage.CORE,
+            _datetime(1),
+            _datetime(1) + timedelta(hours=8),
         ),
         _sleep_record(
-            starts[1],
-            starts[1] + timedelta(hours=7),
-            SleepStage.CORE,
+            _datetime(2, 1),
+            _datetime(2, 1) + timedelta(hours=7),
         ),
-    ]
-
-    analyzer = SleepAnalyzer(_health_data(records))
+    )
 
     summary = analyzer.summarize_month(
         year=2026,
