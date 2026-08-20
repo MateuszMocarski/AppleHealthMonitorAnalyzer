@@ -121,12 +121,15 @@ class SleepAnalyzer:
         year: int,
         month: int,
         reporting_days: int,
-    ) -> SleepMonthlySummary:
+    ) -> SleepMonthlySummary | None:
         sessions = [
             session
             for day, session in self._primary_sleep_sessions_by_day.items()
             if (day.year == year and day.month == month and day.day <= reporting_days)
         ]
+
+        if not sessions:
+            return None
 
         bedtimes = [session.bedtime.time() for session in sessions]
 

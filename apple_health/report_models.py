@@ -76,9 +76,9 @@ class MonthlySummary:
 
     days: list[DailySummary]
     activities: list[ActivitySummary]
-    activity_metrics: ActivityMetricsSummary
+    activity_metrics: ActivityMetricsSummary | None
 
-    sleep_summary: SleepMonthlySummary
+    sleep_summary: SleepMonthlySummary | None
 
     @property
     def data_through(self) -> date | None:
@@ -94,19 +94,19 @@ class MonthlySummary:
 
 @dataclass(slots=True)
 class ActivityMetricsSummary:
-    total_steps: int
+    total_steps: int | None
 
-    average_daily_steps: float
+    average_daily_steps: float | None
 
-    total_distance_km: float
+    total_distance_km: float | None
 
-    average_daily_distance_km: float
+    average_daily_distance_km: float | None
 
-    average_step_length_cm: float
+    average_step_length_cm: float | None
 
-    average_basal_energy_kcal: float
+    average_basal_energy_kcal: float | None
 
-    average_active_energy_kcal: float
+    average_active_energy_kcal: float | None
 
     average_weight: float | None
     start_weight: float | None
@@ -115,13 +115,15 @@ class ActivityMetricsSummary:
     min_weight: float | None
     measurements: int
 
-    average_protein_g: float
-    average_carbohydrates_g: float
-    average_fat_g: float
-    average_calories_kcal: float
+    average_protein_g: float | None
+    average_carbohydrates_g: float | None
+    average_fat_g: float | None
+    average_calories_kcal: float | None
 
     @property
-    def average_tdee_kcal(self) -> float:
+    def average_tdee_kcal(self) -> float | None:
+        if self.average_active_energy_kcal is None or self.average_basal_energy_kcal is None:
+            return None
         return self.average_active_energy_kcal + self.average_basal_energy_kcal
 
     @property
@@ -132,7 +134,9 @@ class ActivityMetricsSummary:
         return self.end_weight - self.start_weight
 
     @property
-    def average_calories_balance(self) -> float:
+    def average_calories_balance(self) -> float | None:
+        if self.average_calories_kcal is None or self.average_tdee_kcal is None:
+            return
         return self.average_calories_kcal - self.average_tdee_kcal
 
 

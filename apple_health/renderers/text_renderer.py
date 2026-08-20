@@ -83,6 +83,9 @@ class TextRenderer:
     ) -> None:
         metrics = summary.activity_metrics
 
+        if metrics is None or (metrics.total_steps is None and metrics.total_distance_km is None):
+            return
+
         self._render_general_activity(
             total_steps=metrics.total_steps,
             total_distance_km=metrics.total_distance_km,
@@ -97,6 +100,9 @@ class TextRenderer:
         self,
         summary: MonthlySummary,
     ) -> None:
+        if summary.sleep_summary is None:
+            return
+
         self._render_monthly_sleep(summary.sleep_summary)
 
         print()
@@ -109,6 +115,9 @@ class TextRenderer:
         self,
         summary: MonthlySummary,
     ) -> None:
+        if not summary.activities:
+            return
+
         print("Workouts")
         print("--------")
 
@@ -145,6 +154,13 @@ class TextRenderer:
     ) -> None:
         metrics = summary.activity_metrics
 
+        if (
+            metrics is None
+            or metrics.average_basal_energy_kcal is None
+            or metrics.average_active_energy_kcal is None
+        ):
+            return
+
         print("Average energy expenditure")
         print("--------------------------")
         print(f"  Basal energy:   {metrics.average_basal_energy_kcal:.0f} kcal")
@@ -158,6 +174,9 @@ class TextRenderer:
         summary: MonthlySummary,
     ) -> None:
         metrics = summary.activity_metrics
+
+        if metrics is None or metrics.average_calories_kcal is None:
+            return
 
         print("Average nutrition")
         print("-----------------")

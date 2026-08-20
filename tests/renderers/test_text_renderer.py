@@ -250,3 +250,102 @@ def test_monthly_sleep_bonus_disabled_message_is_rendered(
 
     assert "Monthly bonus system: disabled" in output
     assert "Monthly score:" not in output
+
+
+# =====================================================================
+# Verifies that a monthly report without sleep data is still rendered
+# successfully and omits sleep-related sections.
+# =====================================================================
+
+
+def test_monthly_report_without_sleep_data() -> None:
+    summary = _monthly_summary()
+    summary.sleep_summary = None
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Apple Health Monthly Report" in output
+    assert "General activity" in output
+
+    assert "Sleep\n-----" not in output
+    assert "Sleep score" not in output
+
+
+# =====================================================================
+# Verifies that the monthly workouts section is omitted when no
+# workouts are available for the reporting period.
+# =====================================================================
+
+
+def test_monthly_report_without_workouts_omits_workouts_section() -> None:
+    summary = _monthly_summary(
+        activities=[],
+    )
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Apple Health Monthly Report" in output
+    assert "Workouts\n--------" not in output
+
+
+# =====================================================================
+# Verifies that the monthly nutrition section is omitted when no
+# nutrition data is available for the reporting period.
+# =====================================================================
+
+
+def test_monthly_report_without_nutrition_omits_nutrition_section() -> None:
+    summary = _monthly_summary()
+
+    summary.activity_metrics.average_protein_g = None
+    summary.activity_metrics.average_carbohydrates_g = None
+    summary.activity_metrics.average_fat_g = None
+    summary.activity_metrics.average_calories_kcal = None
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Apple Health Monthly Report" in output
+    assert "General activity" in output
+    assert "Average energy expenditure" in output
+    assert "Average nutrition" not in output
+
+
+# =====================================================================
+# Verifies that the monthly energy expenditure section is omitted when
+# no basal or active energy data is available for the reporting period.
+# =====================================================================
+
+
+def test_monthly_report_without_energy_omits_energy_section() -> None:
+    summary = _monthly_summary()
+
+    summary.activity_metrics.average_basal_energy_kcal = None
+    summary.activity_metrics.average_active_energy_kcal = None
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Apple Health Monthly Report" in output
+    assert "General activity" in output
+    assert "Average nutrition" in output
+    assert "Average energy expenditure" not in output
+
+
+# =====================================================================
+# Verifies that the monthly general activity section is omitted when
+# neither step nor walking/running distance data is available.
+# =====================================================================
+
+
+def test_monthly_report_without_general_activity_omits_section() -> None:
+    summary = _monthly_summary()
+
+    summary.activity_metrics.total_steps = None
+    summary.activity_metrics.average_daily_steps = None
+    summary.activity_metrics.total_distance_km = None
+    summary.activity_metrics.average_daily_distance_km = None
+    summary.activity_metrics.average_step_length_cm = None
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Apple Health Monthly Report" in output
+    assert "General activity" not in output
