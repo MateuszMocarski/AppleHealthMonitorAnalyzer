@@ -7,6 +7,7 @@ from pathlib import Path
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
+from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
 
 
@@ -43,6 +44,13 @@ def main() -> None:
         action="store_true",
         help="Show only the monthly summary",
     )
+    
+    parser.add_argument( 
+        "--format", 
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text).", 
+    )
 
     args = parser.parse_args()
 
@@ -60,7 +68,11 @@ def main() -> None:
                 apple_health_data = parser.parse()
 
                 analyzer = HealthAnalyzer(apple_health_data)
-                renderer = TextRenderer()
+                
+                if args.format == "json":
+                    renderer = JsonRenderer()
+                else:
+                    renderer = TextRenderer()
 
                 today = date.today()
                 year = args.year if args.year is not None else today.year
