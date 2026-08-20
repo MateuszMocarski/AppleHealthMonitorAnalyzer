@@ -7,6 +7,7 @@ from apple_health.enums import WorkoutType
 from apple_health.report_models import (
     ActivityMetricsSummary,
     ActivitySummary,
+    DailySummary,
     MonthlySummary,
     SleepMonthlySummary,
 )
@@ -77,6 +78,9 @@ class JsonRenderer:
             "nutrition": self._build_nutrition(
                 summary.activity_metrics
             ),
+            "average_calories_balance_kcal": self._build_average_calories_balance(
+                summary.activity_metrics
+            )
         }
 
     @staticmethod
@@ -326,21 +330,15 @@ class JsonRenderer:
             "average_calories_kcal": self._round_number(
                 metrics.average_calories_kcal
             ),
-            "average_calories_balance_kcal": self._round_number(
-                metrics.average_calories_balance
-            ),
         }
 
-    @staticmethod
-    def _build_day(
-        summary,
-    ) -> dict[str, Any]:
-        # Intentionally left minimal for now.
-        # We will design the daily JSON contract separately after
-        # the monthly summary contract is implemented and tested.
-        return {
-            "date": summary.date.isoformat(),
-        }
+    def _build_average_calories_balance(
+        self,
+        metrics: ActivityMetricsSummary,
+    ) -> float | None:
+        if metrics is None:
+            return None
+        return self._round_number(metrics.average_calories_balance)
         
     @staticmethod
     def _round_number(
@@ -350,3 +348,211 @@ class JsonRenderer:
             return None
 
         return round(number, 2)
+
+    def _build_day(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any]:
+        return {
+            "date": summary.date.isoformat(),
+            "general_activity": self._build_daily_general_activity(
+                summary
+            ),
+            "sleep": self._build_daily_sleep(
+                summary
+            ),
+            "workouts": self._build_daily_workouts(
+                summary
+            ),
+            "body_weight": self._build_daily_body_weight(
+                summary
+            ),
+            "energy_expenditure": self._build_daily_energy_expenditure(
+                summary
+            ),
+            "nutrition": self._build_daily_nutrition(
+                summary
+            ),
+            "calories_balance_kcal": self._round_number(
+                summary.calories_balance_kcal
+            )
+        }
+
+    def _build_daily_general_activity(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any]:
+        return {
+            "steps": summary.total_steps,
+            "distance_km": self._round_number(
+                summary.total_distance_km
+            ),
+            "step_length_cm": self._round_number(
+                summary.average_step_length_cm
+            ),
+        }
+
+
+    def _build_daily_sleep(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any] | None:
+        if summary.sleep_session is None:
+            return None
+
+        return {
+            "session": self._build_daily_sleep_session(
+                summary
+            ),
+            "score": self._build_daily_sleep_score(
+                summary
+            ),
+        }
+
+
+    def _build_daily_sleep_session(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any]:
+        sleep = summary.sleep_session
+
+        if sleep is None:
+            return {}
+
+        return {
+            "bedtime": sleep.bedtime.isoformat(),
+            "wake_up": sleep.wake_up.isoformat(),
+            "time_in_bed_minutes": self._round_number(
+                sleep.time_in_bed_minutes
+            ),
+            "time_asleep_minutes": self._round_number(
+                sleep.time_asleep_minutes
+            ),
+            "awake_minutes": self._round_number(
+                sleep.awake_minutes
+            ),
+            "efficiency_percent": self._round_number(
+                sleep.sleep_efficiency_percent
+            ),
+            "stages": {
+                "core_minutes": self._round_number(
+                    sleep.core_minutes
+                ),
+                "deep_minutes": self._round_number(
+                    sleep.deep_minutes
+                ),
+                "rem_minutes": self._round_number(
+                    sleep.rem_minutes
+                ),
+            },
+        }
+
+
+    def _build_daily_sleep_score(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any] | None:
+        score = summary.sleep_score
+
+        if score is None:
+            return None
+
+        return {
+            "bedtime": self._round_number(
+                score.bedtime_score
+            ),
+            "duration": self._round_number(
+                score.duration_score
+            ),
+            "wake_up": self._round_number(
+                score.wake_up_score
+            ),
+            "total": self._round_number(
+                score.total_score
+            ),
+        }
+
+
+    def _build_daily_workouts(
+        self,
+        summary: DailySummary,
+    ) -> list[dict[str, Any]]:
+        return [
+            self._build_daily_workout(activity)
+            for activity in summary.activities
+        ]
+
+
+    def _build_daily_workout(
+        self,
+        activity: ActivitySummary,
+    ) -> dict[str, Any]:
+        return {
+            "type": activity.activity_type.name.lower(),
+            "sessions": activity.sessions,
+            "duration_minutes": self._round_number(
+                activity.duration_minutes
+            ),
+            "active_energy_kcal": self._round_number(
+                activity.active_energy_kcal
+            ),
+            "distance_km": self._round_number(
+                activity.distance_km
+            ),
+        }
+
+
+    def _build_daily_body_weight(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any] | None:
+        if summary.weight is None:
+            return None
+
+        return {
+            "weight_kg": self._round_number(
+                summary.weight
+            ),
+        }
+
+
+    def _build_daily_energy_expenditure(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any]:
+        return {
+            "basal_kcal": self._round_number(
+                summary.basal_energy_kcal
+            ),
+            "active_kcal": self._round_number(
+                summary.active_energy_kcal
+            ),
+            "tdee_kcal": self._round_number(
+                summary.tdee_kcal
+            ),
+        }
+
+
+    def _build_daily_nutrition(
+        self,
+        summary: DailySummary,
+    ) -> dict[str, Any] | None:
+        nutrition = summary.nutrition
+
+        if nutrition is None:
+            return None
+
+        return {
+            "protein_g": self._round_number(
+                nutrition.protein_g
+            ),
+            "carbohydrates_g": self._round_number(
+                nutrition.carbohydrates_g
+            ),
+            "fat_g": self._round_number(
+                nutrition.fat_g
+            ),
+            "calories_kcal": self._round_number(
+                nutrition.calories_kcal
+            ),
+        }
