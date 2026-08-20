@@ -5,6 +5,7 @@ import pytest
 
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
+from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.report_models import (
     ActivityMetricsSummary,
     ActivitySummary,
@@ -14,11 +15,9 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
-from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.sleep_score_config import (
     SLEEP_MONTHLY_BONUS_MAX_POINTS,
 )
-
 
 # =======
 # Helpers
@@ -105,6 +104,7 @@ def _indoor_cycling() -> ActivitySummary:
         distance_km=None,
     )
 
+
 def _daily_summary(
     *,
     day: int = 1,
@@ -127,14 +127,8 @@ def _daily_summary(
             day,
         ),
         activities=activities,
-        total_duration_minutes=sum(
-            activity.duration_minutes
-            for activity in activities
-        ),
-        total_active_energy_kcal=sum(
-            activity.active_energy_kcal
-            for activity in activities
-        ),
+        total_duration_minutes=sum(activity.duration_minutes for activity in activities),
+        total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
         total_steps=total_steps,
         total_distance_km=total_distance_km,
         active_energy_kcal=active_energy_kcal,
@@ -144,6 +138,7 @@ def _daily_summary(
         sleep_session=sleep_session,
         sleep_score=sleep_score,
     )
+
 
 def _monthly_summary(
     *,
@@ -166,24 +161,16 @@ def _monthly_summary(
             ]
         ),
         activity_metrics=(
-            activity_metrics
-            if activity_metrics is not None
-            else _activity_metrics()
+            activity_metrics if activity_metrics is not None else _activity_metrics()
         ),
-        sleep_summary=(
-            sleep_summary
-            if sleep_summary is not None
-            else _sleep_summary()
-        ),
+        sleep_summary=(sleep_summary if sleep_summary is not None else _sleep_summary()),
     )
 
 
 def _render_payload(
     summary: MonthlySummary,
 ) -> dict:
-    output = JsonRenderer().render_month_summary(
-        summary
-    )
+    output = JsonRenderer().render_month_summary(summary)
 
     return json.loads(output)
 
@@ -193,10 +180,9 @@ def _render_payload(
 # contract together with schema version and report metadata.
 # =====================================================================
 
+
 def test_render_month_summary_exposes_expected_contract() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
+    payload = _render_payload(_monthly_summary())
 
     assert set(payload) == {
         "schema_version",
@@ -207,7 +193,7 @@ def test_render_month_summary_exposes_expected_contract() -> None:
         "body_weight",
         "energy_expenditure",
         "nutrition",
-        "average_calories_balance_kcal"
+        "average_calories_balance_kcal",
     }
 
     assert payload["schema_version"] == "1.0"
@@ -226,14 +212,11 @@ def test_render_month_summary_exposes_expected_contract() -> None:
 # and floating-point measurements are normalized to two decimal places.
 # =====================================================================
 
-def test_render_month_summary_builds_general_activity() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
 
-    general_activity = payload[
-        "general_activity"
-    ]
+def test_render_month_summary_builds_general_activity() -> None:
+    payload = _render_payload(_monthly_summary())
+
+    general_activity = payload["general_activity"]
 
     assert general_activity == {
         "total_steps": 122_192,
@@ -259,10 +242,9 @@ def test_render_month_summary_builds_general_activity() -> None:
 # normalized numeric values and the configured maximum Sleep Score.
 # =====================================================================
 
+
 def test_render_month_summary_builds_sleep_section() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
+    payload = _render_payload(_monthly_summary())
 
     sleep = payload["sleep"]
 
@@ -288,10 +270,7 @@ def test_render_month_summary_builds_sleep_section() -> None:
         "average_bonus": 5.0,
         "consistency_bonus": 1.0,
         "monthly_score": 77.29,
-        "monthly_score_max": (
-            100
-            + SLEEP_MONTHLY_BONUS_MAX_POINTS
-        ),
+        "monthly_score_max": (100 + SLEEP_MONTHLY_BONUS_MAX_POINTS),
     }
 
 
@@ -300,10 +279,9 @@ def test_render_month_summary_builds_sleep_section() -> None:
 # averages explicitly describe whether they are daily or per workout.
 # =====================================================================
 
+
 def test_render_month_summary_builds_workouts() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
+    payload = _render_payload(_monthly_summary())
 
     workouts = payload["workouts"]
 
@@ -343,10 +321,9 @@ def test_render_month_summary_builds_workouts() -> None:
 # numeric values while preserving the measurement count as an integer.
 # =====================================================================
 
+
 def test_render_month_summary_builds_body_weight() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
+    payload = _render_payload(_monthly_summary())
 
     body_weight = payload["body_weight"]
 
@@ -366,10 +343,9 @@ def test_render_month_summary_builds_body_weight() -> None:
 # numeric values and explicit energy units in the field names.
 # =====================================================================
 
+
 def test_render_month_summary_builds_energy_expenditure() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
+    payload = _render_payload(_monthly_summary())
 
     assert payload["energy_expenditure"] == {
         "average_basal_kcal": 1944.71,
@@ -383,10 +359,9 @@ def test_render_month_summary_builds_energy_expenditure() -> None:
 # are represented as normalized numeric API fields.
 # =====================================================================
 
+
 def test_render_month_summary_builds_nutrition() -> None:
-    payload = _render_payload(
-        _monthly_summary()
-    )
+    payload = _render_payload(_monthly_summary())
 
     assert payload["nutrition"] == {
         "average_protein_g": 154.71,
@@ -400,6 +375,7 @@ def test_render_month_summary_builds_nutrition() -> None:
 # Verifies that unavailable monthly report sections remain present in
 # the API contract as null values while an empty workout list stays [].
 # =====================================================================
+
 
 def test_render_month_summary_preserves_partial_report_contract() -> None:
     summary = _monthly_summary()
@@ -422,6 +398,7 @@ def test_render_month_summary_preserves_partial_report_contract() -> None:
 # Verifies that individual optional metric categories become null
 # without removing unrelated sections from the JSON report.
 # =====================================================================
+
 
 def test_render_month_summary_supports_partially_available_metrics() -> None:
     metrics = _activity_metrics(
@@ -455,6 +432,7 @@ def test_render_month_summary_supports_partially_available_metrics() -> None:
 # data-through value while retaining the stable report metadata schema.
 # =====================================================================
 
+
 def test_render_month_summary_uses_null_data_through_without_reporting_days() -> None:
     payload = _render_payload(
         _monthly_summary(
@@ -465,11 +443,13 @@ def test_render_month_summary_uses_null_data_through_without_reporting_days() ->
 
     assert payload["report"]["reporting_days"] == 0
     assert payload["report"]["data_through"] is None
-    
+
+
 # =====================================================================
 # Verifies that render_month includes daily report entries in addition
 # to the monthly summary contract.
 # =====================================================================
+
 
 def test_render_month_includes_daily_reports() -> None:
     summary = _monthly_summary()
@@ -477,18 +457,18 @@ def test_render_month_includes_daily_reports() -> None:
         _daily_summary(),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     assert "days" in payload
     assert len(payload["days"]) == 1
     assert payload["days"][0]["date"] == "2026-08-01"
-    
+
+
 # =====================================================================
 # Verifies that daily general activity exposes steps, distance and step
 # length using normalized numeric values.
 # =====================================================================
+
 
 def test_render_day_builds_general_activity() -> None:
     summary = _monthly_summary()
@@ -499,9 +479,7 @@ def test_render_day_builds_general_activity() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     general_activity = payload["days"][0]["general_activity"]
 
@@ -510,11 +488,13 @@ def test_render_day_builds_general_activity() -> None:
         "distance_km": 8.12,
         "step_length_cm": 81.23,
     }
-    
+
+
 # =====================================================================
 # Verifies that daily workouts use stable workout type identifiers and
 # preserve workout metrics without monthly averaging fields.
 # =====================================================================
+
 
 def test_render_day_builds_workouts() -> None:
     walking = ActivitySummary(
@@ -532,9 +512,7 @@ def test_render_day_builds_workouts() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     assert payload["days"][0]["workouts"] == [
         {
@@ -545,11 +523,13 @@ def test_render_day_builds_workouts() -> None:
             "distance_km": 5.43,
         }
     ]
-    
+
+
 # =====================================================================
 # Verifies that daily body weight is represented as a dedicated section
 # and normalized to the API precision.
 # =====================================================================
+
 
 def test_render_day_builds_body_weight() -> None:
     summary = _monthly_summary()
@@ -559,18 +539,18 @@ def test_render_day_builds_body_weight() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     assert payload["days"][0]["body_weight"] == {
         "weight_kg": 79.46,
     }
-    
+
+
 # =====================================================================
 # Verifies that daily energy expenditure exposes basal, active and TDEE
 # values using normalized numeric fields.
 # =====================================================================
+
 
 def test_render_day_builds_energy_expenditure() -> None:
     summary = _monthly_summary()
@@ -581,20 +561,20 @@ def test_render_day_builds_energy_expenditure() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     assert payload["days"][0]["energy_expenditure"] == {
         "basal_kcal": 1900.46,
         "active_kcal": 700.79,
         "tdee_kcal": 2601.24,
     }
-    
+
+
 # =====================================================================
 # Verifies that daily nutrition and calorie balance are represented as
 # separate API concepts.
 # =====================================================================
+
 
 def test_render_day_builds_nutrition_and_calorie_balance() -> None:
     nutrition = NutritionData(
@@ -613,9 +593,7 @@ def test_render_day_builds_nutrition_and_calorie_balance() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     day = payload["days"][0]
 
@@ -627,11 +605,13 @@ def test_render_day_builds_nutrition_and_calorie_balance() -> None:
     }
 
     assert day["calories_balance_kcal"] == -599.54
-    
+
+
 # =====================================================================
 # Verifies that daily sleep data preserves full timestamps, sleep-stage
 # durations and sleep-efficiency metrics.
 # =====================================================================
+
 
 def test_render_day_builds_sleep_session() -> None:
     sleep_session = SleepSession(
@@ -667,27 +647,23 @@ def test_render_day_builds_sleep_session() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     sleep = payload["days"][0]["sleep"]
 
-    assert sleep["session"]["bedtime"] == (
-        "2026-08-01T00:30:00+00:00"
-    )
-    assert sleep["session"]["wake_up"] == (
-        "2026-08-01T08:00:00+00:00"
-    )
+    assert sleep["session"]["bedtime"] == ("2026-08-01T00:30:00+00:00")
+    assert sleep["session"]["wake_up"] == ("2026-08-01T08:00:00+00:00")
 
     assert sleep["session"]["time_in_bed_minutes"] == 450.46
     assert sleep["session"]["time_asleep_minutes"] == 420.12
     assert sleep["session"]["awake_minutes"] == 30.33
-    
+
+
 # =====================================================================
 # Verifies that daily Sleep Score components and total score are exposed
 # as normalized API values.
 # =====================================================================
+
 
 def test_render_day_builds_sleep_score() -> None:
     sleep_session = SleepSession(
@@ -730,23 +706,21 @@ def test_render_day_builds_sleep_score() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     assert payload["days"][0]["sleep"]["score"] == {
         "bedtime": 80.46,
         "duration": 90.79,
         "wake_up": 70.12,
-        "total": pytest.approx(
-            round(sleep_score.total_score, 2)
-        ),
+        "total": pytest.approx(round(sleep_score.total_score, 2)),
     }
-    
+
+
 # =====================================================================
 # Verifies that missing optional daily data remains represented through
 # null values and empty collections without breaking the day contract.
 # =====================================================================
+
 
 def test_render_day_preserves_partial_report_contract() -> None:
     summary = _monthly_summary()
@@ -760,9 +734,7 @@ def test_render_day_preserves_partial_report_contract() -> None:
         ),
     ]
 
-    payload = json.loads(
-        JsonRenderer().render_month(summary)
-    )
+    payload = json.loads(JsonRenderer().render_month(summary))
 
     day = payload["days"][0]
 

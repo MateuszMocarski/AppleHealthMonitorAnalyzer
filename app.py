@@ -44,12 +44,12 @@ def main() -> None:
         action="store_true",
         help="Show only the monthly summary",
     )
-    
-    parser.add_argument( 
-        "--format", 
+
+    parser.add_argument(
+        "--format",
         choices=["text", "json"],
         default="text",
-        help="Output format (default: text).", 
+        help="Output format (default: text).",
     )
 
     args = parser.parse_args()
@@ -68,7 +68,7 @@ def main() -> None:
                 apple_health_data = parser.parse()
 
                 analyzer = HealthAnalyzer(apple_health_data)
-                
+
                 if args.format == "json":
                     renderer = JsonRenderer()
                 else:
