@@ -338,3 +338,67 @@ def test_summarize_month_builds_complete_monthly_summary() -> None:
     assert summary.activity_metrics.total_steps == 22000
     assert summary.activities == []
     assert summary.sleep_summary is not None
+
+
+# =====================================================================
+# Verifies that a monthly summary can still be created when no sleep
+# sessions are available for the reporting period.
+# =====================================================================
+
+
+def test_summarize_month_without_sleep_data() -> None:
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[
+                _daily_metrics(
+                    1,
+                    steps=10000,
+                ),
+                _daily_metrics(
+                    2,
+                    steps=12000,
+                ),
+                _daily_metrics(
+                    3,
+                    steps=50000,
+                ),
+            ],
+            sleep_records=[],
+        )
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+    )
+
+    assert summary.reporting_days == 2
+    assert summary.sleep_summary is None
+
+
+# =====================================================================
+# Verifies that a monthly summary can still be created when no activity
+# metrics are available for the reporting period.
+# =====================================================================
+
+
+def test_summarize_month_without_activity_metrics() -> None:
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[
+                _daily_metrics(
+                    3,
+                    steps=50000,
+                ),
+            ],
+            sleep_records=[],
+        )
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+    )
+
+    assert summary.reporting_days == 2
+    assert summary.activity_metrics is None

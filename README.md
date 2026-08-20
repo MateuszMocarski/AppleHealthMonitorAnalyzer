@@ -527,7 +527,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **150 test cases**, covering:
+The test suite currently contains **157 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis

@@ -35,7 +35,7 @@ class MetricsAnalyzer:
         year: int,
         month: int,
         reporting_days: int,
-    ) -> ActivityMetricsSummary:
+    ) -> ActivityMetricsSummary | None:
         monthly_metrics = [
             metrics
             for metrics in self.daily_metrics
@@ -45,6 +45,9 @@ class MetricsAnalyzer:
                 and metrics.date.day <= reporting_days
             )
         ]
+
+        if not monthly_metrics:
+            return None
 
         total_steps = sum(metrics.steps for metrics in monthly_metrics)
 
