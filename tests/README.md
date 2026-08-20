@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **150 test cases**.
+The suite currently contains **157 test cases**.
 
 ## Test structure
 
@@ -11,14 +11,14 @@ The suite currently contains **150 test cases**.
 | `SleepAnalyzer` | 38 |
 | `ActivityAnalyzer` | 7 |
 | `MetricsAnalyzer` | 11 |
-| `HealthAnalyzer` | 7 |
+| `HealthAnalyzer` | 9 |
 | `AppleHealthParser` | 22 |
 | Sleep Score configuration | 32 |
 | Report models | 17 |
-| `TextRenderer` | 6 |
+| `TextRenderer` | 11 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 4 |
-| **Total** | **150** |
+| **Total** | **157** |
 
 ## Analyzers
 
@@ -88,7 +88,7 @@ The suite verifies:
 
 ### HealthAnalyzer
 
-`tests/analyzers/test_health_analyzer.py` contains **7 test cases**.
+`tests/analyzers/test_health_analyzer.py` contains **9 test cases**.
 
 These tests focus on orchestration rather than repeating the business rules already covered by the specialized analyzers.
 
@@ -101,6 +101,8 @@ The suite verifies:
 - full reporting periods for historical months
 - zero reporting days for months after the available data
 - construction of a complete `MonthlySummary` from delegated analyzer results
+- monthly summary generation when no sleep data is available
+- monthly summary generation when no activity metrics are available for the reporting period
 
 ## AppleHealthParser
 
@@ -180,7 +182,7 @@ Simple dataclass field storage is intentionally not tested; the suite focuses on
 
 ## TextRenderer
 
-`tests/renderers/test_text_renderer.py` contains **6 test cases** covering the renderer's public textual output contract.
+`tests/renderers/test_text_renderer.py` contains **11 test cases** covering the renderer's public textual output contract.
 
 The suite verifies:
 
@@ -190,8 +192,29 @@ The suite verifies:
 - explicit messaging when daily nutrition data is missing
 - distinction between activity without workouts and complete absence of activity
 - rendering of the disabled monthly Sleep Score bonus state
+- omission of monthly sleep sections when sleep data is unavailable
+- omission of the monthly workouts section when no workouts exist
+- omission of monthly nutrition when nutrition data is unavailable
+- omission of monthly energy expenditure when energy data is unavailable
+- omission of monthly general activity when step and distance data are unavailable
 
 The renderer tests intentionally avoid testing every private `print()` helper individually. They verify user-visible behavior through the public `render_month()` and `render_month_summary()` methods.
+
+### Partial monthly reports
+
+Monthly reports are designed to remain renderable when individual data categories are unavailable. The report header is always produced, while optional sections are rendered only when their underlying data exists.
+
+The regression suite explicitly protects partial-report behavior for:
+
+- missing sleep data
+- missing workouts
+- missing activity metrics
+- missing nutrition data
+- missing energy expenditure data
+- missing general activity data
+- missing body-weight measurements
+
+This allows a valid monthly report to be produced from incomplete Apple Health datasets without representing missing information as real zero-valued measurements.
 
 ## AppleHealthImporter
 
