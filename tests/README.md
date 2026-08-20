@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **157 test cases**.
+The suite currently contains **176 test cases**.
 
 ## Test structure
 
@@ -16,9 +16,10 @@ The suite currently contains **157 test cases**.
 | Sleep Score configuration | 32 |
 | Report models | 17 |
 | `TextRenderer` | 11 |
+| `JsonRenderer` | 19 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 4 |
-| **Total** | **157** |
+| **Total** | **176** |
 
 ## Analyzers
 
@@ -216,6 +217,47 @@ The regression suite explicitly protects partial-report behavior for:
 
 This allows a valid monthly report to be produced from incomplete Apple Health datasets without representing missing information as real zero-valued measurements.
 
+
+## JsonRenderer
+
+`tests/renderers/test_json_renderer.py` contains **19 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
+
+The monthly contract tests verify:
+
+- stable top-level schema keys and `schema_version`
+- report metadata and ISO-compatible `data_through`
+- general activity representation
+- sleep summary, sleep stages and monthly Sleep Score data
+- configured maximum monthly Sleep Score
+- stable workout identifiers derived from enum names
+- explicit workout averaging basis (`daily` or `workout`)
+- body-weight statistics
+- energy expenditure
+- nutrition
+- calorie balance as a separate top-level API concept
+- normalized two-decimal numeric precision
+- `null` for unavailable optional sections
+- `[]` for empty workout collections
+- partial metric availability
+- reports with zero completed reporting days
+
+The daily contract tests verify:
+
+- inclusion of detailed `days` in full monthly JSON output
+- daily general activity
+- daily workout details without monthly averaging fields
+- daily body weight
+- daily energy expenditure and TDEE
+- daily nutrition with calorie balance kept as a separate concept
+- full ISO sleep timestamps with timezone offsets
+- daily sleep-stage details
+- daily Sleep Score components and total
+- preservation of `null` and empty collections in partial daily reports
+
+The JSON tests deserialize renderer output with `json.loads()` and validate the resulting data structure rather than whitespace or indentation. This treats JSON as a stable external data contract while allowing harmless formatting changes.
+
+The renderer intentionally does not serialize internal dataclasses directly. Its explicit builder methods define a controlled API-friendly representation with stable field names, measurement units encoded in keys, technical enum identifiers, and predictable handling of missing data.
+
 ## AppleHealthImporter
 
 `tests/test_importer.py` contains **6 test cases** using temporary ZIP archives.
@@ -257,6 +299,8 @@ TextRenderer
     ↓
 Final text report
 ```
+
+The current end-to-end integration suite exercises the text-rendering pipeline. `JsonRenderer` is covered by dedicated contract tests at the renderer layer.
 
 The integration suite verifies:
 
@@ -349,7 +393,9 @@ The suite follows several general rules:
 - cover meaningful boundary conditions explicitly
 - use parameterization when the same rule applies to multiple configuration values
 - use integration tests to protect component wiring
-- use a golden report to protect the deterministic final output contract
+- use a golden report to protect the deterministic final text output contract
+- test JSON through parsed structures to protect the versioned API contract independently of whitespace
+- preserve explicit `null` and empty-collection semantics in JSON contract tests
 - avoid tests that merely confirm that dataclass fields store assigned values
 
 This keeps the test suite useful during future refactoring while still providing strong regression protection for the application's core behavior.

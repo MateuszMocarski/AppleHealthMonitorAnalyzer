@@ -6,7 +6,7 @@
 - 😴 Automatic sleep session reconstruction
 - 🚶 Activity and workout aggregation
 - 📊 Deterministic and comparable reports
-- 🤖 AI-friendly report format
+- 🤖 AI-friendly text and JSON report formats
 
 ## Overview
 
@@ -81,8 +81,10 @@ independent verification, and AI-assisted interpretation.
 ### Reporting
 
 - Human-readable text reports
+- Structured JSON reports with a versioned schema
 - Daily and monthly summaries
-- AI-friendly report format
+- AI-friendly report formats
+- Partial monthly reports that preserve available data when individual sections are missing
 - Documented calculation methodology
 
 ### Design
@@ -128,6 +130,25 @@ python app.py import export.zip --month 7 --month-summary
 
 Displays only the aggregated monthly statistics without the detailed daily report.
 
+
+### JSON Output
+
+Use `--format json` to generate a structured JSON report instead of the default text output.
+
+```bash
+python app.py import export.zip --month 8 --format json
+```
+
+JSON output uses a versioned schema intended for machine consumption, API integration, and future frontend clients. Numeric values remain JSON numbers, dates and timestamps use ISO-compatible representations, and unavailable report sections are represented explicitly with `null` while empty collections remain `[]`.
+
+Combine JSON output with `--month-summary` to return only monthly aggregates without daily entries:
+
+```bash
+python app.py import export.zip --month 8 --month-summary --format json
+```
+
+Text output remains the default when `--format` is omitted.
+
 ### Command Line Arguments
 
 | Argument | Description |
@@ -137,10 +158,11 @@ Displays only the aggregated monthly statistics without the detailed daily repor
 | `--month` | Month to analyze (`1`–`12`). Uses the current year if `--year` is omitted. |
 | `--year` | Year to analyze. Can only be used together with `--month`. |
 | `--month-summary` | Displays only the monthly summary. |
+| `--format` | Output format: `text` or `json`. Defaults to `text`. |
 
 > **Note:** `--year` cannot be used without `--month`.
 
-The application processes the archive and generates a structured text report containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
+The application processes the archive and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
 
 ## Project Architecture
 
@@ -164,8 +186,10 @@ flowchart TD
     F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
 
     G["TextRenderer"]
+    GJ["JsonRenderer"]
 
     H["📄 Text Report"]
+    HJ["🧩 JSON Report"]
 
     A -->|"Load archive"| B
     B -->|"Extract XML"| C
@@ -182,7 +206,9 @@ flowchart TD
 
     E -->|"Build report model"| F
     F -->|"Render to text"| G
+    F -->|"Render to JSON"| GJ
     G --> H
+    GJ --> HJ
 
     classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
     classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
@@ -193,8 +219,8 @@ flowchart TD
     class A,B,C import;
     class D domain;
     class E,EA,EM,ES,F analysis;
-    class G presentation;
-    class H output;
+    class G,GJ presentation;
+    class H,HJ output;
 ```
 
 The diagram is organized into five logical layers, each with a clearly defined responsibility.
@@ -204,8 +230,8 @@ The diagram is organized into five logical layers, each with a clearly defined r
 | 🔵 **Import** | Load and parse Apple Health export |
 | 🟢 **Domain** | In-memory representation of imported health data |
 | 🟡 **Analysis** | Calculate statistics and build report models |
-| 🟣 **Presentation** | Render reports for the end user |
-| 🔴 **Output** | Final human-readable report |
+| 🟣 **Presentation** | Render report models into text or JSON representations |
+| 🔴 **Output** | Final human-readable or machine-readable report |
 
 #### AppleHealthImporter
 
@@ -249,7 +275,13 @@ Separating report generation from rendering makes it easy to support additional 
 Transforms the report model into a human-readable text representation.
 The renderer contains no business logic and returns the rendered report as a string, leaving the application layer responsible for deciding where that output is sent.
 
-The renderer is isolated in the `renderers` package so that additional formats such as JSON or XML can be introduced without changing the analysis layer.
+#### JsonRenderer
+
+Transforms the same report models into a structured, versioned JSON representation intended for machine consumption, future API endpoints, frontend clients, and AI-assisted workflows.
+
+The JSON contract uses stable technical identifiers, explicit measurement units in field names, ISO-compatible date/time representations, `null` for unavailable optional sections, `[]` for empty collections, and normalized numeric precision. Monthly and daily report data share the same high-level section structure wherever practical.
+
+Both renderers are isolated in the `renderers` package, allowing presentation formats to evolve independently from import, parsing, and analysis logic.
 
 ### Architectural Principles
 
@@ -364,7 +396,7 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 
 ## Report Format
 
-The application generates a structured, human-readable text report that summarizes activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
+The application can generate both a structured, human-readable text report and a versioned JSON representation summarizing activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
 
@@ -439,11 +471,30 @@ Key reporting areas include:
 
 ### Design Goals
 
-- Human-readable text output.
-- Consistent formatting throughout the report.
+- Human-readable text output and machine-readable JSON output.
+- Consistent formatting and stable JSON schema contracts.
 - Monthly overview followed by progressively more detailed information.
 - Aggregated metrics presented before individual workout sessions.
 - Report generation remains independent of its presentation layer, allowing additional output formats to be added in the future.
+
+
+### JSON Report Contract
+
+JSON reports use `schema_version: "1.0"` and preserve a stable top-level structure for monthly report data:
+
+- `report` – report metadata such as year, month, reporting days and data coverage
+- `general_activity` – steps, distance and step length
+- `sleep` – monthly or daily sleep details and Sleep Score data
+- `workouts` – workout summaries using stable technical identifiers such as `indoor_cycling`
+- `body_weight` – body-weight measurements and monthly statistics
+- `energy_expenditure` – basal energy, active energy and TDEE
+- `nutrition` – calorie intake and macronutrients
+- `average_calories_balance_kcal` / `calories_balance_kcal` – calorie balance kept separate from nutrition because it depends on both energy intake and expenditure
+- `days` – detailed daily reports when the full monthly report is requested
+
+Unavailable optional sections are represented as `null`, while empty collections such as months or days without workouts are represented as `[]`. Numeric measurements remain JSON numbers and are normalized to two decimal places for a predictable external contract.
+
+The JSON renderer deliberately exposes a presentation/API contract rather than directly serializing internal dataclasses. This allows the internal report models to evolve without automatically breaking external consumers.
 
 ## Report Interpretation
 
@@ -527,7 +578,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **157 test cases**, covering:
+The test suite currently contains **176 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis
@@ -535,6 +586,7 @@ The test suite currently contains **157 test cases**, covering:
 -   configuration validation
 -   report models
 -   text rendering
+-   JSON rendering and API contract behavior
 -   ZIP import handling
 -   end-to-end report generation
 
@@ -558,7 +610,7 @@ For a detailed breakdown of the test suite, see
 
 The project currently fulfills its original purpose.
 
-Future development may include additional health metrics when practical needs arise, additional report renderers such as JSON or XML, and further technical improvements focused on maintainability, code quality and architecture.
+Future development may include additional health metrics when practical needs arise, additional presentation formats where justified, API and frontend integration, and further technical improvements focused on maintainability, code quality and architecture.
 
 ## License
 
