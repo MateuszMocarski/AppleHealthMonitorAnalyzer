@@ -26,23 +26,23 @@ from apple_health.sleep_score_config import (
 
 def _activity_metrics(
     *,
-    total_steps: int | None = 122_192,
-    average_daily_steps: float | None = 8728.0,
-    total_distance_km: float | None = 100.5498755962,
-    average_daily_distance_km: float | None = 7.1821339711,
-    average_step_length_cm: float | None = 82.2884277172,
-    average_basal_energy_kcal: float | None = 1944.7069285715,
-    average_active_energy_kcal: float | None = 752.9383571428,
-    average_weight: float | None = 79.4535714285,
-    start_weight: float | None = 80.1,
-    end_weight: float | None = 78.75,
-    max_weight: float | None = 80.2,
-    min_weight: float | None = 78.75,
-    measurements: int = 14,
-    average_protein_g: float | None = 154.7142857142,
-    average_carbohydrates_g: float | None = 193.7857142857,
-    average_fat_g: float | None = 72.7857142857,
-    average_calories_kcal: float | None = 2052.1428571428,
+    total_steps: int | None = 64_321,
+    average_daily_steps: float | None = 4594.3571428571,
+    total_distance_km: float | None = 47.891234,
+    average_daily_distance_km: float | None = 3.4208024286,
+    average_step_length_cm: float | None = 74.453287,
+    average_basal_energy_kcal: float | None = 2210.456,
+    average_active_energy_kcal: float | None = 910.788,
+    average_weight: float | None = 112.3456,
+    start_weight: float | None = 113.2,
+    end_weight: float | None = 111.7,
+    max_weight: float | None = 114.0,
+    min_weight: float | None = 111.4,
+    measurements: int = 11,
+    average_protein_g: float | None = 171.234,
+    average_carbohydrates_g: float | None = 211.37,
+    average_fat_g: float | None = 119.876,
+    average_calories_kcal: float | None = 2850.432,
 ) -> ActivityMetricsSummary:
     return ActivityMetricsSummary(
         total_steps=total_steps,
@@ -67,40 +67,40 @@ def _activity_metrics(
 
 def _sleep_summary() -> SleepMonthlySummary:
     return SleepMonthlySummary(
-        total_sessions=14,
-        average_bedtime=time(1, 45),
-        average_wake_up=time(8, 56),
-        average_sleep_minutes=412.6166666667,
-        average_awake_minutes=18.4547619048,
-        average_sleep_efficiency=95.9837689863,
-        average_core_minutes=289.2523809524,
-        average_deep_minutes=34.6488095238,
-        average_rem_minutes=88.7154761905,
-        average_bedtime_score=67.5,
-        average_duration_score=81.7857142857,
-        average_wake_up_score=64.5952380952,
-        average_sleep_score=71.2936507937,
-        average_bonus=5.0,
-        consistency_bonus=1.0,
+        total_sessions=12,
+        average_bedtime=time(23, 18),
+        average_wake_up=time(7, 42),
+        average_sleep_minutes=438.7654321,
+        average_awake_minutes=21.2345678,
+        average_sleep_efficiency=95.6123456,
+        average_core_minutes=301.456789,
+        average_deep_minutes=52.345678,
+        average_rem_minutes=84.962965,
+        average_bedtime_score=88.4567,
+        average_duration_score=92.3456,
+        average_wake_up_score=84.5678,
+        average_sleep_score=88.4567,
+        average_bonus=10.0,
+        consistency_bonus=4.0,
     )
 
 
 def _walking() -> ActivitySummary:
     return ActivitySummary(
         activity_type=WorkoutType.WALKING,
-        sessions=30,
-        duration_minutes=985.9904863278,
-        active_energy_kcal=4476.2503,
-        distance_km=79.575995,
+        sessions=18,
+        duration_minutes=742.3456,
+        active_energy_kcal=3210.789,
+        distance_km=58.4321,
     )
 
 
 def _indoor_cycling() -> ActivitySummary:
     return ActivitySummary(
         activity_type=WorkoutType.INDOOR_CYCLING,
-        sessions=7,
-        duration_minutes=286.3349394162,
-        active_energy_kcal=3200.77,
+        sessions=5,
+        duration_minutes=214.5678,
+        active_energy_kcal=2488.123,
         distance_km=None,
     )
 
@@ -219,11 +219,11 @@ def test_render_month_summary_builds_general_activity() -> None:
     general_activity = payload["general_activity"]
 
     assert general_activity == {
-        "total_steps": 122_192,
-        "average_daily_steps": 8728.0,
-        "total_distance_km": 100.55,
-        "average_daily_distance_km": 7.18,
-        "average_step_length_cm": 82.29,
+        "total_steps": 64_321,
+        "average_daily_steps": 4594.36,
+        "total_distance_km": 47.89,
+        "average_daily_distance_km": 3.42,
+        "average_step_length_cm": 74.45,
     }
 
     assert isinstance(
@@ -242,37 +242,38 @@ def test_render_month_summary_builds_general_activity() -> None:
 # normalized numeric values and the configured maximum Sleep Score.
 # =====================================================================
 
-
 def test_render_month_summary_builds_sleep_section() -> None:
     payload = _render_payload(_monthly_summary())
 
     sleep = payload["sleep"]
 
-    assert sleep["sessions"] == 14
-    assert sleep["average_bedtime"] == "01:45"
-    assert sleep["average_wake_up"] == "08:56"
+    assert sleep["sessions"] == 12
+    assert sleep["average_bedtime"] == "23:18"
+    assert sleep["average_wake_up"] == "07:42"
 
-    assert sleep["average_sleep_minutes"] == 412.62
-    assert sleep["average_awake_minutes"] == 18.45
-    assert sleep["average_efficiency_percent"] == 95.98
+    assert sleep["average_sleep_minutes"] == 438.77
+    assert sleep["average_awake_minutes"] == 21.23
+    assert sleep["average_efficiency_percent"] == 95.61
 
     assert sleep["stages"] == {
-        "core_minutes": 289.25,
-        "deep_minutes": 34.65,
-        "rem_minutes": 88.72,
+        "core_minutes": 301.46,
+        "deep_minutes": 52.35,
+        "rem_minutes": 84.96,
     }
 
     assert sleep["score"] == {
-        "average_bedtime": 67.5,
-        "average_duration": 81.79,
-        "average_wake_up": 64.6,
-        "average_total": 71.29,
-        "average_bonus": 5.0,
-        "consistency_bonus": 1.0,
-        "monthly_score": 77.29,
-        "monthly_score_max": (100 + SLEEP_MONTHLY_BONUS_MAX_POINTS),
+        "average_bedtime": 88.46,
+        "average_duration": 92.35,
+        "average_wake_up": 84.57,
+        "average_total": 88.46,
+        "average_bonus": 10.0,
+        "consistency_bonus": 4.0,
+        "monthly_score": 102.46,
+        "monthly_score_max": (
+            100
+            + SLEEP_MONTHLY_BONUS_MAX_POINTS
+        ),
     }
-
 
 # =====================================================================
 # Verifies that workout types use stable enum identifiers and that
@@ -291,27 +292,27 @@ def test_render_month_summary_builds_workouts() -> None:
 
     assert walking == {
         "type": "walking",
-        "sessions": 30,
-        "duration_minutes": 985.99,
-        "active_energy_kcal": 4476.25,
-        "distance_km": 79.58,
+        "sessions": 18,
+        "duration_minutes": 742.35,
+        "active_energy_kcal": 3210.79,
+        "distance_km": 58.43,
         "average_basis": "daily",
-        "average_duration_minutes": 70.43,
-        "average_active_energy_kcal": 319.73,
-        "average_distance_km": 5.68,
+        "average_duration_minutes": 53.02,
+        "average_active_energy_kcal": 229.34,
+        "average_distance_km": 4.17,
     }
 
     cycling = workouts[1]
 
     assert cycling == {
         "type": "indoor_cycling",
-        "sessions": 7,
-        "duration_minutes": 286.33,
-        "active_energy_kcal": 3200.77,
+        "sessions": 5,
+        "duration_minutes": 214.57,
+        "active_energy_kcal": 2488.12,
         "distance_km": None,
         "average_basis": "workout",
-        "average_duration_minutes": 40.9,
-        "average_active_energy_kcal": 457.25,
+        "average_duration_minutes": 42.91,
+        "average_active_energy_kcal": 497.62,
         "average_distance_km": None,
     }
 
@@ -328,13 +329,13 @@ def test_render_month_summary_builds_body_weight() -> None:
     body_weight = payload["body_weight"]
 
     assert body_weight == {
-        "average_kg": 79.45,
-        "start_kg": 80.1,
-        "end_kg": 78.75,
-        "change_kg": -1.35,
-        "max_kg": 80.2,
-        "min_kg": 78.75,
-        "measurements": 14,
+        "average_kg": 112.35,
+        "start_kg": 113.2,
+        "end_kg": 111.7,
+        "change_kg": -1.5,
+        "max_kg": 114.0,
+        "min_kg": 111.4,
+        "measurements": 11,
     }
 
 
@@ -348,9 +349,9 @@ def test_render_month_summary_builds_energy_expenditure() -> None:
     payload = _render_payload(_monthly_summary())
 
     assert payload["energy_expenditure"] == {
-        "average_basal_kcal": 1944.71,
-        "average_active_kcal": 752.94,
-        "average_tdee_kcal": 2697.65,
+        "average_basal_kcal": 2210.46,
+        "average_active_kcal": 910.79,
+        "average_tdee_kcal": 3121.24,
     }
 
 
@@ -364,10 +365,10 @@ def test_render_month_summary_builds_nutrition() -> None:
     payload = _render_payload(_monthly_summary())
 
     assert payload["nutrition"] == {
-        "average_protein_g": 154.71,
-        "average_carbohydrates_g": 193.79,
-        "average_fat_g": 72.79,
-        "average_calories_kcal": 2052.14,
+        "average_protein_g": 171.23,
+        "average_carbohydrates_g": 211.37,
+        "average_fat_g": 119.88,
+        "average_calories_kcal": 2850.43,
     }
 
 
