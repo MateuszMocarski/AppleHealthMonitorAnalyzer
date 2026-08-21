@@ -1,3 +1,4 @@
+import json
 import zipfile
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from apple_health.constants import (
 from apple_health.enums import WorkoutType
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
+from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
 
 
@@ -278,3 +280,88 @@ def test_full_pipeline_matches_golden_report(
     expected_output = expected_report_path.read_text(encoding="utf-8")
 
     assert output == expected_output
+
+# =====================================================================
+# Verifies that the complete Apple Health pipeline can produce a valid
+# JSON report containing both monthly summary data and daily reports.
+# =====================================================================
+
+def test_full_pipeline_renders_json_report(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(
+        tmp_path
+    )
+
+    summary = _run_pipeline(
+        archive_path
+    )
+
+    output = JsonRenderer().render_month(
+        summary
+    )
+
+    payload = json.loads(output)
+
+    assert payload["schema_version"] == "1.0"
+
+    assert payload["report"] == {
+        "type": "monthly",
+        "year": 2026,
+        "month": 8,
+        "reporting_days": 2,
+        "data_through": "2026-08-02",
+    }
+
+    assert payload["general_activity"] is not None
+    assert payload["sleep"] is not None
+    assert payload["workouts"]
+
+    assert "days" in payload
+    assert len(payload["days"]) == 2
+
+    assert payload["days"][0]["date"] == "2026-08-01"
+    assert payload["days"][1]["date"] == "2026-08-02"
+    
+# =====================================================================
+# Verifies that the complete Apple Health pipeline can produce a valid
+# JSON monthly summary without including detailed daily report entries.
+# =====================================================================
+
+def test_full_pipeline_renders_json_month_summary(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(
+        tmp_path
+    )
+
+    summary = _run_pipeline(
+        archive_path
+    )
+
+    output = JsonRenderer().render_month_summary(
+        summary
+    )
+
+    payload = json.loads(output)
+
+    assert payload["schema_version"] == "1.0"
+
+    assert payload["report"] == {
+        "type": "monthly",
+        "year": 2026,
+        "month": 8,
+        "reporting_days": 2,
+        "data_through": "2026-08-02",
+    }
+
+    assert payload["general_activity"] is not None
+    assert payload["sleep"] is not None
+    assert payload["workouts"]
+
+    assert "body_weight" in payload
+    assert "energy_expenditure" in payload
+    assert "nutrition" in payload
+    assert "average_calories_balance_kcal" in payload
+
+    assert "days" not in payload
