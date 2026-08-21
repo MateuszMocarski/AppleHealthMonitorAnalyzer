@@ -21,46 +21,46 @@ from apple_health.report_models import (
 
 def _activity_metrics(
     *,
-    measurements: int = 2,
+    measurements: int = 11,
 ) -> ActivityMetricsSummary:
     return ActivityMetricsSummary(
-        total_steps=122_192,
-        average_daily_steps=8728.0,
-        total_distance_km=100.55,
-        average_daily_distance_km=7.18,
-        average_step_length_cm=82.29,
-        average_basal_energy_kcal=1945.0,
-        average_active_energy_kcal=753.0,
-        average_weight=79.45 if measurements else None,
-        start_weight=80.10 if measurements else None,
-        end_weight=78.75 if measurements else None,
-        max_weight=80.20 if measurements else None,
-        min_weight=78.75 if measurements else None,
+        total_steps=64_321,
+        average_daily_steps=4594.36,
+        total_distance_km=47.89,
+        average_daily_distance_km=3.42,
+        average_step_length_cm=74.45,
+        average_basal_energy_kcal=2210.46,
+        average_active_energy_kcal=910.79,
+        average_weight=112.35 if measurements else None,
+        start_weight=113.2 if measurements else None,
+        end_weight=111.7 if measurements else None,
+        max_weight=114.0 if measurements else None,
+        min_weight=111.4 if measurements else None,
         measurements=measurements,
-        average_protein_g=155.0,
-        average_carbohydrates_g=194.0,
-        average_fat_g=73.0,
-        average_calories_kcal=2052.0,
+        average_protein_g=171.23,
+        average_carbohydrates_g=211.37,
+        average_fat_g=119.88,
+        average_calories_kcal=2850.43,
     )
 
 
 def _sleep_summary() -> SleepMonthlySummary:
     return SleepMonthlySummary(
-        total_sessions=14,
-        average_bedtime=time(1, 45),
-        average_wake_up=time(8, 56),
-        average_sleep_minutes=413.0,
-        average_awake_minutes=18.0,
-        average_sleep_efficiency=96.0,
-        average_core_minutes=289.0,
-        average_deep_minutes=35.0,
-        average_rem_minutes=89.0,
-        average_bedtime_score=68.0,
-        average_duration_score=82.0,
-        average_wake_up_score=65.0,
-        average_sleep_score=71.0,
-        average_bonus=5.0,
-        consistency_bonus=1.0,
+        total_sessions=12,
+        average_bedtime=time(23, 18),
+        average_wake_up=time(7, 42),
+        average_sleep_minutes=438.77,
+        average_awake_minutes=21.23,
+        average_sleep_efficiency=95.61,
+        average_core_minutes=301.46,
+        average_deep_minutes=52.35,
+        average_rem_minutes=84.96,
+        average_bedtime_score=88.46,
+        average_duration_score=92.35,
+        average_wake_up_score=84.57,
+        average_sleep_score=88.46,
+        average_bonus=10.0,
+        consistency_bonus=4.0,
     )
 
 
@@ -117,10 +117,10 @@ def _monthly_summary(
 def test_render_month_summary_contains_all_major_sections() -> None:
     walking = ActivitySummary(
         activity_type=WorkoutType.WALKING,
-        sessions=30,
-        duration_minutes=986.0,
-        active_energy_kcal=4476.0,
-        distance_km=79.58,
+        sessions=18,
+        duration_minutes=742.35,
+        active_energy_kcal=3210.79,
+        distance_km=58.43,
     )
 
     renderer = TextRenderer()

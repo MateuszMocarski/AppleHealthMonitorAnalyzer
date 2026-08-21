@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **176 test cases**.
+The suite currently contains **178 test cases**.
 
 ## Test structure
 
@@ -18,8 +18,8 @@ The suite currently contains **176 test cases**.
 | `TextRenderer` | 11 |
 | `JsonRenderer` | 19 |
 | `AppleHealthImporter` | 6 |
-| Integration tests | 4 |
-| **Total** | **176** |
+| Integration tests | 6 |
+| **Total** | **178** |
 
 ## Analyzers
 
@@ -275,7 +275,7 @@ Temporary files are created with pytest's `tmp_path` fixture, allowing the impor
 
 ## Integration tests
 
-`tests/integration/test_full_report_pipeline.py` contains **4 end-to-end integration tests**.
+`tests/integration/test_full_report_pipeline.py` contains **6 end-to-end integration tests**.
 
 They exercise the complete application pipeline:
 
@@ -294,20 +294,25 @@ HealthAnalyzer
     └── SleepAnalyzer
     ↓
 MonthlySummary
-    ↓
-TextRenderer
-    ↓
-Final text report
+    ├──→ TextRenderer
+    │        ↓
+    │    Final text report
+    │
+    └──→ JsonRenderer
+             ↓
+         Final JSON report
 ```
 
-The current end-to-end integration suite exercises the text-rendering pipeline. `JsonRenderer` is covered by dedicated contract tests at the renderer layer.
+The end-to-end integration suite exercises both the text- and JSON-rendering pipelines. `JsonRenderer` is additionally covered by dedicated contract tests at the renderer layer.
 
 The integration suite verifies:
 
 - successful execution of the complete report-generation pipeline
 - preservation of expected values across importing, parsing, analysis, and aggregation
-- generation of a monthly-summary-only report without daily sections
-- exact deterministic output through a golden-report comparison
+- generation of a monthly-summary-only text report without daily sections
+- exact deterministic text output through a golden-report comparison
+- generation of a valid full JSON report containing monthly summary data and detailed daily reports
+- generation of a valid JSON monthly summary without the `days` collection
 
 The approved reference output is stored in:
 
