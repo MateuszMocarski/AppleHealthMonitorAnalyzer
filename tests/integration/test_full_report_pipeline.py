@@ -281,25 +281,21 @@ def test_full_pipeline_matches_golden_report(
 
     assert output == expected_output
 
+
 # =====================================================================
 # Verifies that the complete Apple Health pipeline can produce a valid
 # JSON report containing both monthly summary data and daily reports.
 # =====================================================================
 
+
 def test_full_pipeline_renders_json_report(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(
-        tmp_path
-    )
+    archive_path = _create_export_archive(tmp_path)
 
-    summary = _run_pipeline(
-        archive_path
-    )
+    summary = _run_pipeline(archive_path)
 
-    output = JsonRenderer().render_month(
-        summary
-    )
+    output = JsonRenderer().render_month(summary)
 
     payload = json.loads(output)
 
@@ -322,26 +318,22 @@ def test_full_pipeline_renders_json_report(
 
     assert payload["days"][0]["date"] == "2026-08-01"
     assert payload["days"][1]["date"] == "2026-08-02"
-    
+
+
 # =====================================================================
 # Verifies that the complete Apple Health pipeline can produce a valid
 # JSON monthly summary without including detailed daily report entries.
 # =====================================================================
 
+
 def test_full_pipeline_renders_json_month_summary(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(
-        tmp_path
-    )
+    archive_path = _create_export_archive(tmp_path)
 
-    summary = _run_pipeline(
-        archive_path
-    )
+    summary = _run_pipeline(archive_path)
 
-    output = JsonRenderer().render_month_summary(
-        summary
-    )
+    output = JsonRenderer().render_month_summary(summary)
 
     payload = json.loads(output)
 

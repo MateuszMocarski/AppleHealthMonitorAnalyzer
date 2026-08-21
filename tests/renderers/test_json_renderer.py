@@ -242,6 +242,7 @@ def test_render_month_summary_builds_general_activity() -> None:
 # normalized numeric values and the configured maximum Sleep Score.
 # =====================================================================
 
+
 def test_render_month_summary_builds_sleep_section() -> None:
     payload = _render_payload(_monthly_summary())
 
@@ -269,11 +270,9 @@ def test_render_month_summary_builds_sleep_section() -> None:
         "average_bonus": 10.0,
         "consistency_bonus": 4.0,
         "monthly_score": 102.46,
-        "monthly_score_max": (
-            100
-            + SLEEP_MONTHLY_BONUS_MAX_POINTS
-        ),
+        "monthly_score_max": (100 + SLEEP_MONTHLY_BONUS_MAX_POINTS),
     }
+
 
 # =====================================================================
 # Verifies that workout types use stable enum identifiers and that
