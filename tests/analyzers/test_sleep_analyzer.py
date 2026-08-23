@@ -3,8 +3,8 @@ from statistics import pstdev
 
 import pytest
 
-import apple_health.analyzers.sleep_analyzer as sleep_analyzer_module
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
+from apple_health.config.app_config import AppConfig
 from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import SleepStage
 from apple_health.models import AppleHealthData, SleepRecord
@@ -79,21 +79,27 @@ def _health_data(
 
 def _analyzer(
     *sleep_records: SleepRecord,
+    config: AppConfig | None = None,
 ) -> SleepAnalyzer:
-    return SleepAnalyzer(_health_data(list(sleep_records)))
+    return SleepAnalyzer(
+        _health_data(list(sleep_records)),
+        config=config,
+    )
 
 
 def _analyzer_for_single_sleep(
     start: datetime,
     duration: timedelta,
     stage: SleepStage = SleepStage.CORE,
+    config: AppConfig | None = None,
 ) -> SleepAnalyzer:
     return _analyzer(
         _sleep_record(
             start,
             start + duration,
             stage,
-        )
+        ),
+        config=config,
     )
 
 
@@ -101,11 +107,13 @@ def _single_session(
     start: datetime,
     duration: timedelta,
     stage: SleepStage = SleepStage.CORE,
+    config: AppConfig | None = None,
 ) -> tuple[SleepAnalyzer, SleepSession]:
     analyzer = _analyzer_for_single_sleep(
         start,
         duration,
         stage,
+        config=config,
     )
 
     return analyzer, analyzer.sleep_sessions[0]
@@ -114,10 +122,12 @@ def _single_session(
 def _score_sleep(
     start: datetime,
     duration: timedelta,
+    config: AppConfig | None = None,
 ) -> SleepScore:
     analyzer, session = _single_session(
         start,
         duration,
+        config=config,
     )
 
     return analyzer.score_session(session)
@@ -1030,29 +1040,31 @@ def test_duration_score_never_drops_below_zero() -> None:
 # =====================================================================
 
 
-def test_linear_penalty_mode_applies_proportional_penalty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sleep_analyzer_module,
-        "SLEEP_SCORE_LINEAR_PENALTIES",
-        True,
-    )
+def test_linear_penalty_mode_applies_proportional_penalty() -> None:
+    config = AppConfig()
+    config.sleep_score.linear_penalties = True
+
+    bedtime_config = config.sleep_score.bedtime
 
     target = _datetime(
         11,
-        BEDTIME_TARGET.hour,
-        BEDTIME_TARGET.minute,
+        bedtime_config.target.hour,
+        bedtime_config.target.minute,
     )
-    deviation_minutes = BEDTIME_PENALTY_INTERVAL_MINUTES - 1
+
+    deviation_minutes = bedtime_config.penalty_interval_minutes - 1
+
     start = target + timedelta(minutes=deviation_minutes)
 
     score = _score_sleep(
         start,
         timedelta(hours=8),
+        config=config,
     )
 
-    expected_penalty = deviation_minutes / BEDTIME_PENALTY_INTERVAL_MINUTES * BEDTIME_PENALTY_POINTS
+    expected_penalty = (
+        deviation_minutes / bedtime_config.penalty_interval_minutes * bedtime_config.penalty_points
+    )
 
     assert score.bedtime_score == pytest.approx(100.0 - expected_penalty)
 
@@ -1063,14 +1075,9 @@ def test_linear_penalty_mode_applies_proportional_penalty(
 # =====================================================================
 
 
-def test_monthly_bonuses_are_zero_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sleep_analyzer_module,
-        "SLEEP_MONTHLY_BONUS_ENABLED",
-        False,
-    )
+def test_monthly_bonuses_are_zero_when_disabled() -> None:
+    config = AppConfig()
+    config.sleep_score.monthly_bonus.enabled = False
 
     analyzer = _analyzer(
         _sleep_record(
@@ -1081,6 +1088,7 @@ def test_monthly_bonuses_are_zero_when_disabled(
             _datetime(2, 1),
             _datetime(2, 1) + timedelta(hours=7),
         ),
+        config=config,
     )
 
     summary = analyzer.summarize_month(

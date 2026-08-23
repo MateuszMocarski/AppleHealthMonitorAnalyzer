@@ -219,10 +219,7 @@ def test_sleep_duration_tolerance_not_lower_than_target_is_rejected(
 ) -> None:
     config = SleepScoreConfig()
 
-    config.duration.tolerance_minutes = (
-        config.duration.target_minutes
-        + tolerance_offset
-    )
+    config.duration.tolerance_minutes = config.duration.target_minutes + tolerance_offset
 
     with pytest.raises(
         ValueError,

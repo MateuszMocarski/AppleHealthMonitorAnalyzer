@@ -64,25 +64,15 @@ class MonthlySleepBonusConfig:
 class SleepScoreConfig:
     linear_penalties: bool = False
 
-    bedtime: BedtimeScoreConfig = field(
-        default_factory=BedtimeScoreConfig
-    )
+    bedtime: BedtimeScoreConfig = field(default_factory=BedtimeScoreConfig)
 
-    duration: SleepDurationScoreConfig = field(
-        default_factory=SleepDurationScoreConfig
-    )
+    duration: SleepDurationScoreConfig = field(default_factory=SleepDurationScoreConfig)
 
-    wake_up: WakeUpScoreConfig = field(
-        default_factory=WakeUpScoreConfig
-    )
+    wake_up: WakeUpScoreConfig = field(default_factory=WakeUpScoreConfig)
 
-    weights: SleepScoreWeightsConfig = field(
-        default_factory=SleepScoreWeightsConfig
-    )
+    weights: SleepScoreWeightsConfig = field(default_factory=SleepScoreWeightsConfig)
 
-    monthly_bonus: MonthlySleepBonusConfig = field(
-        default_factory=MonthlySleepBonusConfig
-    )
+    monthly_bonus: MonthlySleepBonusConfig = field(default_factory=MonthlySleepBonusConfig)
 
     def validate(self) -> None:
         self._validate_score_weights()
@@ -102,14 +92,11 @@ class SleepScoreConfig:
         )
 
         if any(weight < 0 for weight in score_weights):
-            raise ValueError(
-                "Sleep score component weights cannot be negative."
-            )
+            raise ValueError("Sleep score component weights cannot be negative.")
 
         if sum(score_weights) == 0:
             raise ValueError(
-                "At least one sleep score component weight "
-                "must be greater than zero."
+                "At least one sleep score component weight " "must be greater than zero."
             )
 
     def _validate_penalty_intervals(self) -> None:
@@ -120,9 +107,7 @@ class SleepScoreConfig:
         )
 
         if any(interval <= 0 for interval in penalty_intervals):
-            raise ValueError(
-                "Sleep score penalty intervals must be greater than zero."
-            )
+            raise ValueError("Sleep score penalty intervals must be greater than zero.")
 
     def _validate_penalty_points(self) -> None:
         penalty_points = (
@@ -132,28 +117,18 @@ class SleepScoreConfig:
         )
 
         if any(points < 0 for points in penalty_points):
-            raise ValueError(
-                "Sleep score penalty points cannot be negative."
-            )
+            raise ValueError("Sleep score penalty points cannot be negative.")
 
     def _validate_duration(self) -> None:
         if self.duration.target_minutes <= 0:
-            raise ValueError(
-                "Sleep duration target must be greater than zero."
-            )
+            raise ValueError("Sleep duration target must be greater than zero.")
 
         if self.duration.tolerance_minutes < 0:
-            raise ValueError(
-                "Sleep duration tolerance cannot be negative."
-            )
+            raise ValueError("Sleep duration tolerance cannot be negative.")
 
-        if (
-            self.duration.tolerance_minutes
-            >= self.duration.target_minutes
-        ):
+        if self.duration.tolerance_minutes >= self.duration.target_minutes:
             raise ValueError(
-                "Sleep duration tolerance must be lower "
-                "than the sleep duration target."
+                "Sleep duration tolerance must be lower " "than the sleep duration target."
             )
 
     def _validate_duration_penalty_weights(self) -> None:
@@ -163,9 +138,7 @@ class SleepScoreConfig:
         )
 
         if any(weight < 0 for weight in penalty_weights):
-            raise ValueError(
-                "Sleep duration penalty weights cannot be negative."
-            )
+            raise ValueError("Sleep duration penalty weights cannot be negative.")
 
     def _validate_average_bonus_thresholds(self) -> None:
         previous_threshold = None
@@ -176,29 +149,15 @@ class SleepScoreConfig:
             bonus,
         ) in self.monthly_bonus.average_thresholds:
             if not 0 <= threshold <= 100:
-                raise ValueError(
-                    "Sleep average bonus thresholds "
-                    "must be between 0 and 100."
-                )
+                raise ValueError("Sleep average bonus thresholds " "must be between 0 and 100.")
 
             if bonus < 0:
-                raise ValueError(
-                    "Sleep average bonus points cannot be negative."
-                )
+                raise ValueError("Sleep average bonus points cannot be negative.")
 
-            if (
-                previous_threshold is not None
-                and threshold >= previous_threshold
-            ):
-                raise ValueError(
-                    "Sleep average bonus thresholds "
-                    "must be strictly decreasing."
-                )
+            if previous_threshold is not None and threshold >= previous_threshold:
+                raise ValueError("Sleep average bonus thresholds " "must be strictly decreasing.")
 
-            if (
-                previous_bonus is not None
-                and bonus > previous_bonus
-            ):
+            if previous_bonus is not None and bonus > previous_bonus:
                 raise ValueError(
                     "Sleep average bonus points cannot increase "
                     "as the score threshold decreases."
@@ -216,33 +175,17 @@ class SleepScoreConfig:
             bonus,
         ) in self.monthly_bonus.consistency_thresholds:
             if threshold <= 0:
-                raise ValueError(
-                    "Sleep consistency thresholds "
-                    "must be greater than zero."
-                )
+                raise ValueError("Sleep consistency thresholds " "must be greater than zero.")
 
             if bonus < 0:
-                raise ValueError(
-                    "Sleep consistency bonus points "
-                    "cannot be negative."
-                )
+                raise ValueError("Sleep consistency bonus points " "cannot be negative.")
 
-            if (
-                previous_threshold is not None
-                and threshold <= previous_threshold
-            ):
-                raise ValueError(
-                    "Sleep consistency thresholds "
-                    "must be strictly increasing."
-                )
+            if previous_threshold is not None and threshold <= previous_threshold:
+                raise ValueError("Sleep consistency thresholds " "must be strictly increasing.")
 
-            if (
-                previous_bonus is not None
-                and bonus > previous_bonus
-            ):
+            if previous_bonus is not None and bonus > previous_bonus:
                 raise ValueError(
-                    "Sleep consistency bonus points cannot increase "
-                    "as deviation increases."
+                    "Sleep consistency bonus points cannot increase " "as deviation increases."
                 )
 
             previous_threshold = threshold
@@ -250,27 +193,16 @@ class SleepScoreConfig:
 
     def _validate_maximum_monthly_bonus(self) -> None:
         max_average_bonus = max(
-            (
-                bonus
-                for _, bonus
-                in self.monthly_bonus.average_thresholds
-            ),
+            (bonus for _, bonus in self.monthly_bonus.average_thresholds),
             default=0,
         )
 
         max_consistency_bonus = max(
-            (
-                bonus
-                for _, bonus
-                in self.monthly_bonus.consistency_thresholds
-            ),
+            (bonus for _, bonus in self.monthly_bonus.consistency_thresholds),
             default=0,
         )
 
-        if (
-            max_average_bonus + max_consistency_bonus
-            > self.monthly_bonus.max_points
-        ):
+        if max_average_bonus + max_consistency_bonus > self.monthly_bonus.max_points:
             raise ValueError(
                 "Maximum configured monthly sleep bonuses exceed "
                 "the configured monthly bonus maximum."
