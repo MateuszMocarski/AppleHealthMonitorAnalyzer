@@ -1,8 +1,6 @@
 import json
 from datetime import date, datetime, time, timezone
 
-import pytest
-
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
 from apple_health.renderers.json_renderer import JsonRenderer
@@ -696,6 +694,7 @@ def test_render_day_builds_sleep_score() -> None:
         bedtime_score=80.456,
         duration_score=90.789,
         wake_up_score=70.123,
+        total_score=81.234,
     )
 
     summary = _monthly_summary()
@@ -712,7 +711,7 @@ def test_render_day_builds_sleep_score() -> None:
         "bedtime": 80.46,
         "duration": 90.79,
         "wake_up": 70.12,
-        "total": pytest.approx(round(sleep_score.total_score, 2)),
+        "total": 81.23,
     }
 
 
