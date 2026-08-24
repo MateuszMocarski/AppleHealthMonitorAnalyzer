@@ -15,5 +15,10 @@ reports/
 
 exports/
 
+# Python package metadata
+*.egg-info/
+build/
+dist/
+
 # Allow committed text fixtures used by tests
 !tests/integration/fixtures/*.txt
