@@ -2,9 +2,8 @@ from io import BytesIO
 
 import pytest
 
+from apple_health.config.app_config import AppConfig
 from apple_health.constants import (
-    APPLE_HEALTH_APP_SOURCE,
-    APPLE_WATCH_SOURCE,
     WORKOUT_ACTIVE_ENERGY_TYPE,
     WORKOUT_CYCLING_DISTANCE_TYPE,
     WORKOUT_INDOOR_METADATA_KEY,
@@ -18,8 +17,14 @@ from apple_health.parser import AppleHealthParser
 # =======
 
 
-def _parse_xml(xml: str):
-    return AppleHealthParser(BytesIO(xml.encode("utf-8"))).parse()
+def _parse_xml(
+    xml: str,
+    config: AppConfig | None = None,
+):
+    return AppleHealthParser(
+        BytesIO(xml.encode("utf-8")),
+        config=config,
+    ).parse()
 
 
 def _wrap_xml(*elements: str) -> str:
@@ -54,11 +59,15 @@ def _workout(
     activity_type: str,
     metadata: str = "",
     statistics: str = "",
+    source_name: str | None = None,
 ) -> str:
+    if source_name is None:
+        source_name = AppConfig().source.apple_watch_source
+
     return f"""
         <Workout
             workoutActivityType="{activity_type}"
-            sourceName="{APPLE_WATCH_SOURCE}"
+            sourceName="{source_name}"
             sourceVersion="1"
             startDate="2026-08-01 10:00:00 +0200"
             endDate="2026-08-01 11:00:00 +0200"
@@ -198,35 +207,37 @@ def test_parses_cycling_distance_statistics() -> None:
 
 
 def test_aggregates_apple_watch_daily_metrics() -> None:
+    config = AppConfig()
+    source_config = config.source
     xml = _wrap_xml(
         _record(
             record_type="HKQuantityTypeIdentifierStepCount",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="5000",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierStepCount",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="3500",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierDistanceWalkingRunning",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="7.25",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierActiveEnergyBurned",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="650",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierBasalEnergyBurned",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="1900",
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     assert len(data.daily_metrics) == 1
 
@@ -269,7 +280,7 @@ def test_ignores_unknown_daily_metric_types() -> None:
         _wrap_xml(
             _record(
                 record_type="HKQuantityTypeIdentifierUnknownMetric",
-                source_name=APPLE_WATCH_SOURCE,
+                source_name=AppConfig().source.apple_watch_source,
                 value="123",
             )
         )
@@ -285,35 +296,37 @@ def test_ignores_unknown_daily_metric_types() -> None:
 
 
 def test_aggregates_nutrition_records() -> None:
+    config = AppConfig()
+    source_config = config.source
     xml = _wrap_xml(
         _record(
             record_type="HKQuantityTypeIdentifierDietaryEnergyConsumed",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="1000",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierDietaryEnergyConsumed",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="1050",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierDietaryProtein",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="155",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierDietaryCarbohydrates",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="194",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierDietaryFatTotal",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="73",
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     nutrition = data.daily_metrics[0].nutrition
 
@@ -362,24 +375,25 @@ def test_user_entered_weight_replaces_automatic_measurement() -> None:
             value="1"
         />
     """
-
+    config = AppConfig()
+    source_config = config.source
     xml = _wrap_xml(
         _record(
             record_type="HKQuantityTypeIdentifierBodyMass",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="80.5",
             start_date="2026-08-01 12:00:00 +0200",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierBodyMass",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="79.8",
             start_date="2026-08-01 08:00:00 +0200",
             metadata=user_entered_metadata,
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     weight = data.daily_metrics[0].weight
 
@@ -395,22 +409,25 @@ def test_user_entered_weight_replaces_automatic_measurement() -> None:
 
 
 def test_latest_weight_replaces_older_measurement() -> None:
+    config = AppConfig()
+    source_config = config.source
+
     xml = _wrap_xml(
         _record(
             record_type="HKQuantityTypeIdentifierBodyMass",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="80.5",
             start_date="2026-08-01 08:00:00 +0200",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierBodyMass",
-            source_name=APPLE_HEALTH_APP_SOURCE,
+            source_name=source_config.apple_health_app_source,
             value="79.9",
             start_date="2026-08-01 20:00:00 +0200",
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     weight = data.daily_metrics[0].weight
 
@@ -425,28 +442,30 @@ def test_latest_weight_replaces_older_measurement() -> None:
 
 
 def test_daily_metrics_are_sorted_by_date() -> None:
+    config = AppConfig()
+    source_config = config.source
     xml = _wrap_xml(
         _record(
             record_type="HKQuantityTypeIdentifierStepCount",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="3000",
             start_date="2026-08-03 10:00:00 +0200",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierStepCount",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="1000",
             start_date="2026-08-01 10:00:00 +0200",
         ),
         _record(
             record_type="HKQuantityTypeIdentifierStepCount",
-            source_name=APPLE_WATCH_SOURCE,
+            source_name=source_config.apple_watch_source,
             value="2000",
             start_date="2026-08-02 10:00:00 +0200",
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     assert [metrics.date.day for metrics in data.daily_metrics] == [
         1,
@@ -498,7 +517,7 @@ def test_parses_known_sleep_stages(
         _wrap_xml(
             _record(
                 record_type="HKCategoryTypeIdentifierSleepAnalysis",
-                source_name=APPLE_WATCH_SOURCE,
+                source_name=AppConfig().source.apple_watch_source,
                 value=apple_value,
                 start_date="2026-08-01 00:00:00 +0200",
                 end_date="2026-08-01 01:00:00 +0200",
@@ -521,7 +540,7 @@ def test_unknown_sleep_stage_maps_to_other() -> None:
         _wrap_xml(
             _record(
                 record_type="HKCategoryTypeIdentifierSleepAnalysis",
-                source_name=APPLE_WATCH_SOURCE,
+                source_name=AppConfig().source.apple_watch_source,
                 value="SomethingCompletelyUnknown",
                 start_date="2026-08-01 00:00:00 +0200",
                 end_date="2026-08-01 01:00:00 +0200",
@@ -543,7 +562,7 @@ def test_sleep_record_duration_is_calculated_from_timestamps() -> None:
         _wrap_xml(
             _record(
                 record_type="HKCategoryTypeIdentifierSleepAnalysis",
-                source_name=APPLE_WATCH_SOURCE,
+                source_name=AppConfig().source.apple_watch_source,
                 value="HKCategoryValueSleepAnalysisAsleepCore",
                 start_date="2026-08-01 00:15:00 +0200",
                 end_date="2026-08-01 02:45:00 +0200",
@@ -552,3 +571,61 @@ def test_sleep_record_duration_is_calculated_from_timestamps() -> None:
     )
 
     assert data.sleep_records[0].duration_minutes == 150
+
+
+# =====================================================================
+# Verifies that AppleHealthParser uses the injected Apple Watch source
+# when selecting daily activity records.
+# =====================================================================
+
+
+def test_uses_configured_apple_watch_source() -> None:
+    config = AppConfig()
+    config.source.apple_watch_source = "Custom Watch"
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name="Custom Watch",
+            value="5000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert len(data.daily_metrics) == 1
+    assert data.daily_metrics[0].steps == 5000
+
+
+# =====================================================================
+# Verifies that AppleHealthParser uses the injected Apple Health source
+# when selecting nutrition and body-mass records.
+# =====================================================================
+
+
+def test_uses_configured_apple_health_source() -> None:
+    config = AppConfig()
+    config.source.apple_health_app_source = "Custom Health"
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryProtein",
+            source_name="Custom Health",
+            value="150",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert len(data.daily_metrics) == 1
+
+    nutrition = data.daily_metrics[0].nutrition
+
+    assert nutrition is not None
+    assert nutrition.protein_g == pytest.approx(150)

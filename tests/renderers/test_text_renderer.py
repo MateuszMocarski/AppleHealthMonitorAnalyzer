@@ -1,6 +1,6 @@
 from datetime import date, time
 
-import apple_health.renderers.text_renderer as text_renderer_module
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
 from apple_health.renderers.text_renderer import TextRenderer
@@ -235,16 +235,11 @@ def test_daily_report_distinguishes_steps_without_workouts() -> None:
 # =====================================================================
 
 
-def test_monthly_sleep_bonus_disabled_message_is_rendered(
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(
-        text_renderer_module,
-        "SLEEP_MONTHLY_BONUS_ENABLED",
-        False,
-    )
+def test_monthly_sleep_bonus_disabled_message_is_rendered() -> None:
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.enabled = False
 
-    renderer = TextRenderer()
+    renderer = TextRenderer(config=config)
 
     output = renderer.render_month_summary(_monthly_summary())
 

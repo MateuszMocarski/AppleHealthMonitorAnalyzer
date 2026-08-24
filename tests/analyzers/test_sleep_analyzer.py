@@ -3,33 +3,11 @@ from statistics import pstdev
 
 import pytest
 
-import apple_health.analyzers.sleep_analyzer as sleep_analyzer_module
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
-from apple_health.constants import APPLE_WATCH_SOURCE
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import SleepStage
 from apple_health.models import AppleHealthData, SleepRecord
 from apple_health.report_models import SleepScore, SleepSession
-from apple_health.sleep_score_config import (
-    BEDTIME_PENALTY_INTERVAL_MINUTES,
-    BEDTIME_PENALTY_POINTS,
-    BEDTIME_SCORE_WEIGHT,
-    BEDTIME_TARGET,
-    SLEEP_AVERAGE_BONUS_THRESHOLDS,
-    SLEEP_CONSISTENCY_BONUS_THRESHOLDS,
-    SLEEP_DURATION_OVERSLEEP_WEIGHT,
-    SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
-    SLEEP_DURATION_PENALTY_POINTS,
-    SLEEP_DURATION_SCORE_WEIGHT,
-    SLEEP_DURATION_TARGET_MINUTES,
-    SLEEP_DURATION_TOLERANCE_MINUTES,
-    SLEEP_DURATION_UNDERSLEEP_WEIGHT,
-    WAKE_UP_BEDTIME_WEIGHT,
-    WAKE_UP_DURATION_WEIGHT,
-    WAKE_UP_PENALTY_INTERVAL_MINUTES,
-    WAKE_UP_PENALTY_POINTS,
-    WAKE_UP_SCORE_WEIGHT,
-    WAKE_UP_TARGET,
-)
 
 # =======
 # Helpers
@@ -55,8 +33,10 @@ def _sleep_record(
     start: datetime,
     end: datetime,
     stage: SleepStage = SleepStage.CORE,
-    source_name: str = APPLE_WATCH_SOURCE,
+    source_name: str | None = None,
 ) -> SleepRecord:
+    source_name = source_name if source_name is not None else AppConfig().source.apple_watch_source
+
     return SleepRecord(
         stage=stage,
         source_name=source_name,
@@ -79,21 +59,27 @@ def _health_data(
 
 def _analyzer(
     *sleep_records: SleepRecord,
+    config: AppConfig | None = None,
 ) -> SleepAnalyzer:
-    return SleepAnalyzer(_health_data(list(sleep_records)))
+    return SleepAnalyzer(
+        _health_data(list(sleep_records)),
+        config=config,
+    )
 
 
 def _analyzer_for_single_sleep(
     start: datetime,
     duration: timedelta,
     stage: SleepStage = SleepStage.CORE,
+    config: AppConfig | None = None,
 ) -> SleepAnalyzer:
     return _analyzer(
         _sleep_record(
             start,
             start + duration,
             stage,
-        )
+        ),
+        config=config,
     )
 
 
@@ -101,11 +87,13 @@ def _single_session(
     start: datetime,
     duration: timedelta,
     stage: SleepStage = SleepStage.CORE,
+    config: AppConfig | None = None,
 ) -> tuple[SleepAnalyzer, SleepSession]:
     analyzer = _analyzer_for_single_sleep(
         start,
         duration,
         stage,
+        config=config,
     )
 
     return analyzer, analyzer.sleep_sessions[0]
@@ -114,10 +102,12 @@ def _single_session(
 def _score_sleep(
     start: datetime,
     duration: timedelta,
+    config: AppConfig | None = None,
 ) -> SleepScore:
     analyzer, session = _single_session(
         start,
         duration,
+        config=config,
     )
 
     return analyzer.score_session(session)
@@ -125,11 +115,14 @@ def _score_sleep(
 
 def _wake_up_max_score(
     score: SleepScore,
+    config: AppConfig,
 ) -> float:
+    wakeup_config = config.sleep.score.wake_up
+
     return (
-        score.bedtime_score * WAKE_UP_BEDTIME_WEIGHT
-        + score.duration_score * WAKE_UP_DURATION_WEIGHT
-    ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
+        score.bedtime_score * wakeup_config.bedtime_weight
+        + score.duration_score * wakeup_config.duration_weight
+    ) / (wakeup_config.bedtime_weight + wakeup_config.duration_weight)
 
 
 # =====================================================================================
@@ -334,15 +327,18 @@ def test_bedtime_before_target_receives_maximum_score() -> None:
 
 
 def test_bedtime_at_target_receives_maximum_score() -> None:
+    config = AppConfig()
+    bedtime_config = config.sleep.score.bedtime
     start = _datetime(
         11,
-        BEDTIME_TARGET.hour,
-        BEDTIME_TARGET.minute,
+        bedtime_config.target.hour,
+        bedtime_config.target.minute,
     )
 
     score = _score_sleep(
         start,
         timedelta(hours=8),
+        config=config,
     )
 
     assert score.bedtime_score == 100.0
@@ -355,19 +351,22 @@ def test_bedtime_at_target_receives_maximum_score() -> None:
 
 
 def test_bedtime_one_penalty_interval_late_applies_single_penalty() -> None:
+    config = AppConfig()
+    bedtime_config = config.sleep.score.bedtime
     target = _datetime(
         11,
-        BEDTIME_TARGET.hour,
-        BEDTIME_TARGET.minute,
+        bedtime_config.target.hour,
+        bedtime_config.target.minute,
     )
-    start = target + timedelta(minutes=BEDTIME_PENALTY_INTERVAL_MINUTES)
+    start = target + timedelta(minutes=bedtime_config.penalty_interval_minutes)
 
     score = _score_sleep(
         start,
         timedelta(hours=8),
+        config=config,
     )
 
-    assert score.bedtime_score == (100.0 - BEDTIME_PENALTY_POINTS)
+    assert score.bedtime_score == (100.0 - bedtime_config.penalty_points)
 
 
 # =====================================================================
@@ -377,16 +376,19 @@ def test_bedtime_one_penalty_interval_late_applies_single_penalty() -> None:
 
 
 def test_bedtime_partial_penalty_interval_does_not_reduce_score() -> None:
+    config = AppConfig()
+    bedtime_config = config.sleep.score.bedtime
     target = _datetime(
         11,
-        BEDTIME_TARGET.hour,
-        BEDTIME_TARGET.minute,
+        bedtime_config.target.hour,
+        bedtime_config.target.minute,
     )
-    start = target + timedelta(minutes=BEDTIME_PENALTY_INTERVAL_MINUTES - 1)
+    start = target + timedelta(minutes=bedtime_config.penalty_interval_minutes - 1)
 
     score = _score_sleep(
         start,
         timedelta(hours=8),
+        config=config,
     )
 
     assert score.bedtime_score == 100.0
@@ -399,9 +401,12 @@ def test_bedtime_partial_penalty_interval_does_not_reduce_score() -> None:
 
 
 def test_duration_at_target_receives_maximum_score() -> None:
+    config = AppConfig()
+    duration_config = config.sleep.score.duration
     score = _score_sleep(
         _datetime(11),
-        timedelta(minutes=SLEEP_DURATION_TARGET_MINUTES),
+        timedelta(minutes=duration_config.target_minutes),
+        config=config,
     )
 
     assert score.duration_score == 100.0
@@ -414,11 +419,14 @@ def test_duration_at_target_receives_maximum_score() -> None:
 
 
 def test_duration_at_lower_tolerance_boundary_receives_maximum_score() -> None:
-    duration_minutes = SLEEP_DURATION_TARGET_MINUTES - SLEEP_DURATION_TOLERANCE_MINUTES
+    config = AppConfig()
+    duration_config = config.sleep.score.duration
+    duration_minutes = duration_config.target_minutes - duration_config.tolerance_minutes
 
     score = _score_sleep(
         _datetime(11),
         timedelta(minutes=duration_minutes),
+        config=config,
     )
 
     assert score.duration_score == 100.0
@@ -431,11 +439,14 @@ def test_duration_at_lower_tolerance_boundary_receives_maximum_score() -> None:
 
 
 def test_duration_at_upper_tolerance_boundary_receives_maximum_score() -> None:
-    duration_minutes = SLEEP_DURATION_TARGET_MINUTES + SLEEP_DURATION_TOLERANCE_MINUTES
+    config = AppConfig()
+    duration_config = config.sleep.score.duration
+    duration_minutes = duration_config.target_minutes + duration_config.tolerance_minutes
 
     score = _score_sleep(
         _datetime(11),
         timedelta(minutes=duration_minutes),
+        config=config,
     )
 
     assert score.duration_score == 100.0
@@ -448,18 +459,21 @@ def test_duration_at_upper_tolerance_boundary_receives_maximum_score() -> None:
 
 
 def test_duration_one_penalty_interval_underslept_applies_penalty() -> None:
+    config = AppConfig()
+    duration_config = config.sleep.score.duration
     duration_minutes = (
-        SLEEP_DURATION_TARGET_MINUTES
-        - SLEEP_DURATION_TOLERANCE_MINUTES
-        - SLEEP_DURATION_PENALTY_INTERVAL_MINUTES
+        duration_config.target_minutes
+        - duration_config.tolerance_minutes
+        - duration_config.penalty_interval_minutes
     )
 
     score = _score_sleep(
         _datetime(11),
         timedelta(minutes=duration_minutes),
+        config=config,
     )
 
-    expected_score = 100.0 - SLEEP_DURATION_PENALTY_POINTS * SLEEP_DURATION_UNDERSLEEP_WEIGHT
+    expected_score = 100.0 - duration_config.penalty_points * duration_config.undersleep_weight
 
     assert score.duration_score == expected_score
 
@@ -471,18 +485,21 @@ def test_duration_one_penalty_interval_underslept_applies_penalty() -> None:
 
 
 def test_duration_one_penalty_interval_overslept_applies_penalty() -> None:
+    config = AppConfig()
+    duration_config = config.sleep.score.duration
     duration_minutes = (
-        SLEEP_DURATION_TARGET_MINUTES
-        + SLEEP_DURATION_TOLERANCE_MINUTES
-        + SLEEP_DURATION_PENALTY_INTERVAL_MINUTES
+        duration_config.target_minutes
+        + duration_config.tolerance_minutes
+        + duration_config.penalty_interval_minutes
     )
 
     score = _score_sleep(
         _datetime(11),
         timedelta(minutes=duration_minutes),
+        config=config,
     )
 
-    expected_score = 100.0 - SLEEP_DURATION_PENALTY_POINTS * SLEEP_DURATION_OVERSLEEP_WEIGHT
+    expected_score = 100.0 - duration_config.penalty_points * duration_config.oversleep_weight
 
     assert score.duration_score == expected_score
 
@@ -494,15 +511,23 @@ def test_duration_one_penalty_interval_overslept_applies_penalty() -> None:
 
 
 def test_wake_up_at_target_receives_maximum_available_score() -> None:
+    config = AppConfig()
+    wakeup_config = config.sleep.score.wake_up
+
     start = _datetime(11)
-    duration_minutes = WAKE_UP_TARGET.hour * 60 + WAKE_UP_TARGET.minute
+
+    duration_minutes = wakeup_config.target.hour * 60 + wakeup_config.target.minute
 
     score = _score_sleep(
         start,
         timedelta(minutes=duration_minutes),
+        config=config,
     )
 
-    assert score.wake_up_score == _wake_up_max_score(score)
+    assert score.wake_up_score == _wake_up_max_score(
+        score,
+        config=config,
+    )
 
 
 # =====================================================================
@@ -512,17 +537,22 @@ def test_wake_up_at_target_receives_maximum_available_score() -> None:
 
 
 def test_wake_up_one_penalty_interval_late_applies_single_penalty() -> None:
+    config = AppConfig()
     start = _datetime(11)
+    wakeup_config = config.sleep.score.wake_up
     wake_up_minutes = (
-        WAKE_UP_TARGET.hour * 60 + WAKE_UP_TARGET.minute + WAKE_UP_PENALTY_INTERVAL_MINUTES
+        wakeup_config.target.hour * 60
+        + wakeup_config.target.minute
+        + wakeup_config.penalty_interval_minutes
     )
 
     score = _score_sleep(
         start,
         timedelta(minutes=wake_up_minutes),
+        config=config,
     )
 
-    expected_score = _wake_up_max_score(score) - WAKE_UP_PENALTY_POINTS
+    expected_score = _wake_up_max_score(score, config=config) - wakeup_config.penalty_points
 
     assert score.wake_up_score == expected_score
 
@@ -534,12 +564,18 @@ def test_wake_up_one_penalty_interval_late_applies_single_penalty() -> None:
 
 
 def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
+    config = AppConfig()
+
     score = _score_sleep(
         _datetime(11, 1),
         timedelta(hours=7),
+        config=config,
     )
 
-    assert score.wake_up_score <= _wake_up_max_score(score)
+    assert score.wake_up_score <= _wake_up_max_score(
+        score,
+        config,
+    )
 
 
 # =====================================================================
@@ -549,12 +585,18 @@ def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
 
 
 def test_wake_up_before_target_is_capped_by_component_scores() -> None:
+    config = AppConfig()
+
     score = _score_sleep(
         _datetime(11, 1),
         timedelta(hours=6),
+        config=config,
     )
 
-    assert score.wake_up_score == _wake_up_max_score(score)
+    assert score.wake_up_score == _wake_up_max_score(
+        score,
+        config,
+    )
 
 
 # =====================================================================
@@ -583,16 +625,24 @@ def test_wake_up_score_never_drops_below_zero() -> None:
 
 
 def test_total_sleep_score_uses_configured_component_weights() -> None:
+    config = AppConfig()
+
+    weights = config.sleep.score.weights
+    weights.bedtime = 1.0
+    weights.duration = 2.0
+    weights.wake_up = 3.0
+
     score = _score_sleep(
         _datetime(11, 1),
         timedelta(hours=7),
+        config=config,
     )
 
     expected_score = (
-        score.bedtime_score * BEDTIME_SCORE_WEIGHT
-        + score.duration_score * SLEEP_DURATION_SCORE_WEIGHT
-        + score.wake_up_score * WAKE_UP_SCORE_WEIGHT
-    ) / (BEDTIME_SCORE_WEIGHT + SLEEP_DURATION_SCORE_WEIGHT + WAKE_UP_SCORE_WEIGHT)
+        score.bedtime_score * weights.bedtime
+        + score.duration_score * weights.duration
+        + score.wake_up_score * weights.wake_up
+    ) / (weights.bedtime + weights.duration + weights.wake_up)
 
     assert score.total_score == expected_score
 
@@ -712,9 +762,11 @@ def test_monthly_summary_calculates_average_total_sleep_score() -> None:
 
 
 def test_monthly_average_bonus_uses_matching_threshold() -> None:
+    config = AppConfig()
     analyzer = _analyzer_for_single_sleep(
         _datetime(1),
         timedelta(hours=8),
+        config=config,
     )
 
     summary = analyzer.summarize_month(
@@ -726,7 +778,7 @@ def test_monthly_average_bonus_uses_matching_threshold() -> None:
     expected_bonus = next(
         (
             bonus
-            for threshold, bonus in SLEEP_AVERAGE_BONUS_THRESHOLDS
+            for threshold, bonus in config.sleep.score.monthly_bonus.average_thresholds
             if summary.average_sleep_score >= threshold
         ),
         0,
@@ -742,6 +794,7 @@ def test_monthly_average_bonus_uses_matching_threshold() -> None:
 
 
 def test_monthly_consistency_bonus_uses_sleep_score_standard_deviation() -> None:
+    config = AppConfig()
     starts = [
         _datetime(1),
         _datetime(2, 0, 30),
@@ -764,7 +817,8 @@ def test_monthly_consistency_bonus_uses_sleep_score_standard_deviation() -> None
                 durations,
                 strict=True,
             )
-        ]
+        ],
+        config=config,
     )
 
     sleep_scores = []
@@ -781,7 +835,7 @@ def test_monthly_consistency_bonus_uses_sleep_score_standard_deviation() -> None
     expected_bonus = next(
         (
             bonus
-            for threshold, bonus in SLEEP_CONSISTENCY_BONUS_THRESHOLDS
+            for threshold, bonus in config.sleep.score.monthly_bonus.consistency_thresholds
             if standard_deviation < threshold
         ),
         0,
@@ -1030,29 +1084,31 @@ def test_duration_score_never_drops_below_zero() -> None:
 # =====================================================================
 
 
-def test_linear_penalty_mode_applies_proportional_penalty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sleep_analyzer_module,
-        "SLEEP_SCORE_LINEAR_PENALTIES",
-        True,
-    )
+def test_linear_penalty_mode_applies_proportional_penalty() -> None:
+    config = AppConfig()
+    config.sleep.score.linear_penalties = True
+
+    bedtime_config = config.sleep.score.bedtime
 
     target = _datetime(
         11,
-        BEDTIME_TARGET.hour,
-        BEDTIME_TARGET.minute,
+        bedtime_config.target.hour,
+        bedtime_config.target.minute,
     )
-    deviation_minutes = BEDTIME_PENALTY_INTERVAL_MINUTES - 1
+
+    deviation_minutes = bedtime_config.penalty_interval_minutes - 1
+
     start = target + timedelta(minutes=deviation_minutes)
 
     score = _score_sleep(
         start,
         timedelta(hours=8),
+        config=config,
     )
 
-    expected_penalty = deviation_minutes / BEDTIME_PENALTY_INTERVAL_MINUTES * BEDTIME_PENALTY_POINTS
+    expected_penalty = (
+        deviation_minutes / bedtime_config.penalty_interval_minutes * bedtime_config.penalty_points
+    )
 
     assert score.bedtime_score == pytest.approx(100.0 - expected_penalty)
 
@@ -1063,14 +1119,9 @@ def test_linear_penalty_mode_applies_proportional_penalty(
 # =====================================================================
 
 
-def test_monthly_bonuses_are_zero_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        sleep_analyzer_module,
-        "SLEEP_MONTHLY_BONUS_ENABLED",
-        False,
-    )
+def test_monthly_bonuses_are_zero_when_disabled() -> None:
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.enabled = False
 
     analyzer = _analyzer(
         _sleep_record(
@@ -1081,6 +1132,7 @@ def test_monthly_bonuses_are_zero_when_disabled(
             _datetime(2, 1),
             _datetime(2, 1) + timedelta(hours=7),
         ),
+        config=config,
     )
 
     summary = analyzer.summarize_month(
@@ -1092,3 +1144,30 @@ def test_monthly_bonuses_are_zero_when_disabled(
     assert summary.average_bonus == 0.0
     assert summary.consistency_bonus == 0.0
     assert summary.monthly_sleep_score == summary.average_sleep_score
+
+
+# =====================================================================
+# Verifies that the configured sleep-session gap threshold is injected
+# into SleepAnalyzer and controls sleep-session reconstruction.
+# =====================================================================
+
+
+def test_uses_configured_sleep_session_gap_threshold() -> None:
+    config = AppConfig()
+    config.sleep.session_gap_threshold_minutes = 60
+
+    start = _datetime(10, 23)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=2),
+        ),
+        _sleep_record(
+            start + timedelta(hours=3),
+            start + timedelta(hours=4),
+        ),
+        config=config,
+    )
+
+    assert len(analyzer.sleep_sessions) == 1

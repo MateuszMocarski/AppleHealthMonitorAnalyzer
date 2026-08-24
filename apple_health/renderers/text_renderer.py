@@ -4,6 +4,7 @@ import calendar
 from contextlib import redirect_stdout
 from io import StringIO
 
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.report_models import (
     ActivitySummary,
@@ -12,10 +13,15 @@ from apple_health.report_models import (
     SleepMonthlySummary,
     SleepScore,
 )
-from apple_health.sleep_score_config import SLEEP_MONTHLY_BONUS_ENABLED
 
 
 class TextRenderer:
+    def __init__(
+        self,
+        config: AppConfig | None = None,
+    ) -> None:
+        self.config = config or AppConfig()
+
     def render_month(
         self,
         monthly_summary: MonthlySummary,
@@ -436,7 +442,7 @@ class TextRenderer:
 
         print()
 
-        if not SLEEP_MONTHLY_BONUS_ENABLED:
+        if not self.config.sleep.score.monthly_bonus.enabled:
             print("  Monthly bonus system: disabled")
             return
 

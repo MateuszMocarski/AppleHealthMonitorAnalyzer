@@ -1,7 +1,29 @@
 import pytest
 
-import apple_health.sleep_score_config as config
-from apple_health.sleep_score_config import validate_sleep_score_config
+from apple_health.config.sleep_score_config import SleepScoreConfig
+
+
+def _set_config_value(
+    config: SleepScoreConfig,
+    attribute_path: str,
+    value,
+) -> None:
+    target = config
+
+    path_parts = attribute_path.split(".")
+
+    for attribute in path_parts[:-1]:
+        target = getattr(
+            target,
+            attribute,
+        )
+
+    setattr(
+        target,
+        path_parts[-1],
+        value,
+    )
+
 
 # =====================================================================
 # Verifies that the default sleep score configuration satisfies all
@@ -10,7 +32,9 @@ from apple_health.sleep_score_config import validate_sleep_score_config
 
 
 def test_default_sleep_score_config_is_valid() -> None:
-    validate_sleep_score_config()
+    config = SleepScoreConfig()
+
+    config.validate()
 
 
 # =====================================================================
@@ -20,20 +44,21 @@ def test_default_sleep_score_config_is_valid() -> None:
 
 
 @pytest.mark.parametrize(
-    "setting_name",
+    "attribute_path",
     [
-        "BEDTIME_SCORE_WEIGHT",
-        "SLEEP_DURATION_SCORE_WEIGHT",
-        "WAKE_UP_SCORE_WEIGHT",
+        "weights.bedtime",
+        "weights.duration",
+        "weights.wake_up",
     ],
 )
 def test_negative_score_component_weight_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-    setting_name: str,
+    attribute_path: str,
 ) -> None:
-    monkeypatch.setattr(
+    config = SleepScoreConfig()
+
+    _set_config_value(
         config,
-        setting_name,
+        attribute_path,
         -1.0,
     )
 
@@ -41,7 +66,7 @@ def test_negative_score_component_weight_is_rejected(
         ValueError,
         match="Sleep score component weights cannot be negative",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -50,30 +75,18 @@ def test_negative_score_component_weight_is_rejected(
 # =====================================================================
 
 
-def test_all_zero_score_component_weights_are_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "BEDTIME_SCORE_WEIGHT",
-        0.0,
-    )
-    monkeypatch.setattr(
-        config,
-        "SLEEP_DURATION_SCORE_WEIGHT",
-        0.0,
-    )
-    monkeypatch.setattr(
-        config,
-        "WAKE_UP_SCORE_WEIGHT",
-        0.0,
-    )
+def test_all_zero_score_component_weights_are_rejected() -> None:
+    config = SleepScoreConfig()
+
+    config.weights.bedtime = 0.0
+    config.weights.duration = 0.0
+    config.weights.wake_up = 0.0
 
     with pytest.raises(
         ValueError,
         match="At least one sleep score component weight",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -83,24 +96,25 @@ def test_all_zero_score_component_weights_are_rejected(
 
 
 @pytest.mark.parametrize(
-    ("setting_name", "invalid_value"),
+    ("attribute_path", "invalid_value"),
     [
-        ("BEDTIME_PENALTY_INTERVAL_MINUTES", 0),
-        ("BEDTIME_PENALTY_INTERVAL_MINUTES", -1),
-        ("SLEEP_DURATION_PENALTY_INTERVAL_MINUTES", 0),
-        ("SLEEP_DURATION_PENALTY_INTERVAL_MINUTES", -1),
-        ("WAKE_UP_PENALTY_INTERVAL_MINUTES", 0),
-        ("WAKE_UP_PENALTY_INTERVAL_MINUTES", -1),
+        ("bedtime.penalty_interval_minutes", 0),
+        ("bedtime.penalty_interval_minutes", -1),
+        ("duration.penalty_interval_minutes", 0),
+        ("duration.penalty_interval_minutes", -1),
+        ("wake_up.penalty_interval_minutes", 0),
+        ("wake_up.penalty_interval_minutes", -1),
     ],
 )
 def test_non_positive_penalty_interval_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-    setting_name: str,
+    attribute_path: str,
     invalid_value: int,
 ) -> None:
-    monkeypatch.setattr(
+    config = SleepScoreConfig()
+
+    _set_config_value(
         config,
-        setting_name,
+        attribute_path,
         invalid_value,
     )
 
@@ -108,7 +122,7 @@ def test_non_positive_penalty_interval_is_rejected(
         ValueError,
         match="Sleep score penalty intervals must be greater than zero",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -118,28 +132,29 @@ def test_non_positive_penalty_interval_is_rejected(
 
 
 @pytest.mark.parametrize(
-    "setting_name",
+    "attribute_path",
     [
-        "BEDTIME_PENALTY_POINTS",
-        "SLEEP_DURATION_PENALTY_POINTS",
-        "WAKE_UP_PENALTY_POINTS",
+        "bedtime.penalty_points",
+        "duration.penalty_points",
+        "wake_up.penalty_points",
     ],
 )
 def test_negative_penalty_points_are_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-    setting_name: str,
+    attribute_path: str,
 ) -> None:
-    monkeypatch.setattr(
+    config = SleepScoreConfig()
+
+    _set_config_value(
         config,
-        setting_name,
-        -1,
+        attribute_path,
+        -1.0,
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep score penalty points cannot be negative",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -156,20 +171,17 @@ def test_negative_penalty_points_are_rejected(
     ],
 )
 def test_non_positive_sleep_duration_target_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
     invalid_target: int,
 ) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_DURATION_TARGET_MINUTES",
-        invalid_target,
-    )
+    config = SleepScoreConfig()
+
+    config.duration.target_minutes = invalid_target
 
     with pytest.raises(
         ValueError,
         match="Sleep duration target must be greater than zero",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -177,20 +189,16 @@ def test_non_positive_sleep_duration_target_is_rejected(
 # =====================================================================
 
 
-def test_negative_sleep_duration_tolerance_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_DURATION_TOLERANCE_MINUTES",
-        -1,
-    )
+def test_negative_sleep_duration_tolerance_is_rejected() -> None:
+    config = SleepScoreConfig()
+
+    config.duration.tolerance_minutes = -1
 
     with pytest.raises(
         ValueError,
         match="Sleep duration tolerance cannot be negative",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -207,20 +215,17 @@ def test_negative_sleep_duration_tolerance_is_rejected(
     ],
 )
 def test_sleep_duration_tolerance_not_lower_than_target_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
     tolerance_offset: int,
 ) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_DURATION_TOLERANCE_MINUTES",
-        config.SLEEP_DURATION_TARGET_MINUTES + tolerance_offset,
-    )
+    config = SleepScoreConfig()
+
+    config.duration.tolerance_minutes = config.duration.target_minutes + tolerance_offset
 
     with pytest.raises(
         ValueError,
         match="Sleep duration tolerance must be lower",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -230,19 +235,20 @@ def test_sleep_duration_tolerance_not_lower_than_target_is_rejected(
 
 
 @pytest.mark.parametrize(
-    "setting_name",
+    "attribute_path",
     [
-        "SLEEP_DURATION_OVERSLEEP_WEIGHT",
-        "SLEEP_DURATION_UNDERSLEEP_WEIGHT",
+        "duration.oversleep_weight",
+        "duration.undersleep_weight",
     ],
 )
 def test_negative_duration_penalty_weight_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-    setting_name: str,
+    attribute_path: str,
 ) -> None:
-    monkeypatch.setattr(
+    config = SleepScoreConfig()
+
+    _set_config_value(
         config,
-        setting_name,
+        attribute_path,
         -1.0,
     )
 
@@ -250,7 +256,7 @@ def test_negative_duration_penalty_weight_is_rejected(
         ValueError,
         match="Sleep duration penalty weights cannot be negative",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -267,24 +273,21 @@ def test_negative_duration_penalty_weight_is_rejected(
     ],
 )
 def test_average_bonus_threshold_outside_score_range_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
     invalid_threshold: int,
 ) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_AVERAGE_BONUS_THRESHOLDS",
-        (
-            (invalid_threshold, 15),
-            (80, 10),
-            (70, 5),
-        ),
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.average_thresholds = (
+        (invalid_threshold, 15),
+        (80, 10),
+        (70, 5),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep average bonus thresholds must be between 0 and 100",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -292,24 +295,20 @@ def test_average_bonus_threshold_outside_score_range_is_rejected(
 # =====================================================================
 
 
-def test_negative_average_bonus_points_are_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_AVERAGE_BONUS_THRESHOLDS",
-        (
-            (90, -1),
-            (80, 0),
-            (70, 0),
-        ),
+def test_negative_average_bonus_points_are_rejected() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.average_thresholds = (
+        (90, -1),
+        (80, 0),
+        (70, 0),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep average bonus points cannot be negative",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -318,24 +317,20 @@ def test_negative_average_bonus_points_are_rejected(
 # =====================================================================
 
 
-def test_average_bonus_thresholds_must_be_strictly_decreasing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_AVERAGE_BONUS_THRESHOLDS",
-        (
-            (90, 15),
-            (90, 10),
-            (70, 5),
-        ),
+def test_average_bonus_thresholds_must_be_strictly_decreasing() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.average_thresholds = (
+        (90, 15),
+        (90, 10),
+        (70, 5),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep average bonus thresholds must be strictly decreasing",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -344,24 +339,20 @@ def test_average_bonus_thresholds_must_be_strictly_decreasing(
 # =====================================================================
 
 
-def test_average_bonus_points_cannot_increase_as_threshold_decreases(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_AVERAGE_BONUS_THRESHOLDS",
-        (
-            (90, 10),
-            (80, 15),
-            (70, 5),
-        ),
+def test_average_bonus_points_cannot_increase_as_threshold_decreases() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.average_thresholds = (
+        (90, 10),
+        (80, 15),
+        (70, 5),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep average bonus points cannot increase",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -378,24 +369,21 @@ def test_average_bonus_points_cannot_increase_as_threshold_decreases(
     ],
 )
 def test_non_positive_consistency_threshold_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
     invalid_threshold: int,
 ) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_CONSISTENCY_BONUS_THRESHOLDS",
-        (
-            (invalid_threshold, 5),
-            (6, 4),
-            (9, 3),
-        ),
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.consistency_thresholds = (
+        (invalid_threshold, 5),
+        (6, 4),
+        (9, 3),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep consistency thresholds must be greater than zero",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -403,24 +391,20 @@ def test_non_positive_consistency_threshold_is_rejected(
 # =====================================================================
 
 
-def test_negative_consistency_bonus_points_are_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_CONSISTENCY_BONUS_THRESHOLDS",
-        (
-            (3, -1),
-            (6, 0),
-            (9, 0),
-        ),
+def test_negative_consistency_bonus_points_are_rejected() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.consistency_thresholds = (
+        (3, -1),
+        (6, 0),
+        (9, 0),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep consistency bonus points cannot be negative",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -429,24 +413,20 @@ def test_negative_consistency_bonus_points_are_rejected(
 # =====================================================================
 
 
-def test_consistency_thresholds_must_be_strictly_increasing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_CONSISTENCY_BONUS_THRESHOLDS",
-        (
-            (3, 5),
-            (3, 4),
-            (9, 3),
-        ),
+def test_consistency_thresholds_must_be_strictly_increasing() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.consistency_thresholds = (
+        (3, 5),
+        (3, 4),
+        (9, 3),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep consistency thresholds must be strictly increasing",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -455,24 +435,20 @@ def test_consistency_thresholds_must_be_strictly_increasing(
 # =====================================================================
 
 
-def test_consistency_bonus_points_cannot_increase_as_deviation_increases(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_CONSISTENCY_BONUS_THRESHOLDS",
-        (
-            (3, 4),
-            (6, 5),
-            (9, 3),
-        ),
+def test_consistency_bonus_points_cannot_increase_as_deviation_increases() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.consistency_thresholds = (
+        (3, 4),
+        (6, 5),
+        (9, 3),
     )
 
     with pytest.raises(
         ValueError,
         match="Sleep consistency bonus points cannot increase",
     ):
-        validate_sleep_score_config()
+        config.validate()
 
 
 # =====================================================================
@@ -481,17 +457,13 @@ def test_consistency_bonus_points_cannot_increase_as_deviation_increases(
 # =====================================================================
 
 
-def test_combined_monthly_bonus_cannot_exceed_configured_maximum(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        config,
-        "SLEEP_MONTHLY_BONUS_MAX_POINTS",
-        19,
-    )
+def test_combined_monthly_bonus_cannot_exceed_configured_maximum() -> None:
+    config = SleepScoreConfig()
+
+    config.monthly_bonus.max_points = 19
 
     with pytest.raises(
         ValueError,
         match="Maximum configured monthly sleep bonuses exceed",
     ):
-        validate_sleep_score_config()
+        config.validate()

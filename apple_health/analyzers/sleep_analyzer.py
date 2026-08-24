@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, time, timedelta
 from statistics import pstdev
 
-from apple_health.constants import APPLE_WATCH_SOURCE
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import SleepStage
 from apple_health.models import AppleHealthData, SleepRecord
 from apple_health.report_models import (
@@ -11,37 +11,13 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
-from apple_health.sleep_score_config import (
-    BEDTIME_PENALTY_INTERVAL_MINUTES,
-    BEDTIME_PENALTY_POINTS,
-    BEDTIME_TARGET,
-    SLEEP_AVERAGE_BONUS_THRESHOLDS,
-    SLEEP_CONSISTENCY_BONUS_THRESHOLDS,
-    SLEEP_DURATION_OVERSLEEP_WEIGHT,
-    SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
-    SLEEP_DURATION_PENALTY_POINTS,
-    SLEEP_DURATION_TARGET_MINUTES,
-    SLEEP_DURATION_TOLERANCE_MINUTES,
-    SLEEP_DURATION_UNDERSLEEP_WEIGHT,
-    SLEEP_MONTHLY_BONUS_ENABLED,
-    SLEEP_SCORE_LINEAR_PENALTIES,
-    WAKE_UP_BEDTIME_WEIGHT,
-    WAKE_UP_DURATION_WEIGHT,
-    WAKE_UP_PENALTY_INTERVAL_MINUTES,
-    WAKE_UP_PENALTY_POINTS,
-    WAKE_UP_TARGET,
-    validate_sleep_score_config,
-)
 
 
 class SleepAnalyzer:
-    SESSION_GAP_THRESHOLD = timedelta(minutes=30)
+    def __init__(self, health_data: AppleHealthData, config: AppConfig | None = None) -> None:
+        self.config = config or AppConfig()
 
-    def __init__(
-        self,
-        health_data: AppleHealthData,
-    ) -> None:
-        validate_sleep_score_config()
+        self.config.sleep.score.validate()
 
         self.sleep_records = health_data.sleep_records
         self.sleep_sessions = self.analyze()
@@ -49,8 +25,11 @@ class SleepAnalyzer:
         self._primary_sleep_sessions_by_day = self._select_primary_sleep_sessions()
 
     def analyze(self) -> list[SleepSession]:
+        session_gap_threshold = timedelta(minutes=self.config.sleep.session_gap_threshold_minutes)
         watch_sleep_records = [
-            record for record in self.sleep_records if APPLE_WATCH_SOURCE in record.source_name
+            record
+            for record in self.sleep_records
+            if (self.config.source.apple_watch_source in record.source_name)
         ]
 
         sessions: list[SleepSession] = []
@@ -64,7 +43,7 @@ class SleepAnalyzer:
             previous = current_session[-1]
             gap = record.start - previous.end
 
-            if gap <= self.SESSION_GAP_THRESHOLD:
+            if gap <= session_gap_threshold:
                 current_session.append(record)
             else:
                 sessions.append(self._build_sleep_session(current_session))
@@ -272,7 +251,7 @@ class SleepAnalyzer:
         if deviation_minutes <= 0:
             return 0.0
 
-        if SLEEP_SCORE_LINEAR_PENALTIES:
+        if self.config.sleep.score.linear_penalties:
             return deviation_minutes / interval_minutes * penalty_points
 
         return (deviation_minutes // interval_minutes) * penalty_points
@@ -294,7 +273,7 @@ class SleepAnalyzer:
     ) -> float:
         bedtime_minutes = self._minutes_relative_to_midnight(session.bedtime.time())
 
-        target_minutes = self._minutes_relative_to_midnight(BEDTIME_TARGET)
+        target_minutes = self._minutes_relative_to_midnight(self.config.sleep.score.bedtime.target)
 
         if bedtime_minutes <= target_minutes:
             return 100.0
@@ -303,8 +282,8 @@ class SleepAnalyzer:
 
         penalty = self._calculate_penalty(
             deviation_minutes=delay_minutes,
-            interval_minutes=BEDTIME_PENALTY_INTERVAL_MINUTES,
-            penalty_points=BEDTIME_PENALTY_POINTS,
+            interval_minutes=self.config.sleep.score.bedtime.penalty_interval_minutes,
+            penalty_points=self.config.sleep.score.bedtime.penalty_points,
         )
 
         return max(
@@ -318,9 +297,11 @@ class SleepAnalyzer:
     ) -> float:
         duration_minutes = session.time_asleep_minutes
 
-        lower_bound = SLEEP_DURATION_TARGET_MINUTES - SLEEP_DURATION_TOLERANCE_MINUTES
+        duration_config = self.config.sleep.score.duration
 
-        upper_bound = SLEEP_DURATION_TARGET_MINUTES + SLEEP_DURATION_TOLERANCE_MINUTES
+        lower_bound = duration_config.target_minutes - duration_config.tolerance_minutes
+
+        upper_bound = duration_config.target_minutes + duration_config.tolerance_minutes
 
         if lower_bound <= duration_minutes <= upper_bound:
             return 100.0
@@ -328,17 +309,17 @@ class SleepAnalyzer:
         if duration_minutes < lower_bound:
             deviation_minutes = lower_bound - duration_minutes
 
-            penalty_weight = SLEEP_DURATION_UNDERSLEEP_WEIGHT
+            penalty_weight = penalty_weight = duration_config.undersleep_weight
 
         else:
             deviation_minutes = duration_minutes - upper_bound
 
-            penalty_weight = SLEEP_DURATION_OVERSLEEP_WEIGHT
+            penalty_weight = penalty_weight = duration_config.oversleep_weight
 
         penalty = self._calculate_penalty(
             deviation_minutes=deviation_minutes,
-            interval_minutes=SLEEP_DURATION_PENALTY_INTERVAL_MINUTES,
-            penalty_points=SLEEP_DURATION_PENALTY_POINTS,
+            interval_minutes=duration_config.penalty_interval_minutes,
+            penalty_points=duration_config.penalty_points,
         )
 
         penalty *= penalty_weight
@@ -354,13 +335,17 @@ class SleepAnalyzer:
         bedtime_score: float,
         duration_score: float,
     ) -> float:
+
+        wake_up_config = self.config.sleep.score.wake_up
+
         wake_up_max_score = (
-            bedtime_score * WAKE_UP_BEDTIME_WEIGHT + duration_score * WAKE_UP_DURATION_WEIGHT
-        ) / (WAKE_UP_BEDTIME_WEIGHT + WAKE_UP_DURATION_WEIGHT)
+            bedtime_score * wake_up_config.bedtime_weight
+            + duration_score * wake_up_config.duration_weight
+        ) / (wake_up_config.bedtime_weight + wake_up_config.duration_weight)
 
         wake_up_minutes = self._minutes_relative_to_midnight(session.wake_up.time())
 
-        target_minutes = self._minutes_relative_to_midnight(WAKE_UP_TARGET)
+        target_minutes = self._minutes_relative_to_midnight(self.config.sleep.score.wake_up.target)
 
         if wake_up_minutes <= target_minutes:
             return wake_up_max_score
@@ -369,8 +354,8 @@ class SleepAnalyzer:
 
         penalty = self._calculate_penalty(
             deviation_minutes=delay_minutes,
-            interval_minutes=WAKE_UP_PENALTY_INTERVAL_MINUTES,
-            penalty_points=WAKE_UP_PENALTY_POINTS,
+            interval_minutes=self.config.sleep.score.wake_up.penalty_interval_minutes,
+            penalty_points=self.config.sleep.score.wake_up.penalty_points,
         )
 
         return max(
@@ -392,20 +377,31 @@ class SleepAnalyzer:
             duration_score,
         )
 
+        weights = self.config.sleep.score.weights
+
+        total_score = (
+            bedtime_score * weights.bedtime
+            + duration_score * weights.duration
+            + wake_up_score * weights.wake_up
+        ) / (weights.bedtime + weights.duration + weights.wake_up)
+
         return SleepScore(
             bedtime_score=bedtime_score,
             duration_score=duration_score,
             wake_up_score=wake_up_score,
+            total_score=total_score,
         )
 
     def _calculate_average_sleep_bonus(
         self,
         average_sleep_score: float,
     ) -> float:
-        if not SLEEP_MONTHLY_BONUS_ENABLED:
+        bonus_config = self.config.sleep.score.monthly_bonus
+
+        if not bonus_config.enabled:
             return 0.0
 
-        for threshold, bonus in SLEEP_AVERAGE_BONUS_THRESHOLDS:
+        for threshold, bonus in bonus_config.average_thresholds:
             if average_sleep_score >= threshold:
                 return float(bonus)
 
@@ -415,7 +411,9 @@ class SleepAnalyzer:
         self,
         sleep_scores: list[SleepScore],
     ) -> float:
-        if not SLEEP_MONTHLY_BONUS_ENABLED:
+        bonus_config = self.config.sleep.score.monthly_bonus
+
+        if not bonus_config.enabled:
             return 0.0
 
         if len(sleep_scores) < 2:
@@ -423,7 +421,7 @@ class SleepAnalyzer:
 
         standard_deviation = pstdev(score.total_score for score in sleep_scores)
 
-        for threshold, bonus in SLEEP_CONSISTENCY_BONUS_THRESHOLDS:
+        for threshold, bonus in bonus_config.consistency_thresholds:
             if standard_deviation < threshold:
                 return float(bonus)
 

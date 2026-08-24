@@ -5,10 +5,7 @@ from pathlib import Path
 import pytest
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.constants import (
-    APPLE_HEALTH_APP_SOURCE,
-    APPLE_WATCH_SOURCE,
-)
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
@@ -18,14 +15,15 @@ from apple_health.renderers.text_renderer import TextRenderer
 
 def _create_export_archive(
     tmp_path: Path,
+    config: AppConfig,
 ) -> Path:
     archive_path = tmp_path / "export.zip"
-
+    source_config = config.source
     xml = f"""
         <HealthData>
             <Record
                 type="HKQuantityTypeIdentifierStepCount"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="8000"
                 startDate="2026-08-01 10:00:00 +0200"
                 endDate="2026-08-01 10:00:00 +0200"
@@ -33,7 +31,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierStepCount"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="9000"
                 startDate="2026-08-02 10:00:00 +0200"
                 endDate="2026-08-02 10:00:00 +0200"
@@ -41,7 +39,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierStepCount"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="10000"
                 startDate="2026-08-03 10:00:00 +0200"
                 endDate="2026-08-03 10:00:00 +0200"
@@ -49,7 +47,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierDistanceWalkingRunning"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="6.4"
                 startDate="2026-08-01 10:00:00 +0200"
                 endDate="2026-08-01 10:00:00 +0200"
@@ -57,7 +55,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierActiveEnergyBurned"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="700"
                 startDate="2026-08-01 10:00:00 +0200"
                 endDate="2026-08-01 10:00:00 +0200"
@@ -65,7 +63,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierBasalEnergyBurned"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="1900"
                 startDate="2026-08-01 10:00:00 +0200"
                 endDate="2026-08-01 10:00:00 +0200"
@@ -73,7 +71,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierBodyMass"
-                sourceName="{APPLE_HEALTH_APP_SOURCE}"
+                sourceName="{source_config.apple_health_app_source}"
                 value="80.0"
                 startDate="2026-08-01 08:00:00 +0200"
                 endDate="2026-08-01 08:00:00 +0200">
@@ -85,7 +83,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierDietaryEnergyConsumed"
-                sourceName="{APPLE_HEALTH_APP_SOURCE}"
+                sourceName="{source_config.apple_health_app_source}"
                 value="2000"
                 startDate="2026-08-01 20:00:00 +0200"
                 endDate="2026-08-01 20:00:00 +0200"
@@ -93,7 +91,7 @@ def _create_export_archive(
 
             <Record
                 type="HKQuantityTypeIdentifierDietaryProtein"
-                sourceName="{APPLE_HEALTH_APP_SOURCE}"
+                sourceName="{source_config.apple_health_app_source}"
                 value="150"
                 startDate="2026-08-01 20:00:00 +0200"
                 endDate="2026-08-01 20:00:00 +0200"
@@ -101,7 +99,7 @@ def _create_export_archive(
 
             <Workout
                 workoutActivityType="HKWorkoutActivityTypeWalking"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 sourceVersion="1"
                 startDate="2026-08-01 18:00:00 +0200"
                 endDate="2026-08-01 19:00:00 +0200"
@@ -118,7 +116,7 @@ def _create_export_archive(
 
             <Record
                 type="HKCategoryTypeIdentifierSleepAnalysis"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="HKCategoryValueSleepAnalysisAsleepCore"
                 startDate="2026-08-01 00:00:00 +0200"
                 endDate="2026-08-01 08:00:00 +0200"
@@ -126,7 +124,7 @@ def _create_export_archive(
 
             <Record
                 type="HKCategoryTypeIdentifierSleepAnalysis"
-                sourceName="{APPLE_WATCH_SOURCE}"
+                sourceName="{source_config.apple_watch_source}"
                 value="HKCategoryValueSleepAnalysisAsleepCore"
                 startDate="2026-08-02 00:00:00 +0200"
                 endDate="2026-08-02 08:00:00 +0200"
@@ -148,18 +146,25 @@ def _create_export_archive(
 
 def _run_pipeline(
     archive_path: Path,
+    config: AppConfig,
 ):
     importer = AppleHealthImporter(archive_path)
 
     archive, xml_file = importer.open_export()
 
     try:
-        health_data = AppleHealthParser(xml_file).parse()
+        health_data = AppleHealthParser(
+            xml_file,
+            config=config,
+        ).parse()
     finally:
         xml_file.close()
         archive.close()
 
-    analyzer = HealthAnalyzer(health_data)
+    analyzer = HealthAnalyzer(
+        health_data,
+        config=config,
+    )
 
     return analyzer.summarize_month(
         year=2026,
@@ -176,11 +181,20 @@ def _run_pipeline(
 def test_full_report_pipeline(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = TextRenderer().render_month(summary)
+    output = TextRenderer(
+        config=config,
+    ).render_month(summary)
 
     assert summary.reporting_days == 2
     assert len(summary.days) == 2
@@ -211,9 +225,16 @@ def test_full_report_pipeline(
 def test_full_pipeline_preserves_report_values(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
     assert summary.reporting_days == 2
 
@@ -245,11 +266,20 @@ def test_full_pipeline_preserves_report_values(
 def test_month_summary_only_pipeline(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = TextRenderer().render_month_summary(summary)
+    output = TextRenderer(
+        config=config,
+    ).render_month_summary(summary)
 
     assert "Apple Health Monthly Report" in output
     assert "General activity" in output
@@ -269,11 +299,20 @@ def test_month_summary_only_pipeline(
 def test_full_pipeline_matches_golden_report(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = TextRenderer().render_month(summary)
+    output = TextRenderer(
+        config=config,
+    ).render_month(summary)
 
     expected_report_path = Path(__file__).parent / "fixtures" / "expected_report.txt"
 
@@ -291,11 +330,20 @@ def test_full_pipeline_matches_golden_report(
 def test_full_pipeline_renders_json_report(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = JsonRenderer().render_month(summary)
+    output = JsonRenderer(
+        config=config,
+    ).render_month(summary)
 
     payload = json.loads(output)
 
@@ -329,11 +377,20 @@ def test_full_pipeline_renders_json_report(
 def test_full_pipeline_renders_json_month_summary(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = JsonRenderer().render_month_summary(summary)
+    output = JsonRenderer(
+        config=config,
+    ).render_month_summary(summary)
 
     payload = json.loads(output)
 

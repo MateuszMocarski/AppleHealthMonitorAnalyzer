@@ -1,5 +1,4 @@
-APPLE_WATCH_SOURCE = "Apple\xa0Watch"
-APPLE_HEALTH_APP_SOURCE = "Zdrowie"
+APPLE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
 APPLE_WATCH_DAILY_METRIC_TYPES = {
     "HKQuantityTypeIdentifierStepCount",

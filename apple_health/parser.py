@@ -4,11 +4,11 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import BinaryIO
 
+from apple_health.config.app_config import AppConfig
 from apple_health.constants import (
-    APPLE_HEALTH_APP_SOURCE,
+    APPLE_DATE_FORMAT,
     APPLE_HEALTH_DAILY_METRIC_TYPES,
     APPLE_WATCH_DAILY_METRIC_TYPES,
-    APPLE_WATCH_SOURCE,
     NUTRITION_RECORD_TYPES,
     WORKOUT_ACTIVE_ENERGY_TYPE,
     WORKOUT_CYCLING_DISTANCE_TYPE,
@@ -25,12 +25,11 @@ from apple_health.models import (
     Workout,
 )
 
-APPLE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S %z"
-
 
 class AppleHealthParser:
-    def __init__(self, xml_stream: BinaryIO) -> None:
+    def __init__(self, xml_stream: BinaryIO, config: AppConfig | None = None) -> None:
         self.xml_stream = xml_stream
+        self.config = config or AppConfig()
 
     def parse(self) -> AppleHealthData:
         workouts: list[Workout] = []
@@ -280,15 +279,16 @@ class AppleHealthParser:
         elif record_type == "HKQuantityTypeIdentifierDietaryFatTotal":
             nutrition.fat_g += float(value)
 
-    @staticmethod
     def _expected_source_for_record_type(
+        self,
         record_type: str | None,
     ) -> str | None:
+        source_config = self.config.source
         if record_type in APPLE_WATCH_DAILY_METRIC_TYPES:
-            return APPLE_WATCH_SOURCE
+            return source_config.apple_watch_source
 
         if record_type in APPLE_HEALTH_DAILY_METRIC_TYPES:
-            return APPLE_HEALTH_APP_SOURCE
+            return source_config.apple_health_app_source
 
         return None
 

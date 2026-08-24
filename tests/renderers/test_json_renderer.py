@@ -1,8 +1,7 @@
 import json
 from datetime import date, datetime, time, timezone
 
-import pytest
-
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
 from apple_health.renderers.json_renderer import JsonRenderer
@@ -14,9 +13,6 @@ from apple_health.report_models import (
     SleepMonthlySummary,
     SleepScore,
     SleepSession,
-)
-from apple_health.sleep_score_config import (
-    SLEEP_MONTHLY_BONUS_MAX_POINTS,
 )
 
 # =======
@@ -169,8 +165,11 @@ def _monthly_summary(
 
 def _render_payload(
     summary: MonthlySummary,
+    config: AppConfig | None = None,
 ) -> dict:
-    output = JsonRenderer().render_month_summary(summary)
+    output = JsonRenderer(
+        config=config,
+    ).render_month_summary(summary)
 
     return json.loads(output)
 
@@ -244,7 +243,12 @@ def test_render_month_summary_builds_general_activity() -> None:
 
 
 def test_render_month_summary_builds_sleep_section() -> None:
-    payload = _render_payload(_monthly_summary())
+    config = AppConfig()
+
+    payload = _render_payload(
+        _monthly_summary(),
+        config=config,
+    )
 
     sleep = payload["sleep"]
 
@@ -270,7 +274,7 @@ def test_render_month_summary_builds_sleep_section() -> None:
         "average_bonus": 10.0,
         "consistency_bonus": 4.0,
         "monthly_score": 102.46,
-        "monthly_score_max": (100 + SLEEP_MONTHLY_BONUS_MAX_POINTS),
+        "monthly_score_max": (100 + config.sleep.score.monthly_bonus.max_points),
     }
 
 
@@ -696,6 +700,7 @@ def test_render_day_builds_sleep_score() -> None:
         bedtime_score=80.456,
         duration_score=90.789,
         wake_up_score=70.123,
+        total_score=81.234,
     )
 
     summary = _monthly_summary()
@@ -712,7 +717,7 @@ def test_render_day_builds_sleep_score() -> None:
         "bedtime": 80.46,
         "duration": 90.79,
         "wake_up": 70.12,
-        "total": pytest.approx(round(sleep_score.total_score, 2)),
+        "total": 81.23,
     }
 
 
@@ -743,3 +748,21 @@ def test_render_day_preserves_partial_report_contract() -> None:
     assert day["body_weight"] is None
     assert day["nutrition"] is None
     assert day["calories_balance_kcal"] is None
+
+
+# =====================================================================
+# Verifies that JsonRenderer uses the injected monthly sleep bonus
+# configuration when calculating the maximum monthly sleep score.
+# =====================================================================
+
+
+def test_uses_configured_monthly_sleep_bonus_max_points() -> None:
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.max_points = 25
+
+    payload = _render_payload(
+        _monthly_summary(),
+        config=config,
+    )
+
+    assert payload["sleep"]["score"]["monthly_score_max"] == 125

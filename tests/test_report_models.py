@@ -11,11 +11,6 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
-from apple_health.sleep_score_config import (
-    BEDTIME_SCORE_WEIGHT,
-    SLEEP_DURATION_SCORE_WEIGHT,
-    WAKE_UP_SCORE_WEIGHT,
-)
 
 # =======
 # Helpers
@@ -415,17 +410,12 @@ def test_sleep_monthly_summary_combines_score_and_bonuses() -> None:
 # =====================================================================
 
 
-def test_sleep_score_calculates_weighted_total() -> None:
+def test_sleep_score_preserves_total_score() -> None:
     score = SleepScore(
         bedtime_score=80.0,
         duration_score=90.0,
         wake_up_score=70.0,
+        total_score=81.5,
     )
 
-    expected = (
-        80.0 * BEDTIME_SCORE_WEIGHT
-        + 90.0 * SLEEP_DURATION_SCORE_WEIGHT
-        + 70.0 * WAKE_UP_SCORE_WEIGHT
-    ) / (BEDTIME_SCORE_WEIGHT + SLEEP_DURATION_SCORE_WEIGHT + WAKE_UP_SCORE_WEIGHT)
-
-    assert score.total_score == expected
+    assert score.total_score == 81.5

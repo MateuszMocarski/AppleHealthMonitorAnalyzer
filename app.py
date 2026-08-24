@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.config.app_config import AppConfig
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
@@ -64,15 +65,17 @@ def main() -> None:
             archive, xml_stream = importer.open_export()
 
             try:
-                parser = AppleHealthParser(xml_stream)
+                config = AppConfig()
+
+                parser = AppleHealthParser(xml_stream, config=config)
                 apple_health_data = parser.parse()
 
-                analyzer = HealthAnalyzer(apple_health_data)
+                analyzer = HealthAnalyzer(apple_health_data, config=config)
 
                 if args.format == "json":
-                    renderer = JsonRenderer()
+                    renderer = JsonRenderer(config=config)
                 else:
-                    renderer = TextRenderer()
+                    renderer = TextRenderer(config=config)
 
                 today = date.today()
                 year = args.year if args.year is not None else today.year
