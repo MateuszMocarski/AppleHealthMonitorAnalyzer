@@ -172,10 +172,10 @@ The application follows a layered architecture that separates data import, parsi
 flowchart TD
 
     A["📦 Apple Health Export<br/><b>export.zip</b>"]
+    CFG["⚙️ AppConfig<br/><i>Application Configuration</i>"]
 
     B["AppleHealthImporter"]
     C["AppleHealthParser"]
-
     D["AppleHealthData<br/><i>Domain Model Root</i>"]
 
     E["HealthAnalyzer<br/><i>Orchestrator</i>"]
@@ -184,10 +184,8 @@ flowchart TD
     ES["SleepAnalyzer"]
 
     F["Health Report<br/><i>Monthly • Daily • Statistics</i>"]
-
     G["TextRenderer"]
     GJ["JsonRenderer"]
-
     H["📄 Text Report"]
     HJ["🧩 JSON Report"]
 
@@ -195,6 +193,11 @@ flowchart TD
     B -->|"Extract XML"| C
     C -->|"Parse records"| D
     D -->|"Analyze health data"| E
+
+    CFG -.->|"Configure"| C
+    CFG -.->|"Configure"| E
+    CFG -.->|"Configure"| G
+    CFG -.->|"Configure"| GJ
 
     E --> EA
     E --> EM
@@ -211,12 +214,14 @@ flowchart TD
     GJ --> HJ
 
     classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
+    classDef config fill:#FDEBD0,stroke:#CA6F1E,color:#000,stroke-width:2px;
     classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
     classDef analysis fill:#FCF3CF,stroke:#B7950B,color:#000,stroke-width:2px;
     classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
     classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
 
     class A,B,C import;
+    class CFG config;
     class D domain;
     class E,EA,EM,ES,F analysis;
     class G,GJ presentation;
@@ -232,6 +237,14 @@ The diagram is organized into five logical layers, each with a clearly defined r
 | 🟡 **Analysis** | Calculate statistics and build report models |
 | 🟣 **Presentation** | Render report models into text or JSON representations |
 | 🔴 **Output** | Final human-readable or machine-readable report |
+
+Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created by the application entry point and injected into components that require configurable behavior.
+
+#### AppConfig
+
+Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once by the application entry point before being injected into configurable components.
+
+Detailed configuration structure, defaults, validation rules, and future configuration-loading behavior are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
 
 #### AppleHealthImporter
 
@@ -292,6 +305,28 @@ Both renderers are isolated in the `renderers` package, allowing presentation fo
 - Report models are presentation-agnostic, allowing multiple output formats to reuse the same analysis results.
 - Specialized analyzers separate activity, daily metrics and sleep responsibilities behind a single `HealthAnalyzer` orchestration layer.
 - Renderers produce representations of report models without controlling the final output destination.
+- Configurable components receive application settings through dependency injection rather than depending on module-level configuration globals.
+
+## Configuration
+
+Application behavior is represented by a hierarchy of strongly typed Python dataclasses rooted in `AppConfig`.
+
+The configuration model separates settings by responsibility, including source selection, sleep-session reconstruction, and Sleep Score behavior. A single `AppConfig` instance is created by the application entry point and passed through the processing pipeline using dependency injection.
+
+```text
+AppConfig
+├── AppleHealthParser
+├── HealthAnalyzer
+│   └── SleepAnalyzer
+├── TextRenderer
+└── JsonRenderer
+```
+
+Components retain default configuration behavior when instantiated independently, while the application can supply one shared configuration instance for a complete processing run.
+
+At the current development stage, configuration values come from defaults defined by the configuration dataclasses. External runtime configuration loading is intentionally outside the scope of the current implementation.
+
+For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`apple_health/config/README.md`](apple_health/config/README.md).
 
 ## Domain Model
 
@@ -578,7 +613,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **178 test cases**, covering:
+The test suite currently contains **187 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis

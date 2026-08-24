@@ -2,30 +2,32 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **178 test cases**.
+The suite currently contains **187 test cases**.
 
 ## Test structure
 
 | Area | Test cases |
 | --- | ---: |
-| `SleepAnalyzer` | 38 |
+| `SleepAnalyzer` | 39 |
 | `ActivityAnalyzer` | 7 |
 | `MetricsAnalyzer` | 11 |
-| `HealthAnalyzer` | 9 |
-| `AppleHealthParser` | 22 |
+| `HealthAnalyzer` | 10 |
+| `AppleHealthParser` | 24 |
+| `AppConfig` | 1 |
+| `SleepConfig` | 3 |
 | Sleep Score configuration | 32 |
 | Report models | 17 |
 | `TextRenderer` | 11 |
-| `JsonRenderer` | 19 |
+| `JsonRenderer` | 20 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 6 |
-| **Total** | **178** |
+| **Total** | **187** |
 
 ## Analyzers
 
 ### SleepAnalyzer
 
-`tests/analyzers/test_sleep_analyzer.py` contains **38 test cases** covering the complete sleep-analysis and scoring flow.
+`tests/analyzers/test_sleep_analyzer.py` contains **39 test cases** covering the complete sleep-analysis and scoring flow.
 
 The suite verifies:
 
@@ -54,6 +56,7 @@ The suite verifies:
 - average bedtime calculation across midnight
 - score lower boundaries
 - disabled monthly bonus behavior
+- dependency injection of the configured sleep-session gap threshold
 
 ### ActivityAnalyzer
 
@@ -89,7 +92,7 @@ The suite verifies:
 
 ### HealthAnalyzer
 
-`tests/analyzers/test_health_analyzer.py` contains **9 test cases**.
+`tests/analyzers/test_health_analyzer.py` contains **10 test cases**.
 
 These tests focus on orchestration rather than repeating the business rules already covered by the specialized analyzers.
 
@@ -104,10 +107,11 @@ The suite verifies:
 - construction of a complete `MonthlySummary` from delegated analyzer results
 - monthly summary generation when no sleep data is available
 - monthly summary generation when no activity metrics are available for the reporting period
+- propagation of injected `AppConfig` into `SleepAnalyzer`
 
 ## AppleHealthParser
 
-`tests/test_parser.py` contains **22 test cases** using synthetic Apple Health XML.
+`tests/test_parser.py` contains **24 test cases** using synthetic Apple Health XML.
 
 The suite verifies:
 
@@ -129,10 +133,35 @@ The suite verifies:
 - all known Apple sleep-stage mappings
 - fallback of unknown sleep stages to `OTHER`
 - sleep-record duration calculation from timestamps
+- injected custom Apple Watch source selection
+- injected custom Apple Health application source selection
+
+## Application configuration
+
+### AppConfig
+
+`tests/config/test_app_config.py` contains **1 test case** verifying root configuration composition.
+
+The test verifies:
+
+- creation of the default `SourceConfig`
+- creation of the default `SleepConfig`
+- default source values
+- default sleep-session gap threshold
+
+### SleepConfig
+
+`tests/config/test_sleep_config.py` contains **3 test cases** covering sleep-level configuration validation.
+
+The suite verifies:
+
+- validity of the default sleep configuration
+- rejection of negative sleep-session gap thresholds
+- acceptance of a zero-minute gap threshold
 
 ## Sleep Score configuration
 
-`tests/test_sleep_score_config.py` contains **32 parameterized test cases** covering configuration validation.
+`tests/config/test_sleep_score_config.py` contains **32 parameterized test cases** covering configuration validation.
 
 The suite verifies:
 
@@ -155,7 +184,7 @@ The suite verifies:
 - non-increasing bonuses as allowed deviation increases
 - enforcement of the configured maximum monthly bonus cap
 
-The tests use `pytest`'s `monkeypatch` fixture so that intentionally invalid configurations are isolated to individual test cases and the default module configuration is restored automatically afterwards.
+Each validation test creates its own `SleepScoreConfig` instance, so invalid test values remain isolated without mutating shared application state.
 
 ## Report models
 
@@ -177,7 +206,7 @@ The suite verifies:
 - sleep efficiency
 - sleep reporting dates before noon and from noon onward
 - monthly Sleep Score composition
-- weighted daily Sleep Score calculation
+- preservation of the analyzer-calculated daily `total_score` value
 
 Simple dataclass field storage is intentionally not tested; the suite focuses on derived behavior and business-relevant properties.
 
@@ -220,7 +249,7 @@ This allows a valid monthly report to be produced from incomplete Apple Health d
 
 ## JsonRenderer
 
-`tests/renderers/test_json_renderer.py` contains **19 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
+`tests/renderers/test_json_renderer.py` contains **20 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
 
 The monthly contract tests verify:
 
@@ -240,6 +269,7 @@ The monthly contract tests verify:
 - `[]` for empty workout collections
 - partial metric availability
 - reports with zero completed reporting days
+- injected configuration for the maximum monthly Sleep Score
 
 The daily contract tests verify:
 
@@ -277,7 +307,7 @@ Temporary files are created with pytest's `tmp_path` fixture, allowing the impor
 
 `tests/integration/test_full_report_pipeline.py` contains **6 end-to-end integration tests**.
 
-They exercise the complete application pipeline:
+They exercise the complete application pipeline using one shared `AppConfig` instance across configuration-aware components:
 
 ```text
 ZIP archive
@@ -308,6 +338,7 @@ The end-to-end integration suite exercises both the text- and JSON-rendering pip
 The integration suite verifies:
 
 - successful execution of the complete report-generation pipeline
+- propagation of one shared `AppConfig` through parser, analyzer, and renderer layers
 - preservation of expected values across importing, parsing, analysis, and aggregation
 - generation of a monthly-summary-only text report without daily sections
 - exact deterministic text output through a golden-report comparison
@@ -395,6 +426,7 @@ The suite follows several general rules:
 - test public behavior and business rules rather than implementation details wherever practical
 - use synthetic health data instead of private Apple Health exports
 - use configuration-relative expectations instead of hardcoding configurable values
+- use one explicit configuration instance when a test verifies dependency-injected behavior
 - cover meaningful boundary conditions explicitly
 - use parameterization when the same rule applies to multiple configuration values
 - use integration tests to protect component wiring
