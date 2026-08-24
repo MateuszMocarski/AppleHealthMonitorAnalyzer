@@ -58,11 +58,15 @@ def _workout(
     activity_type: str,
     metadata: str = "",
     statistics: str = "",
+    source_name: str | None = None,
 ) -> str:
+    if source_name is None:
+        source_name = AppConfig().source.apple_watch_source
+
     return f"""
         <Workout
             workoutActivityType="{activity_type}"
-            sourceName="{AppConfig().source.apple_watch_source}"
+            sourceName="{source_name}"
             sourceVersion="1"
             startDate="2026-08-01 10:00:00 +0200"
             endDate="2026-08-01 11:00:00 +0200"
@@ -232,7 +236,7 @@ def test_aggregates_apple_watch_daily_metrics() -> None:
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     assert len(data.daily_metrics) == 1
 
@@ -321,7 +325,7 @@ def test_aggregates_nutrition_records() -> None:
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     nutrition = data.daily_metrics[0].nutrition
 
@@ -389,7 +393,7 @@ def test_user_entered_weight_replaces_automatic_measurement() -> None:
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     weight = data.daily_metrics[0].weight
 
@@ -423,7 +427,7 @@ def test_latest_weight_replaces_older_measurement() -> None:
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     weight = data.daily_metrics[0].weight
 
@@ -461,7 +465,7 @@ def test_daily_metrics_are_sorted_by_date() -> None:
         ),
     )
 
-    data = _parse_xml(xml)
+    data = _parse_xml(xml, config=config)
 
     assert [metrics.date.day for metrics in data.daily_metrics] == [
         1,

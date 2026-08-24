@@ -2,7 +2,6 @@ from datetime import date, datetime, time, timezone
 
 import pytest
 
-from apple_health.config.app_config import AppConfig
 from apple_health.models import NutritionData
 from apple_health.report_models import (
     ActivityMetricsSummary,
@@ -411,18 +410,12 @@ def test_sleep_monthly_summary_combines_score_and_bonuses() -> None:
 # =====================================================================
 
 
-def test_sleep_score_calculates_weighted_total() -> None:
-    config = AppConfig()
-    weights = config.sleep.score.weights
+def test_sleep_score_preserves_total_score() -> None:
     score = SleepScore(
         bedtime_score=80.0,
         duration_score=90.0,
         wake_up_score=70.0,
-        total_score=80.0,
+        total_score=81.5,
     )
 
-    expected = (80.0 * weights.bedtime + 90.0 * weights.duration + 70.0 * weights.wake_up) / (
-        weights.bedtime + weights.duration + weights.wake_up
-    )
-
-    assert score.total_score == expected
+    assert score.total_score == 81.5

@@ -15,9 +15,9 @@ from apple_health.config.app_config import AppConfig
 
 def _create_export_archive(
     tmp_path: Path,
+    config: AppConfig,
 ) -> Path:
     archive_path = tmp_path / "export.zip"
-    config = AppConfig()
     source_config = config.source
     xml = f"""
         <HealthData>
@@ -146,18 +146,25 @@ def _create_export_archive(
 
 def _run_pipeline(
     archive_path: Path,
+    config: AppConfig,
 ):
     importer = AppleHealthImporter(archive_path)
 
     archive, xml_file = importer.open_export()
 
     try:
-        health_data = AppleHealthParser(xml_file).parse()
+        health_data = AppleHealthParser(
+            xml_file,
+            config=config,
+        ).parse()
     finally:
         xml_file.close()
         archive.close()
 
-    analyzer = HealthAnalyzer(health_data)
+    analyzer = HealthAnalyzer(
+        health_data,
+        config=config,
+    )
 
     return analyzer.summarize_month(
         year=2026,
@@ -174,11 +181,20 @@ def _run_pipeline(
 def test_full_report_pipeline(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = TextRenderer().render_month(summary)
+    output = TextRenderer(
+        config=config,
+    ).render_month(summary)
 
     assert summary.reporting_days == 2
     assert len(summary.days) == 2
@@ -209,9 +225,16 @@ def test_full_report_pipeline(
 def test_full_pipeline_preserves_report_values(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
     assert summary.reporting_days == 2
 
@@ -243,11 +266,20 @@ def test_full_pipeline_preserves_report_values(
 def test_month_summary_only_pipeline(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = TextRenderer().render_month_summary(summary)
+    output = TextRenderer(
+        config=config,
+    ).render_month_summary(summary)
 
     assert "Apple Health Monthly Report" in output
     assert "General activity" in output
@@ -267,11 +299,20 @@ def test_month_summary_only_pipeline(
 def test_full_pipeline_matches_golden_report(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = TextRenderer().render_month(summary)
+    output = TextRenderer(
+        config=config,
+    ).render_month(summary)
 
     expected_report_path = Path(__file__).parent / "fixtures" / "expected_report.txt"
 
@@ -289,11 +330,20 @@ def test_full_pipeline_matches_golden_report(
 def test_full_pipeline_renders_json_report(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = JsonRenderer().render_month(summary)
+    output = JsonRenderer(
+        config=config,
+    ).render_month(summary)
 
     payload = json.loads(output)
 
@@ -327,11 +377,20 @@ def test_full_pipeline_renders_json_report(
 def test_full_pipeline_renders_json_month_summary(
     tmp_path: Path,
 ) -> None:
-    archive_path = _create_export_archive(tmp_path)
+    config = AppConfig()
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
 
-    summary = _run_pipeline(archive_path)
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
 
-    output = JsonRenderer().render_month_summary(summary)
+    output = JsonRenderer(
+        config=config,
+    ).render_month_summary(summary)
 
     payload = json.loads(output)
 

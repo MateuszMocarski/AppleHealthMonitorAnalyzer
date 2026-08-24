@@ -165,8 +165,11 @@ def _monthly_summary(
 
 def _render_payload(
     summary: MonthlySummary,
+    config: AppConfig | None = None,
 ) -> dict:
-    output = JsonRenderer().render_month_summary(summary)
+    output = JsonRenderer(
+        config=config,
+    ).render_month_summary(summary)
 
     return json.loads(output)
 
@@ -240,7 +243,12 @@ def test_render_month_summary_builds_general_activity() -> None:
 
 
 def test_render_month_summary_builds_sleep_section() -> None:
-    payload = _render_payload(_monthly_summary())
+    config = AppConfig()
+
+    payload = _render_payload(
+        _monthly_summary(),
+        config=config,
+    )
 
     sleep = payload["sleep"]
 
@@ -266,7 +274,10 @@ def test_render_month_summary_builds_sleep_section() -> None:
         "average_bonus": 10.0,
         "consistency_bonus": 4.0,
         "monthly_score": 102.46,
-        "monthly_score_max": (100 + AppConfig().sleep.score.monthly_bonus.max_points),
+        "monthly_score_max": (
+            100
+            + config.sleep.score.monthly_bonus.max_points
+        ),
     }
 
 
@@ -752,14 +763,9 @@ def test_uses_configured_monthly_sleep_bonus_max_points() -> None:
     config = AppConfig()
     config.sleep.score.monthly_bonus.max_points = 25
 
-    renderer = JsonRenderer(
+    payload = _render_payload(
+        _monthly_summary(),
         config=config,
-    )
-
-    payload = json.loads(
-        renderer.render_month_summary(
-            _monthly_summary()
-        )
     )
 
     assert (

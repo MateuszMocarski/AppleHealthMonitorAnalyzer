@@ -84,10 +84,14 @@ def _workout(
 def _sleep_record(
     start: datetime,
     end: datetime,
+    source_name: str | None = None,
 ) -> SleepRecord:
+    if source_name is None:
+        source_name = AppConfig().source.apple_watch_source
+
     return SleepRecord(
         stage=SleepStage.CORE,
-        source_name=AppConfig().source.apple_watch_source,
+        source_name=source_name,
         source_version=None,
         start=start,
         end=end,

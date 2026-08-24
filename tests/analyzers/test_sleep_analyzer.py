@@ -119,16 +119,17 @@ def _score_sleep(
 
 def _wake_up_max_score(
     score: SleepScore,
-    config: AppConfig | None = None,
+    config: AppConfig,
 ) -> float:
-    config = config or AppConfig()
-
     wakeup_config = config.sleep.score.wake_up
 
     return (
         score.bedtime_score * wakeup_config.bedtime_weight
         + score.duration_score * wakeup_config.duration_weight
-    ) / (wakeup_config.bedtime_weight + wakeup_config.duration_weight)
+    ) / (
+        wakeup_config.bedtime_weight
+        + wakeup_config.duration_weight
+    )
 
 
 # =====================================================================================
@@ -570,12 +571,18 @@ def test_wake_up_one_penalty_interval_late_applies_single_penalty() -> None:
 
 
 def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
+    config = AppConfig()
+
     score = _score_sleep(
         _datetime(11, 1),
         timedelta(hours=7),
+        config=config,
     )
 
-    assert score.wake_up_score <= _wake_up_max_score(score)
+    assert score.wake_up_score <= _wake_up_max_score(
+        score,
+        config,
+    )
 
 
 # =====================================================================
@@ -585,12 +592,18 @@ def test_wake_up_maximum_score_uses_bedtime_and_duration_weights() -> None:
 
 
 def test_wake_up_before_target_is_capped_by_component_scores() -> None:
+    config = AppConfig()
+
     score = _score_sleep(
         _datetime(11, 1),
         timedelta(hours=6),
+        config=config,
     )
 
-    assert score.wake_up_score == _wake_up_max_score(score)
+    assert score.wake_up_score == _wake_up_max_score(
+        score,
+        config,
+    )
 
 
 # =====================================================================
@@ -620,7 +633,12 @@ def test_wake_up_score_never_drops_below_zero() -> None:
 
 def test_total_sleep_score_uses_configured_component_weights() -> None:
     config = AppConfig()
-    sleep_score_weight_config = config.sleep.score.weights
+
+    weights = config.sleep.score.weights
+    weights.bedtime = 1.0
+    weights.duration = 2.0
+    weights.wake_up = 3.0
+
     score = _score_sleep(
         _datetime(11, 1),
         timedelta(hours=7),
@@ -628,13 +646,13 @@ def test_total_sleep_score_uses_configured_component_weights() -> None:
     )
 
     expected_score = (
-        score.bedtime_score * sleep_score_weight_config.bedtime
-        + score.duration_score * sleep_score_weight_config.duration
-        + score.wake_up_score * sleep_score_weight_config.wake_up
+        score.bedtime_score * weights.bedtime
+        + score.duration_score * weights.duration
+        + score.wake_up_score * weights.wake_up
     ) / (
-        sleep_score_weight_config.bedtime
-        + sleep_score_weight_config.duration
-        + sleep_score_weight_config.wake_up
+        weights.bedtime
+        + weights.duration
+        + weights.wake_up
     )
 
     assert score.total_score == expected_score

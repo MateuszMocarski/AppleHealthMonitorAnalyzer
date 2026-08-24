@@ -1,6 +1,5 @@
 from datetime import date, time
 
-import apple_health.renderers.text_renderer as text_renderer_module
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
 from apple_health.renderers.text_renderer import TextRenderer
