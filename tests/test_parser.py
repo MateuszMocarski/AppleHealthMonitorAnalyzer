@@ -16,9 +16,14 @@ from apple_health.config.app_config import AppConfig
 # Helpers
 # =======
 
-
-def _parse_xml(xml: str):
-    return AppleHealthParser(BytesIO(xml.encode("utf-8"))).parse()
+def _parse_xml(
+    xml: str,
+    config: AppConfig | None = None,
+):
+    return AppleHealthParser(
+        BytesIO(xml.encode("utf-8")),
+        config=config,
+    ).parse()
 
 
 def _wrap_xml(*elements: str) -> str:
@@ -562,3 +567,59 @@ def test_sleep_record_duration_is_calculated_from_timestamps() -> None:
     )
 
     assert data.sleep_records[0].duration_minutes == 150
+
+# =====================================================================
+# Verifies that AppleHealthParser uses the injected Apple Watch source
+# when selecting daily activity records.
+# =====================================================================
+
+
+def test_uses_configured_apple_watch_source() -> None:
+    config = AppConfig()
+    config.source.apple_watch_source = "Custom Watch"
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name="Custom Watch",
+            value="5000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert len(data.daily_metrics) == 1
+    assert data.daily_metrics[0].steps == 5000
+    
+# =====================================================================
+# Verifies that AppleHealthParser uses the injected Apple Health source
+# when selecting nutrition and body-mass records.
+# =====================================================================
+
+
+def test_uses_configured_apple_health_source() -> None:
+    config = AppConfig()
+    config.source.apple_health_app_source = "Custom Health"
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryProtein",
+            source_name="Custom Health",
+            value="150",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert len(data.daily_metrics) == 1
+
+    nutrition = data.daily_metrics[0].nutrition
+
+    assert nutrition is not None
+    assert nutrition.protein_g == pytest.approx(150)

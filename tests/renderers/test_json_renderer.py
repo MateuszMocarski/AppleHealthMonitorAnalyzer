@@ -740,3 +740,29 @@ def test_render_day_preserves_partial_report_contract() -> None:
     assert day["body_weight"] is None
     assert day["nutrition"] is None
     assert day["calories_balance_kcal"] is None
+
+
+# =====================================================================
+# Verifies that JsonRenderer uses the injected monthly sleep bonus
+# configuration when calculating the maximum monthly sleep score.
+# =====================================================================
+
+
+def test_uses_configured_monthly_sleep_bonus_max_points() -> None:
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.max_points = 25
+
+    renderer = JsonRenderer(
+        config=config,
+    )
+
+    payload = json.loads(
+        renderer.render_month_summary(
+            _monthly_summary()
+        )
+    )
+
+    assert (
+        payload["sleep"]["score"]["monthly_score_max"]
+        == 125
+    )

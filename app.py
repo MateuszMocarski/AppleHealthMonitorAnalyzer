@@ -9,6 +9,7 @@ from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
+from apple_health.config.app_config import AppConfig
 
 
 def main() -> None:
@@ -64,15 +65,17 @@ def main() -> None:
             archive, xml_stream = importer.open_export()
 
             try:
-                parser = AppleHealthParser(xml_stream)
+                config = AppConfig()
+                
+                parser = AppleHealthParser(xml_stream, config=config)
                 apple_health_data = parser.parse()
 
-                analyzer = HealthAnalyzer(apple_health_data)
+                analyzer = HealthAnalyzer(apple_health_data, config=config)
 
                 if args.format == "json":
-                    renderer = JsonRenderer()
+                    renderer = JsonRenderer(config=config)
                 else:
-                    renderer = TextRenderer()
+                    renderer = TextRenderer(config=config)
 
                 today = date.today()
                 year = args.year if args.year is not None else today.year

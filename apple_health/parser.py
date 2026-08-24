@@ -283,11 +283,12 @@ class AppleHealthParser:
         self,
         record_type: str | None,
     ) -> str | None:
+        source_config = self.config.source
         if record_type in APPLE_WATCH_DAILY_METRIC_TYPES:
-            return self.config.source.apple_watch_source
+            return source_config.apple_watch_source
 
         if record_type in APPLE_HEALTH_DAILY_METRIC_TYPES:
-            return self.config.source.apple_health_app_source
+            return source_config.apple_health_app_source
 
         return None
 

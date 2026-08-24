@@ -33,8 +33,14 @@ def _sleep_record(
     start: datetime,
     end: datetime,
     stage: SleepStage = SleepStage.CORE,
-    source_name: str = AppConfig().source.apple_watch_source,
+    source_name: str | None = None,
 ) -> SleepRecord:
+    source_name = (
+        source_name
+        if source_name is not None
+        else AppConfig().source.apple_watch_source
+    )
+
     return SleepRecord(
         stage=stage,
         source_name=source_name,
