@@ -27,6 +27,6 @@ class SleepStage(Enum):
 APPLE_WORKOUT_TYPES = {
     "HKWorkoutActivityTypeWalking": WorkoutType.WALKING,
     "HKWorkoutActivityTypeHiking": WorkoutType.HIKING,
-    "HKWorkoutActivityTypeCycling": WorkoutType.OUTDOOR_CYCLING,  # tymczasowo
+    "HKWorkoutActivityTypeCycling": WorkoutType.OUTDOOR_CYCLING,
     "HKWorkoutActivityTypeTraditionalStrengthTraining": WorkoutType.STRENGTH_TRAINING,
 }
