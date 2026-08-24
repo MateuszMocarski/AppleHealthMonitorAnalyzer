@@ -1,6 +1,9 @@
 from datetime import date, datetime, timedelta, timezone
 
+import pytest
+
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.config.app_config import AppConfig
 from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import SleepStage, WorkoutType
 from apple_health.models import (
@@ -402,3 +405,66 @@ def test_summarize_month_without_activity_metrics() -> None:
 
     assert summary.reporting_days == 2
     assert summary.activity_metrics is None
+
+
+# =====================================================================
+# Verifies that HealthAnalyzer propagates the injected AppConfig to
+# SleepAnalyzer and applies custom sleep-scoring configuration.
+# =====================================================================
+
+
+def test_health_analyzer_propagates_sleep_config() -> None:
+    config = AppConfig()
+
+    config.sleep.score.linear_penalties = True
+
+    bedtime_config = config.sleep.score.bedtime
+
+    target = datetime(
+        2026,
+        8,
+        1,
+        bedtime_config.target.hour,
+        bedtime_config.target.minute,
+        tzinfo=timezone.utc,
+    )
+
+    deviation_minutes = (
+        bedtime_config.penalty_interval_minutes - 1
+    )
+
+    sleep_start = target + timedelta(
+        minutes=deviation_minutes
+    )
+
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[
+                _daily_metrics(1),
+                _daily_metrics(2),
+            ],
+            sleep_records=[
+                _sleep_record(
+                    sleep_start,
+                    sleep_start + timedelta(hours=8),
+                )
+            ],
+        ),
+        config=config,
+    )
+
+    summary = analyzer.summarize_day(
+        date(2026, 8, 1)
+    )
+
+    expected_penalty = (
+        deviation_minutes
+        / bedtime_config.penalty_interval_minutes
+        * bedtime_config.penalty_points
+    )
+
+    assert summary.sleep_score is not None
+
+    assert summary.sleep_score.bedtime_score == pytest.approx(
+        100.0 - expected_penalty
+    )
