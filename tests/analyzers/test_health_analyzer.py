@@ -13,7 +13,6 @@ from apple_health.models import (
     WeightMeasurement,
     Workout,
 )
-from apple_health.config.app_config import AppConfig
 
 
 def _daily_metrics(
@@ -433,13 +432,9 @@ def test_health_analyzer_propagates_sleep_config() -> None:
         tzinfo=timezone.utc,
     )
 
-    deviation_minutes = (
-        bedtime_config.penalty_interval_minutes - 1
-    )
+    deviation_minutes = bedtime_config.penalty_interval_minutes - 1
 
-    sleep_start = target + timedelta(
-        minutes=deviation_minutes
-    )
+    sleep_start = target + timedelta(minutes=deviation_minutes)
 
     analyzer = HealthAnalyzer(
         _health_data(
@@ -457,18 +452,12 @@ def test_health_analyzer_propagates_sleep_config() -> None:
         config=config,
     )
 
-    summary = analyzer.summarize_day(
-        date(2026, 8, 1)
-    )
+    summary = analyzer.summarize_day(date(2026, 8, 1))
 
     expected_penalty = (
-        deviation_minutes
-        / bedtime_config.penalty_interval_minutes
-        * bedtime_config.penalty_points
+        deviation_minutes / bedtime_config.penalty_interval_minutes * bedtime_config.penalty_points
     )
 
     assert summary.sleep_score is not None
 
-    assert summary.sleep_score.bedtime_score == pytest.approx(
-        100.0 - expected_penalty
-    )
+    assert summary.sleep_score.bedtime_score == pytest.approx(100.0 - expected_penalty)

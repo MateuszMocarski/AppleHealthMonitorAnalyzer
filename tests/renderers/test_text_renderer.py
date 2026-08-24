@@ -1,5 +1,6 @@
 from datetime import date, time
 
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
 from apple_health.renderers.text_renderer import TextRenderer
@@ -12,7 +13,6 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
-from apple_health.config.app_config import AppConfig
 
 # =======
 # Helpers
@@ -235,8 +235,7 @@ def test_daily_report_distinguishes_steps_without_workouts() -> None:
 # =====================================================================
 
 
-def test_monthly_sleep_bonus_disabled_message_is_rendered(
-) -> None:
+def test_monthly_sleep_bonus_disabled_message_is_rendered() -> None:
     config = AppConfig()
     config.sleep.score.monthly_bonus.enabled = False
 

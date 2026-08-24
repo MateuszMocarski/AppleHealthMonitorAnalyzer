@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime
 from typing import BinaryIO
 
+from apple_health.config.app_config import AppConfig
 from apple_health.constants import (
     APPLE_DATE_FORMAT,
     APPLE_HEALTH_DAILY_METRIC_TYPES,
@@ -23,14 +24,13 @@ from apple_health.models import (
     WeightMeasurement,
     Workout,
 )
-from apple_health.config.app_config import AppConfig
 
 
 class AppleHealthParser:
     def __init__(self, xml_stream: BinaryIO, config: AppConfig | None = None) -> None:
         self.xml_stream = xml_stream
         self.config = config or AppConfig()
-        
+
     def parse(self) -> AppleHealthData:
         workouts: list[Workout] = []
         daily_metrics: dict[date, DailyMetrics] = {}

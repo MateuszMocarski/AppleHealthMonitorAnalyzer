@@ -6,15 +6,15 @@ from datetime import date, timedelta
 from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
 from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
+from apple_health.config.app_config import AppConfig
 from apple_health.models import AppleHealthData
 from apple_health.report_models import DailySummary, MonthlySummary
-from apple_health.config.app_config import AppConfig
 
 
 class HealthAnalyzer:
     def __init__(self, health_data: AppleHealthData, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig()
-        
+
         self.activity_analyzer = ActivityAnalyzer(health_data)
 
         self.metrics_analyzer = MetricsAnalyzer(health_data)

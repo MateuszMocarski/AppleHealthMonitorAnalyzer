@@ -35,11 +35,7 @@ def _sleep_record(
     stage: SleepStage = SleepStage.CORE,
     source_name: str | None = None,
 ) -> SleepRecord:
-    source_name = (
-        source_name
-        if source_name is not None
-        else AppConfig().source.apple_watch_source
-    )
+    source_name = source_name if source_name is not None else AppConfig().source.apple_watch_source
 
     return SleepRecord(
         stage=stage,
@@ -126,10 +122,7 @@ def _wake_up_max_score(
     return (
         score.bedtime_score * wakeup_config.bedtime_weight
         + score.duration_score * wakeup_config.duration_weight
-    ) / (
-        wakeup_config.bedtime_weight
-        + wakeup_config.duration_weight
-    )
+    ) / (wakeup_config.bedtime_weight + wakeup_config.duration_weight)
 
 
 # =====================================================================================
@@ -649,11 +642,7 @@ def test_total_sleep_score_uses_configured_component_weights() -> None:
         score.bedtime_score * weights.bedtime
         + score.duration_score * weights.duration
         + score.wake_up_score * weights.wake_up
-    ) / (
-        weights.bedtime
-        + weights.duration
-        + weights.wake_up
-    )
+    ) / (weights.bedtime + weights.duration + weights.wake_up)
 
     assert score.total_score == expected_score
 

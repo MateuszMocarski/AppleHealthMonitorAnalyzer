@@ -2,6 +2,7 @@ from io import BytesIO
 
 import pytest
 
+from apple_health.config.app_config import AppConfig
 from apple_health.constants import (
     WORKOUT_ACTIVE_ENERGY_TYPE,
     WORKOUT_CYCLING_DISTANCE_TYPE,
@@ -10,11 +11,11 @@ from apple_health.constants import (
 )
 from apple_health.enums import SleepStage, WorkoutType
 from apple_health.parser import AppleHealthParser
-from apple_health.config.app_config import AppConfig
 
 # =======
 # Helpers
 # =======
+
 
 def _parse_xml(
     xml: str,
@@ -377,7 +378,6 @@ def test_user_entered_weight_replaces_automatic_measurement() -> None:
     config = AppConfig()
     source_config = config.source
     xml = _wrap_xml(
-        
         _record(
             record_type="HKQuantityTypeIdentifierBodyMass",
             source_name=source_config.apple_health_app_source,
@@ -411,7 +411,7 @@ def test_user_entered_weight_replaces_automatic_measurement() -> None:
 def test_latest_weight_replaces_older_measurement() -> None:
     config = AppConfig()
     source_config = config.source
-    
+
     xml = _wrap_xml(
         _record(
             record_type="HKQuantityTypeIdentifierBodyMass",
@@ -572,6 +572,7 @@ def test_sleep_record_duration_is_calculated_from_timestamps() -> None:
 
     assert data.sleep_records[0].duration_minutes == 150
 
+
 # =====================================================================
 # Verifies that AppleHealthParser uses the injected Apple Watch source
 # when selecting daily activity records.
@@ -597,7 +598,8 @@ def test_uses_configured_apple_watch_source() -> None:
 
     assert len(data.daily_metrics) == 1
     assert data.daily_metrics[0].steps == 5000
-    
+
+
 # =====================================================================
 # Verifies that AppleHealthParser uses the injected Apple Health source
 # when selecting nutrition and body-mass records.

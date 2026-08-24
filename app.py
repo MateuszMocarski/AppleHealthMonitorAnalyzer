@@ -5,11 +5,11 @@ from datetime import date
 from pathlib import Path
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.config.app_config import AppConfig
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
-from apple_health.config.app_config import AppConfig
 
 
 def main() -> None:
@@ -66,7 +66,7 @@ def main() -> None:
 
             try:
                 config = AppConfig()
-                
+
                 parser = AppleHealthParser(xml_stream, config=config)
                 apple_health_data = parser.parse()
 

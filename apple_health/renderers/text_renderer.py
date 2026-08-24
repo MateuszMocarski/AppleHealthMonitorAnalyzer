@@ -4,6 +4,7 @@ import calendar
 from contextlib import redirect_stdout
 from io import StringIO
 
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.report_models import (
     ActivitySummary,
@@ -12,7 +13,6 @@ from apple_health.report_models import (
     SleepMonthlySummary,
     SleepScore,
 )
-from apple_health.config.app_config import AppConfig
 
 
 class TextRenderer:
@@ -21,7 +21,7 @@ class TextRenderer:
         config: AppConfig | None = None,
     ) -> None:
         self.config = config or AppConfig()
-    
+
     def render_month(
         self,
         monthly_summary: MonthlySummary,

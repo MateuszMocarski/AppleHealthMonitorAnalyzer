@@ -1,6 +1,7 @@
 import json
 from datetime import date, datetime, time, timezone
 
+from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
 from apple_health.renderers.json_renderer import JsonRenderer
@@ -13,7 +14,6 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
-from apple_health.config.app_config import AppConfig
 
 # =======
 # Helpers
@@ -274,10 +274,7 @@ def test_render_month_summary_builds_sleep_section() -> None:
         "average_bonus": 10.0,
         "consistency_bonus": 4.0,
         "monthly_score": 102.46,
-        "monthly_score_max": (
-            100
-            + config.sleep.score.monthly_bonus.max_points
-        ),
+        "monthly_score_max": (100 + config.sleep.score.monthly_bonus.max_points),
     }
 
 
@@ -768,7 +765,4 @@ def test_uses_configured_monthly_sleep_bonus_max_points() -> None:
         config=config,
     )
 
-    assert (
-        payload["sleep"]["score"]["monthly_score_max"]
-        == 125
-    )
+    assert payload["sleep"]["score"]["monthly_score_max"] == 125
