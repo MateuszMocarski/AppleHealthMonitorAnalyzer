@@ -13,6 +13,7 @@ from apple_health.report_models import (
     SleepScore,
     SleepSession,
 )
+from apple_health.config.app_config import AppConfig
 
 # =======
 # Helpers
@@ -236,15 +237,11 @@ def test_daily_report_distinguishes_steps_without_workouts() -> None:
 
 
 def test_monthly_sleep_bonus_disabled_message_is_rendered(
-    monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        text_renderer_module,
-        "SLEEP_MONTHLY_BONUS_ENABLED",
-        False,
-    )
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.enabled = False
 
-    renderer = TextRenderer()
+    renderer = TextRenderer(config=config)
 
     output = renderer.render_month_summary(_monthly_summary())
 

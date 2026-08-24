@@ -11,10 +11,16 @@ from apple_health.report_models import (
     MonthlySummary,
     SleepMonthlySummary,
 )
-from apple_health.sleep_score_config import SLEEP_MONTHLY_BONUS_MAX_POINTS
+from apple_health.config.app_config import AppConfig
 
 
 class JsonRenderer:
+    def __init__(
+            self,
+            config: AppConfig | None = None,
+        ) -> None:
+            self.config = config or AppConfig()
+    
     SCHEMA_VERSION = "1.0"
 
     def render_month_summary(
@@ -123,7 +129,7 @@ class JsonRenderer:
                 "average_bonus": self._round_number(summary.average_bonus),
                 "consistency_bonus": self._round_number(summary.consistency_bonus),
                 "monthly_score": self._round_number(summary.monthly_sleep_score),
-                "monthly_score_max": 100 + SLEEP_MONTHLY_BONUS_MAX_POINTS,
+                "monthly_score_max": 100 + self.config.sleep.score.monthly_bonus.max_points,
             },
         }
 

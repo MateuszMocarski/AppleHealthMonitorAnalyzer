@@ -4,7 +4,6 @@ import pytest
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.config.app_config import AppConfig
-from apple_health.constants import APPLE_WATCH_SOURCE
 from apple_health.enums import SleepStage, WorkoutType
 from apple_health.models import (
     AppleHealthData,
@@ -14,6 +13,7 @@ from apple_health.models import (
     WeightMeasurement,
     Workout,
 )
+from apple_health.config.app_config import AppConfig
 
 
 def _daily_metrics(
@@ -87,7 +87,7 @@ def _sleep_record(
 ) -> SleepRecord:
     return SleepRecord(
         stage=SleepStage.CORE,
-        source_name=APPLE_WATCH_SOURCE,
+        source_name=AppConfig().source.apple_watch_source,
         source_version=None,
         start=start,
         end=end,
