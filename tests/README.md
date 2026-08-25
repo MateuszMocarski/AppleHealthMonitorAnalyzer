@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **187 test cases**.
+The suite currently contains **217 test cases**.
 
 ## Test structure
 
@@ -14,14 +14,15 @@ The suite currently contains **187 test cases**.
 | `HealthAnalyzer` | 10 |
 | `AppleHealthParser` | 24 |
 | `AppConfig` | 1 |
+| `ConfigLoader` | 27 |
 | `SleepConfig` | 3 |
 | Sleep Score configuration | 32 |
 | Report models | 17 |
 | `TextRenderer` | 11 |
 | `JsonRenderer` | 20 |
 | `AppleHealthImporter` | 6 |
-| Integration tests | 6 |
-| **Total** | **187** |
+| Integration tests | 10 |
+| **Total** | **218** |
 
 ## Analyzers
 
@@ -148,6 +149,31 @@ The test verifies:
 - creation of the default `SleepConfig`
 - default source values
 - default sleep-session gap threshold
+
+### ConfigLoader
+
+`tests/config/test_config_loader.py` contains **27 test cases** covering TOML configuration loading.
+
+The suite verifies:
+
+- default `AppConfig` behavior when no path is provided
+- full and partial source configuration
+- case-insensitive configuration keys
+- unknown top-level, source, and nested fields
+- missing and malformed TOML files
+- sleep-session configuration
+- nested Sleep Score configuration
+- bedtime and wake-up `HH:MM` parsing
+- duration configuration
+- daily score component weights
+- monthly bonus thresholds
+- numeric string coercion for numeric fields
+- strict boolean and string typing
+- invalid threshold shapes
+- final configuration validation
+- preservation of defaults for omitted nested values
+
+The loader tests treat configuration loading as a public boundary: valid TOML must produce a validated `AppConfig`, while invalid configuration must fail with `ConfigurationError`.
 
 ### SleepConfig
 
@@ -305,7 +331,7 @@ Temporary files are created with pytest's `tmp_path` fixture, allowing the impor
 
 ## Integration tests
 
-`tests/integration/test_full_report_pipeline.py` contains **6 end-to-end integration tests**.
+`tests/integration/test_full_report_pipeline.py` contains **9 end-to-end integration tests**.
 
 They exercise the complete application pipeline using one shared `AppConfig` instance across configuration-aware components:
 
@@ -344,6 +370,9 @@ The integration suite verifies:
 - exact deterministic text output through a golden-report comparison
 - generation of a valid full JSON report containing monthly summary data and detailed daily reports
 - generation of a valid JSON monthly summary without the `days` collection
+- loading the committed example TOML configuration
+- observable report changes produced by runtime TOML overrides
+- preservation of default pipeline behavior when no configuration file is supplied
 
 The approved reference output is stored in:
 

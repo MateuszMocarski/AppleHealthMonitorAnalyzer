@@ -13,7 +13,13 @@ reports/
 .idea/
 .vscode/
 
-exports/
+# Private local data
+private/
+
+# Python package metadata
+*.egg-info/
+build/
+dist/
 
 # Allow committed text fixtures used by tests
 !tests/integration/fixtures/*.txt

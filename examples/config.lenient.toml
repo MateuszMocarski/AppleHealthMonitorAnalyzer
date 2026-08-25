@@ -1,0 +1,25 @@
+# Example profile with wider tolerances and softer penalties.
+
+[sleep]
+session_gap_threshold_minutes = 45
+
+[sleep.score]
+linear_penalties = true
+
+[sleep.score.bedtime]
+target = "00:30"
+penalty_interval_minutes = 20
+penalty_points = 3.0
+
+[sleep.score.duration]
+target_minutes = 450
+tolerance_minutes = 45
+penalty_interval_minutes = 20
+penalty_points = 3.0
+oversleep_weight = 0.75
+undersleep_weight = 1.0
+
+[sleep.score.wake_up]
+target = "08:30"
+penalty_interval_minutes = 20
+penalty_points = 2.0

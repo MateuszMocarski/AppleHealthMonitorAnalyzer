@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.config.app_config import AppConfig
+from apple_health.config.config_loader import ConfigLoader
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
@@ -53,6 +53,12 @@ def main() -> None:
         help="Output format (default: text).",
     )
 
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Path to an optional TOML configuration file.",
+    )
+
     args = parser.parse_args()
 
     if args.year is not None and args.month is None:
@@ -65,7 +71,7 @@ def main() -> None:
             archive, xml_stream = importer.open_export()
 
             try:
-                config = AppConfig()
+                config = ConfigLoader.load(args.config)
 
                 parser = AppleHealthParser(xml_stream, config=config)
                 apple_health_data = parser.parse()

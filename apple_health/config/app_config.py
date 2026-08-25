@@ -8,3 +8,6 @@ from apple_health.config.source_config import SourceConfig
 class AppConfig:
     source: SourceConfig = field(default_factory=SourceConfig)
     sleep: SleepConfig = field(default_factory=SleepConfig)
+
+    def validate(self) -> None:
+        self.sleep.validate()

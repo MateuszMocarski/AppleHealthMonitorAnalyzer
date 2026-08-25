@@ -1,0 +1,13 @@
+# Example profile that penalizes oversleeping more strongly.
+# Only the values listed here override application defaults.
+
+[sleep.score.duration]
+target_minutes = 480
+tolerance_minutes = 20
+undersleep_weight = 0.75
+oversleep_weight = 1.5
+
+[sleep.score.weights]
+bedtime = 1.0
+duration = 2.0
+wake_up = 1.0

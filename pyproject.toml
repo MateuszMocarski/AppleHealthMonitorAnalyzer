@@ -5,7 +5,12 @@ description = "Apple Health export analyzer"
 readme = "README.md"
 requires-python = ">=3.10"
 
-dependencies = []
+dependencies = [
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[tool.setuptools.packages.find]
+include = ["apple_health*"]
 
 [tool.black]
 line-length = 100
