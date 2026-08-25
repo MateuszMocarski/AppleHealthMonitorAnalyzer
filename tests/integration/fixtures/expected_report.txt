@@ -44,6 +44,53 @@ Sleep score
   Consistency bonus: +5
   Monthly score:     120/120
 
+Sleep configuration
+-------------------
+  Session gap threshold: 30 min
+
+  Scoring mode:
+    Linear penalties: no
+
+  Bedtime:
+    Target:           00:00
+    Penalty interval: 15 min
+    Penalty points:   5
+
+  Sleep duration:
+    Target:           480 min
+    Tolerance:        30 min
+    Penalty interval: 15 min
+    Penalty points:   5
+    Oversleep weight: 1
+    Undersleep weight: 1
+
+  Wake-up:
+    Target:           08:00
+    Bedtime weight:   1
+    Duration weight:  2
+    Penalty interval: 15 min
+    Penalty points:   3
+
+  Daily score weights:
+    Bedtime:  1
+    Duration: 1
+    Wake-up:  1
+
+  Monthly bonus:
+    Enabled: yes
+    Maximum points: 20
+    Average thresholds:
+      90/100 -> +15
+      80/100 -> +10
+      70/100 -> +5
+    Consistency thresholds:
+      < 3 std dev -> +5
+      < 6 std dev -> +4
+      < 9 std dev -> +3
+      < 12 std dev -> +2
+      < 15 std dev -> +1
+
+
 Workouts
 --------
 Walking

@@ -207,6 +207,7 @@ def test_full_report_pipeline(
     assert "General activity" in output
     assert "Sleep" in output
     assert "Sleep score" in output
+    assert "Sleep configuration" in output
     assert "Workouts" in output
     assert "Walking" in output
     assert "Body weight:" in output
@@ -285,6 +286,7 @@ def test_month_summary_only_pipeline(
     assert "Apple Health Monthly Report" in output
     assert "General activity" in output
     assert "Sleep score" in output
+    assert "Sleep configuration" in output
     assert "Average nutrition" in output
 
     assert "\n2026-08-01\n" not in output
@@ -360,6 +362,9 @@ def test_full_pipeline_renders_json_report(
 
     assert payload["general_activity"] is not None
     assert payload["sleep"] is not None
+    assert payload["sleep"]["configuration"]["duration"]["target_minutes"] == (
+        config.sleep.score.duration.target_minutes
+    )
     assert payload["workouts"]
 
     assert "days" in payload
@@ -407,6 +412,9 @@ def test_full_pipeline_renders_json_month_summary(
 
     assert payload["general_activity"] is not None
     assert payload["sleep"] is not None
+    assert payload["sleep"]["configuration"]["duration"]["target_minutes"] == (
+        config.sleep.score.duration.target_minutes
+    )
     assert payload["workouts"]
 
     assert "body_weight" in payload

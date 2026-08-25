@@ -62,7 +62,6 @@ class TextRenderer:
         self._render_month_header(summary)
         self._render_monthly_general_activity(summary)
         self._render_monthly_sleep_section(summary)
-        self._render_sleep_configuration()
         self._render_monthly_workouts(summary)
         self._render_monthly_weight(summary)
         self._render_monthly_expenditures(summary)
@@ -115,6 +114,10 @@ class TextRenderer:
         print()
 
         self._render_monthly_sleep_score(summary.sleep_summary)
+
+        print()
+
+        self._render_sleep_configuration()
 
         print()
 
@@ -195,8 +198,6 @@ class TextRenderer:
         if metrics.average_calories_balance is not None:
             print()
             print(f"Average calories balance: " f"{metrics.average_calories_balance:.0f} kcal")
-
-        print()
 
     def _render_day(
         self,
