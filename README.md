@@ -84,6 +84,7 @@ independent verification, and AI-assisted interpretation.
 - Structured JSON reports with a versioned schema
 - Daily and monthly summaries
 - AI-friendly report formats
+- Effective Sleep configuration included in monthly text and JSON reports
 - Partial monthly reports that preserve available data when individual sections are missing
 - Documented calculation methodology
 
@@ -466,10 +467,12 @@ flowchart TD
     I["Daily Reports"]
 
     CS["Sleep Score"]
+    CC["Sleep Score Configuration"]
 
     A --> B
     A --> C
     C --> CS
+    C --> CC
     A --> D
     A --> E
     A --> F
@@ -492,12 +495,12 @@ flowchart TD
     G["Calorie Balance"]
 
     BS["Sleep Score"]
-    CC["Workout Details"]
+    CW["Workout Details"]
 
     A --> B
     B --> BS
     A --> C
-    C --> CC
+    C --> CW
     A --> D
     A --> E
     A --> F
@@ -517,6 +520,7 @@ Key reporting areas include:
 - **Nutrition** – daily and monthly energy intake and macronutrient summaries.
 - **Sleep Summary** – sleep duration, stages, efficiency, bedtime and wake-up statistics.
 - **Sleep Score** – configurable daily scoring based on bedtime, sleep duration and wake-up time, with monthly component averages and optional performance and consistency bonuses.
+- **Sleep Configuration** – effective sleep-session and Sleep Score settings used to calculate the reported monthly results.
 - **Daily Reports** – day-by-day sleep, activity, workout, energy, body weight and nutrition data.
 
 ### Design Goals
@@ -534,7 +538,7 @@ JSON reports use `schema_version: "1.0"` and preserve a stable top-level structu
 
 - `report` – report metadata such as year, month, reporting days and data coverage
 - `general_activity` – steps, distance and step length
-- `sleep` – monthly or daily sleep details and Sleep Score data
+- `sleep` – monthly or daily sleep details and Sleep Score data; monthly sleep output also exposes the effective sleep configuration used for scoring
 - `workouts` – workout summaries using stable technical identifiers such as `indoor_cycling`
 - `body_weight` – body-weight measurements and monthly statistics
 - `energy_expenditure` – basal energy, active energy and TDEE
@@ -573,6 +577,8 @@ Penalties can be calculated using either step-based or linear progression. Step-
 Sleep stages such as Core, Deep and REM remain available for analysis but do not affect the Sleep Score.
 
 Monthly sleep scoring reports the average Bedtime Score, Duration Score, Wake-up Score and Total Sleep Score across completed reporting days.
+
+Monthly text and JSON reports also include the effective `AppConfig.sleep` configuration used for the run. This makes the reported scores self-describing and allows the same output to be interpreted correctly even when runtime TOML overrides were used.
 
 An optional monthly bonus system can extend the monthly score from 0–100 to 0–120. The bonus system consists of two independently calculated components:
 
@@ -616,7 +622,7 @@ The application does not modify, interpolate or infer missing values.
 
 ## AI Analysis
 
-The generated report is designed to be consumed not only by humans but also by Large Language Models (LLMs).
+The generated report is designed to be consumed not only by humans but also by Large Language Models (LLMs). Monthly reports include the effective sleep-scoring configuration alongside the calculated Sleep Score, allowing an AI consumer to interpret the result using the exact targets, weights, penalties, and bonus thresholds that produced it.
 
 Prompt example:
 ```bash
@@ -628,7 +634,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **218 test cases**, covering:
+The test suite currently contains **220 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis
