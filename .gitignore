@@ -13,7 +13,8 @@ reports/
 .idea/
 .vscode/
 
-exports/
+# Private local data
+private/
 
 # Python package metadata
 *.egg-info/
