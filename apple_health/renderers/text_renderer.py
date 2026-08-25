@@ -62,10 +62,12 @@ class TextRenderer:
         self._render_month_header(summary)
         self._render_monthly_general_activity(summary)
         self._render_monthly_sleep_section(summary)
+        self._render_sleep_configuration()
         self._render_monthly_workouts(summary)
         self._render_monthly_weight(summary)
         self._render_monthly_expenditures(summary)
         self._render_monthly_nutrition(summary)
+        
 
     def _render_month_header(
         self,
@@ -194,6 +196,8 @@ class TextRenderer:
         if metrics.average_calories_balance is not None:
             print()
             print(f"Average calories balance: " f"{metrics.average_calories_balance:.0f} kcal")
+        
+        print()
 
     def _render_day(
         self,
@@ -465,3 +469,85 @@ class TextRenderer:
         hours, mins = divmod(total_minutes, 60)
 
         return f"{hours} h {mins} min"
+
+    def _render_sleep_configuration(self) -> None:
+        sleep = self.config.sleep
+        score = sleep.score
+
+        header = "Sleep configuration"
+        print(header)
+        print("-" * len(header))
+
+        print(
+            "  Session gap threshold: "
+            f"{sleep.session_gap_threshold_minutes} min"
+        )
+
+        print()
+
+        print("  Scoring mode:")
+        print(
+            "    Linear penalties: "
+            f"{'yes' if score.linear_penalties else 'no'}"
+        )
+
+        print()
+
+        print("  Bedtime:")
+        print(f"    Target:           {score.bedtime.target.strftime('%H:%M')}")
+        print(
+            "    Penalty interval: "
+            f"{score.bedtime.penalty_interval_minutes} min"
+        )
+        print(f"    Penalty points:   {score.bedtime.penalty_points:g}")
+
+        print()
+
+        print("  Sleep duration:")
+        print(f"    Target:           {score.duration.target_minutes} min")
+        print(f"    Tolerance:        {score.duration.tolerance_minutes} min")
+        print(
+            "    Penalty interval: "
+            f"{score.duration.penalty_interval_minutes} min"
+        )
+        print(f"    Penalty points:   {score.duration.penalty_points:g}")
+        print(f"    Oversleep weight: {score.duration.oversleep_weight:g}")
+        print(f"    Undersleep weight: {score.duration.undersleep_weight:g}")
+
+        print()
+
+        print("  Wake-up:")
+        print(f"    Target:           {score.wake_up.target.strftime('%H:%M')}")
+        print(f"    Bedtime weight:   {score.wake_up.bedtime_weight:g}")
+        print(f"    Duration weight:  {score.wake_up.duration_weight:g}")
+        print(
+            "    Penalty interval: "
+            f"{score.wake_up.penalty_interval_minutes} min"
+        )
+        print(f"    Penalty points:   {score.wake_up.penalty_points:g}")
+
+        print()
+
+        print("  Daily score weights:")
+        print(f"    Bedtime:  {score.weights.bedtime:g}")
+        print(f"    Duration: {score.weights.duration:g}")
+        print(f"    Wake-up:  {score.weights.wake_up:g}")
+
+        print()
+
+        print("  Monthly bonus:")
+        print(
+            "    Enabled: "
+            f"{'yes' if score.monthly_bonus.enabled else 'no'}"
+        )
+        print(f"    Maximum points: {score.monthly_bonus.max_points}")
+
+        print("    Average thresholds:")
+        for threshold, bonus in score.monthly_bonus.average_thresholds:
+            print(f"      {threshold:g}/100 -> +{bonus:g}")
+
+        print("    Consistency thresholds:")
+        for threshold, bonus in score.monthly_bonus.consistency_thresholds:
+            print(f"      < {threshold:g} std dev -> +{bonus:g}")
+        
+        print()
