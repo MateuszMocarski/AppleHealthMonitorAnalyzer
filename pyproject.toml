@@ -11,7 +11,6 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["apple_health*"]
-exclude = ["exports*"]
 
 [tool.black]
 line-length = 100

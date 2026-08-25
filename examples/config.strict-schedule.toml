@@ -1,0 +1,21 @@
+# Example profile focused on strict bedtime and wake-up consistency.
+
+[sleep.score]
+linear_penalties = true
+
+[sleep.score.bedtime]
+target = "23:30"
+penalty_interval_minutes = 10
+penalty_points = 5.0
+
+[sleep.score.wake_up]
+target = "07:30"
+bedtime_weight = 1.0
+duration_weight = 3.0
+penalty_interval_minutes = 10
+penalty_points = 4.0
+
+[sleep.score.weights]
+bedtime = 2.0
+duration = 2.0
+wake_up = 2.0
