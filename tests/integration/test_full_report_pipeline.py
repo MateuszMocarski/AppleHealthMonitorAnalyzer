@@ -6,6 +6,7 @@ import pytest
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.config.app_config import AppConfig
+from apple_health.config.config_loader import ConfigLoader
 from apple_health.enums import WorkoutType
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
@@ -414,3 +415,107 @@ def test_full_pipeline_renders_json_month_summary(
     assert "average_calories_balance_kcal" in payload
 
     assert "days" not in payload
+
+
+def test_example_config_file_is_loadable() -> None:
+    config_path = Path("examples/config.example.toml")
+
+    config = ConfigLoader.load(config_path)
+
+    assert config.sleep.session_gap_threshold_minutes == 30
+    assert config.sleep.score.duration.target_minutes == 480
+    assert config.sleep.score.wake_up.target.hour == 8
+
+
+def test_toml_configuration_changes_sleep_scoring(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.toml"
+
+    config_path.write_text(
+        """
+        [sleep.score.duration]
+        target_minutes = 420
+        tolerance_minutes = 10
+        undersleep_weight = 2.0
+
+        [sleep.score.weights]
+        bedtime = 1.0
+        duration = 5.0
+        wake_up = 1.0
+        """,
+        encoding="utf-8",
+    )
+
+    config = ConfigLoader.load(config_path)
+
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
+
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
+
+    assert summary.sleep_summary is not None
+    assert summary.sleep_summary.average_sleep_score != 100.0
+
+
+def test_toml_configuration_changes_pipeline_result(
+    tmp_path: Path,
+) -> None:
+    default_config = AppConfig()
+
+    archive_path = _create_export_archive(
+        tmp_path,
+        default_config,
+    )
+
+    default_summary = _run_pipeline(
+        archive_path,
+        default_config,
+    )
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+        [sleep.score.duration]
+        target_minutes = 540
+        tolerance_minutes = 0
+        penalty_interval_minutes = 15
+        penalty_points = 5.0
+        """,
+        encoding="utf-8",
+    )
+
+    custom_config = ConfigLoader.load(config_path)
+
+    custom_summary = _run_pipeline(
+        archive_path,
+        custom_config,
+    )
+
+    assert default_summary.sleep_summary.average_sleep_score == 100.0
+    assert custom_summary.sleep_summary.average_sleep_score < 100.0
+
+
+def test_pipeline_without_config_uses_default_configuration(
+    tmp_path: Path,
+) -> None:
+    config = ConfigLoader.load(None)
+
+    assert config == AppConfig()
+
+    archive_path = _create_export_archive(
+        tmp_path,
+        config,
+    )
+
+    summary = _run_pipeline(
+        archive_path,
+        config,
+    )
+
+    assert summary.sleep_summary is not None
