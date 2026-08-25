@@ -149,6 +149,20 @@ python app.py import export.zip --month 8 --month-summary --format json
 
 Text output remains the default when `--format` is omitted.
 
+### Runtime Configuration
+
+Use `--config` to load an optional TOML configuration file:
+
+```bash
+python app.py import export.zip --month 8 --config examples/config.example.toml
+```
+
+When `--config` is omitted, the application uses the defaults defined by the configuration dataclasses.
+
+TOML files may be partial: only explicitly provided values override defaults. Configuration keys are case-insensitive, unknown fields fail fast, and invalid values stop the application with a configuration error.
+
+Example configuration profiles are available in [`examples/`](examples/). For the complete configuration reference, see [`apple_health/config/README.md`](apple_health/config/README.md).
+
 ### Command Line Arguments
 
 | Argument | Description |
@@ -159,6 +173,7 @@ Text output remains the default when `--format` is omitted.
 | `--year` | Year to analyze. Can only be used together with `--month`. |
 | `--month-summary` | Displays only the monthly summary. |
 | `--format` | Output format: `text` or `json`. Defaults to `text`. |
+| `--config` | Path to an optional TOML configuration file. When omitted, built-in defaults are used. |
 
 > **Note:** `--year` cannot be used without `--month`.
 
@@ -244,7 +259,7 @@ Configuration is treated as a cross-cutting application concern rather than a se
 
 Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once by the application entry point before being injected into configurable components.
 
-Detailed configuration structure, defaults, validation rules, and future configuration-loading behavior are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
+Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
 
 #### AppleHealthImporter
 
@@ -324,7 +339,7 @@ AppConfig
 
 Components retain default configuration behavior when instantiated independently, while the application can supply one shared configuration instance for a complete processing run.
 
-At the current development stage, configuration values come from defaults defined by the configuration dataclasses. External runtime configuration loading is intentionally outside the scope of the current implementation.
+Configuration values come from defaults defined by the configuration dataclasses and may be overridden at runtime by an optional TOML file loaded through `ConfigLoader`. Missing values continue to use dataclass defaults.
 
 For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`apple_health/config/README.md`](apple_health/config/README.md).
 
@@ -613,7 +628,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **187 test cases**, covering:
+The test suite currently contains **218 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis

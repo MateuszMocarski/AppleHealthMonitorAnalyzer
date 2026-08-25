@@ -4,7 +4,7 @@ The `apple_health.config` package defines the application's strongly typed confi
 
 Configuration is represented by Python `dataclass` objects rather than module-level globals. The root `AppConfig` object groups configuration by responsibility and can be injected into the components that depend on configurable behavior.
 
-At the current development stage, configuration values are defined by defaults in the dataclasses. Loading configuration from external runtime sources is intentionally not implemented yet.
+Configuration values are defined by defaults in the dataclasses and may be overridden at runtime by an optional TOML file loaded through `ConfigLoader`.
 
 ## Overview
 
@@ -26,7 +26,7 @@ AppConfig
 
 Each nested configuration object owns settings for one clearly defined responsibility.
 
-This structure replaces the previous approach based on module-level configuration constants and provides a stable foundation for future runtime configuration loading.
+This structure replaces the previous approach based on module-level configuration constants and provides the stable object model used by runtime configuration loading.
 
 ## Design Goals
 
@@ -91,6 +91,54 @@ renderer = TextRenderer()
 When no configuration is injected, the component creates a default `AppConfig`.
 
 This fallback is primarily useful for standalone use and tests. The application entry point should prefer one shared configuration instance.
+
+## Runtime TOML Configuration
+
+The application supports one external configuration source: TOML.
+
+Use the CLI option:
+
+```bash
+python app.py import export.zip --config path/to/config.toml
+```
+
+When `--config` is omitted, `ConfigLoader.load(None)` returns the default validated `AppConfig`.
+
+When a TOML path is supplied, `ConfigLoader` reads and parses the file, normalizes keys to lowercase, rejects unknown fields, converts supported values, builds nested configuration dataclasses, preserves defaults for omitted values, validates the final `AppConfig`, and returns it or raises `ConfigurationError`.
+
+The current precedence rule is:
+
+```text
+dataclass defaults
+        ↓
+TOML overrides
+```
+
+No environment-variable, database, remote-source, or per-setting CLI overrides are implemented.
+
+### Partial Configuration
+
+TOML files do not need to contain every setting.
+
+```toml
+[sleep.score.duration]
+target_minutes = 450
+undersleep_weight = 1.5
+```
+
+Only the listed values override defaults.
+
+### Key Matching
+
+Configuration keys are case-insensitive. After normalization, names must match dataclass field names exactly. Unknown fields fail fast.
+
+### Supported Value Conversion
+
+The loader accepts normal TOML numeric values, simple numeric strings for numeric fields, strict TOML booleans, strings, `HH:MM` values for time fields, and arrays of two-item arrays for monthly bonus thresholds.
+
+### Errors
+
+Configuration failures are exposed through `ConfigurationError`, including missing files, malformed TOML, unreadable files, unknown fields, invalid types, invalid time values, malformed threshold arrays, and final validation failures.
 
 ## `AppConfig`
 
@@ -670,54 +718,25 @@ config.sleep.score.monthly_bonus.consistency_thresholds = (
 
 Normally these values do not need to be assigned manually because they are already defined as dataclass defaults.
 
-## Example: Custom Sleep Configuration
+## Example TOML Files
 
-```python
-from datetime import time
+The repository includes example configuration profiles in:
 
-from apple_health.config.app_config import AppConfig
-
-
-config = AppConfig()
-
-config.sleep.session_gap_threshold_minutes = 45
-
-config.sleep.score.linear_penalties = True
-
-config.sleep.score.bedtime.target = time(23, 30)
-config.sleep.score.bedtime.penalty_interval_minutes = 10
-config.sleep.score.bedtime.penalty_points = 4.0
-
-config.sleep.score.duration.target_minutes = 450
-config.sleep.score.duration.tolerance_minutes = 20
-config.sleep.score.duration.undersleep_weight = 1.5
-config.sleep.score.duration.oversleep_weight = 0.5
-
-config.sleep.score.wake_up.target = time(7, 30)
-
-config.sleep.score.weights.bedtime = 1.0
-config.sleep.score.weights.duration = 2.0
-config.sleep.score.weights.wake_up = 1.0
-
-config.sleep.validate()
+```text
+examples/
+├── config.example.toml
+├── config.undersleeping.toml
+├── config.oversleeping.toml
+├── config.strict-schedule.toml
+└── config.lenient.toml
 ```
 
-The configured instance can then be injected into the processing pipeline:
+`config.example.toml` contains the complete current configuration using the application defaults and serves as the primary reference template. The other profiles demonstrate partial configuration.
 
-```python
-health_data = AppleHealthParser(
-    xml_stream,
-    config=config,
-).parse()
+Example usage:
 
-analyzer = HealthAnalyzer(
-    health_data,
-    config=config,
-)
-
-renderer = JsonRenderer(
-    config=config,
-)
+```bash
+python app.py import export.zip --config examples/config.strict-schedule.toml
 ```
 
 ## Why Configuration Is Injected
@@ -761,50 +780,15 @@ The parser, analyzers and renderers do not need to change when the source of con
 
 ## Current Limitations
 
-The configuration model and dependency-injection infrastructure are implemented, but external configuration loading is not.
+Runtime configuration loading currently supports TOML only.
 
-Currently:
+The application does not currently load configuration from JSON or YAML files, environment variables, databases, remote configuration services, or per-setting CLI override flags.
 
-- configuration defaults are defined in Python dataclasses;
-- the application creates an `AppConfig` at startup;
-- configurable components consume that object;
-- custom values can be assigned programmatically;
-- configuration is not yet loaded from files, environment variables, databases or CLI configuration flags.
+Additional configuration sources can be implemented later without changing the `AppConfig` hierarchy consumed by the parser, analyzers, and renderers.
 
-In other words, the application currently supports **configuration injection**, but does not yet provide a user-facing **configuration source**.
+## Future Configuration Sources
 
-That distinction is intentional and defines the boundary of the current implementation.
-
-## Future Runtime Configuration
-
-A future configuration-loading feature can populate `AppConfig` before the processing pipeline starts.
-
-Conceptually:
-
-```text
-External Configuration Source
-          │
-          ▼
-     Config Loader
-          │
-          ▼
-       AppConfig
-          │
-     ┌────┼─────────────┐
-     ▼    ▼             ▼
-  Parser Analyzer    Renderer
-```
-
-The exact supported sources, file formats and precedence rules should be defined by that feature rather than by the configuration model itself.
-
-This package should remain responsible for:
-
-- representing configuration;
-- providing defaults;
-- validating configuration;
-- exposing a stable object hierarchy.
-
-Loading and merging external values should remain a separate responsibility.
+Future loaders may construct the same `AppConfig` from other sources while keeping the configuration model stable.
 
 ## Testing
 
@@ -816,7 +800,9 @@ Configuration behavior is covered at several levels:
 - analyzer tests verify that injected values affect scoring and session reconstruction;
 - parser tests verify custom source injection;
 - renderer tests verify configuration-dependent presentation behavior;
-- full pipeline tests verify that one shared configuration instance can flow through the application.
+- `test_config_loader.py` verifies TOML loading, type conversion, partial overrides, error handling, and final validation;
+- full pipeline tests verify that one shared configuration instance can flow through the application;
+- integration tests verify that TOML overrides produce observable report changes and that the committed example configuration remains loadable.
 
 Run the complete test suite with:
 
@@ -837,6 +823,8 @@ black --check .
 apple_health/config/
 ├── __init__.py
 ├── app_config.py
+├── config_loader.py
+├── exceptions.py
 ├── source_config.py
 ├── sleep_config.py
 ├── sleep_score_config.py
