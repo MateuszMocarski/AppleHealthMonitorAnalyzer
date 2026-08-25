@@ -137,6 +137,7 @@ def test_render_month_summary_contains_all_major_sections() -> None:
     assert "General activity" in output
     assert "Sleep" in output
     assert "Sleep score" in output
+    assert "Sleep configuration" in output
     assert "Workouts" in output
     assert "Walking" in output
     assert "Body weight:" in output
@@ -264,6 +265,7 @@ def test_monthly_report_without_sleep_data() -> None:
 
     assert "Sleep\n-----" not in output
     assert "Sleep score" not in output
+    assert "Sleep configuration" not in output
 
 
 # =====================================================================
@@ -344,3 +346,44 @@ def test_monthly_report_without_general_activity_omits_section() -> None:
 
     assert "Apple Health Monthly Report" in output
     assert "General activity" not in output
+
+
+# =====================================================================
+# Verifies that the monthly summary renders the injected effective sleep
+# configuration rather than implicit default configuration values.
+# =====================================================================
+
+
+def test_monthly_summary_renders_injected_sleep_configuration() -> None:
+    config = AppConfig()
+
+    config.sleep.session_gap_threshold_minutes = 45
+    config.sleep.score.linear_penalties = True
+
+    config.sleep.score.bedtime.target = time(23, 30)
+    config.sleep.score.duration.target_minutes = 450
+    config.sleep.score.duration.undersleep_weight = 1.5
+
+    config.sleep.score.wake_up.target = time(7, 30)
+
+    config.sleep.score.weights.bedtime = 2.0
+    config.sleep.score.weights.duration = 3.0
+    config.sleep.score.weights.wake_up = 4.0
+
+    renderer = TextRenderer(
+        config=config,
+    )
+
+    output = renderer.render_month_summary(
+        _monthly_summary(),
+    )
+
+    assert "Sleep configuration" in output
+    assert "Session gap threshold: 45 min" in output
+    assert "Linear penalties: yes" in output
+    assert "Target:           23:30" in output
+    assert "Target:           450 min" in output
+    assert "Undersleep weight: 1.5" in output
+    assert "Bedtime:  2" in output
+    assert "Duration: 3" in output
+    assert "Wake-up:  4" in output

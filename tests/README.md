@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **217 test cases**.
+The suite currently contains **220 test cases**.
 
 ## Test structure
 
@@ -18,11 +18,11 @@ The suite currently contains **217 test cases**.
 | `SleepConfig` | 3 |
 | Sleep Score configuration | 32 |
 | Report models | 17 |
-| `TextRenderer` | 11 |
-| `JsonRenderer` | 20 |
+| `TextRenderer` | 12 |
+| `JsonRenderer` | 21 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 10 |
-| **Total** | **218** |
+| **Total** | **220** |
 
 ## Analyzers
 
@@ -238,7 +238,7 @@ Simple dataclass field storage is intentionally not tested; the suite focuses on
 
 ## TextRenderer
 
-`tests/renderers/test_text_renderer.py` contains **11 test cases** covering the renderer's public textual output contract.
+`tests/renderers/test_text_renderer.py` contains **12 test cases** covering the renderer's public textual output contract.
 
 The suite verifies:
 
@@ -253,6 +253,7 @@ The suite verifies:
 - omission of monthly nutrition when nutrition data is unavailable
 - omission of monthly energy expenditure when energy data is unavailable
 - omission of monthly general activity when step and distance data are unavailable
+- rendering of the effective injected Sleep configuration in monthly summaries
 
 The renderer tests intentionally avoid testing every private `print()` helper individually. They verify user-visible behavior through the public `render_month()` and `render_month_summary()` methods.
 
@@ -275,7 +276,7 @@ This allows a valid monthly report to be produced from incomplete Apple Health d
 
 ## JsonRenderer
 
-`tests/renderers/test_json_renderer.py` contains **20 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
+`tests/renderers/test_json_renderer.py` contains **21 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
 
 The monthly contract tests verify:
 
@@ -296,6 +297,7 @@ The monthly contract tests verify:
 - partial metric availability
 - reports with zero completed reporting days
 - injected configuration for the maximum monthly Sleep Score
+- exposure of the effective injected Sleep configuration, including API-friendly threshold objects
 
 The daily contract tests verify:
 
@@ -331,7 +333,7 @@ Temporary files are created with pytest's `tmp_path` fixture, allowing the impor
 
 ## Integration tests
 
-`tests/integration/test_full_report_pipeline.py` contains **9 end-to-end integration tests**.
+`tests/integration/test_full_report_pipeline.py` contains **10 end-to-end integration tests**.
 
 They exercise the complete application pipeline using one shared `AppConfig` instance across configuration-aware components:
 
@@ -373,6 +375,7 @@ The integration suite verifies:
 - loading the committed example TOML configuration
 - observable report changes produced by runtime TOML overrides
 - preservation of default pipeline behavior when no configuration file is supplied
+- presence of effective Sleep configuration in monthly text and JSON report output
 
 The approved reference output is stored in:
 

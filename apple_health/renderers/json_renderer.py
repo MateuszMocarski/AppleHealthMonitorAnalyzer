@@ -108,6 +108,7 @@ class JsonRenderer:
     ) -> dict[str, Any] | None:
         if summary is None:
             return None
+        score_config = self.config.sleep.score
 
         return {
             "sessions": summary.total_sessions,
@@ -130,6 +131,53 @@ class JsonRenderer:
                 "consistency_bonus": self._round_number(summary.consistency_bonus),
                 "monthly_score": self._round_number(summary.monthly_sleep_score),
                 "monthly_score_max": 100 + self.config.sleep.score.monthly_bonus.max_points,
+            },
+            "configuration": {
+                "session_gap_threshold_minutes": (self.config.sleep.session_gap_threshold_minutes),
+                "linear_penalties": score_config.linear_penalties,
+                "bedtime": {
+                    "target": score_config.bedtime.target.strftime("%H:%M"),
+                    "penalty_interval_minutes": (score_config.bedtime.penalty_interval_minutes),
+                    "penalty_points": score_config.bedtime.penalty_points,
+                },
+                "duration": {
+                    "target_minutes": score_config.duration.target_minutes,
+                    "tolerance_minutes": (score_config.duration.tolerance_minutes),
+                    "penalty_interval_minutes": (score_config.duration.penalty_interval_minutes),
+                    "penalty_points": score_config.duration.penalty_points,
+                    "oversleep_weight": (score_config.duration.oversleep_weight),
+                    "undersleep_weight": (score_config.duration.undersleep_weight),
+                },
+                "wake_up": {
+                    "target": score_config.wake_up.target.strftime("%H:%M"),
+                    "bedtime_weight": score_config.wake_up.bedtime_weight,
+                    "duration_weight": score_config.wake_up.duration_weight,
+                    "penalty_interval_minutes": (score_config.wake_up.penalty_interval_minutes),
+                    "penalty_points": score_config.wake_up.penalty_points,
+                },
+                "weights": {
+                    "bedtime": score_config.weights.bedtime,
+                    "duration": score_config.weights.duration,
+                    "wake_up": score_config.weights.wake_up,
+                },
+                "monthly_bonus": {
+                    "enabled": score_config.monthly_bonus.enabled,
+                    "max_points": score_config.monthly_bonus.max_points,
+                    "average_thresholds": [
+                        {
+                            "threshold": threshold,
+                            "bonus": bonus,
+                        }
+                        for threshold, bonus in score_config.monthly_bonus.average_thresholds
+                    ],
+                    "consistency_thresholds": [
+                        {
+                            "threshold": threshold,
+                            "bonus": bonus,
+                        }
+                        for threshold, bonus in score_config.monthly_bonus.consistency_thresholds
+                    ],
+                },
             },
         }
 

@@ -766,3 +766,59 @@ def test_uses_configured_monthly_sleep_bonus_max_points() -> None:
     )
 
     assert payload["sleep"]["score"]["monthly_score_max"] == 125
+
+
+# =====================================================================
+# Verifies that the monthly sleep JSON section exposes the effective
+# injected sleep configuration using API-friendly values.
+# =====================================================================
+
+
+def test_render_month_summary_builds_sleep_configuration() -> None:
+    config = AppConfig()
+
+    config.sleep.session_gap_threshold_minutes = 45
+    config.sleep.score.linear_penalties = True
+
+    config.sleep.score.bedtime.target = time(23, 30)
+    config.sleep.score.duration.target_minutes = 450
+    config.sleep.score.duration.undersleep_weight = 1.5
+
+    config.sleep.score.wake_up.target = time(7, 30)
+
+    config.sleep.score.weights.bedtime = 2.0
+    config.sleep.score.weights.duration = 3.0
+    config.sleep.score.weights.wake_up = 4.0
+
+    payload = _render_payload(
+        _monthly_summary(),
+        config=config,
+    )
+
+    configuration = payload["sleep"]["configuration"]
+
+    assert configuration["session_gap_threshold_minutes"] == 45
+    assert configuration["linear_penalties"] is True
+
+    assert configuration["bedtime"]["target"] == "23:30"
+
+    assert configuration["duration"]["target_minutes"] == 450
+    assert configuration["duration"]["undersleep_weight"] == 1.5
+
+    assert configuration["wake_up"]["target"] == "07:30"
+
+    assert configuration["weights"] == {
+        "bedtime": 2.0,
+        "duration": 3.0,
+        "wake_up": 4.0,
+    }
+
+    assert configuration["monthly_bonus"]["average_thresholds"][0] == {
+        "threshold": 90,
+        "bonus": 15,
+    }
+
+    assert configuration["monthly_bonus"]["consistency_thresholds"][0] == {
+        "threshold": 3,
+        "bonus": 5,
+    }
