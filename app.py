@@ -4,12 +4,7 @@ import argparse
 from datetime import date
 from pathlib import Path
 
-from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.config.config_loader import ConfigLoader
-from apple_health.importer import AppleHealthImporter
-from apple_health.parser import AppleHealthParser
-from apple_health.renderers.json_renderer import JsonRenderer
-from apple_health.renderers.text_renderer import TextRenderer
+from apple_health.application import AppleHealthApplication, RunOptions
 
 
 def main() -> None:
@@ -64,45 +59,25 @@ def main() -> None:
     if args.year is not None and args.month is None:
         parser.error("--year requires --month.")
 
-    match args.command:
-        case "import":
-            importer = AppleHealthImporter(args.file)
+    today = date.today()
 
-            archive, xml_stream = importer.open_export()
+    options = RunOptions(
+        archive_path=args.file,
+        year=args.year if args.year is not None else today.year,
+        month=args.month if args.month is not None else today.month,
+        month_summary=args.month_summary,
+        output_format=args.format,
+        config_path=args.config,
+    )
 
-            try:
-                config = ConfigLoader.load(args.config)
+    output = AppleHealthApplication().run(
+        options,
+    )
 
-                parser = AppleHealthParser(xml_stream, config=config)
-                apple_health_data = parser.parse()
-
-                analyzer = HealthAnalyzer(apple_health_data, config=config)
-
-                if args.format == "json":
-                    renderer = JsonRenderer(config=config)
-                else:
-                    renderer = TextRenderer(config=config)
-
-                today = date.today()
-                year = args.year if args.year is not None else today.year
-                month = args.month if args.month is not None else today.month
-
-                monthly_summary = analyzer.summarize_month(year, month)
-
-                if args.month_summary:
-                    print(
-                        renderer.render_month_summary(monthly_summary),
-                        end="",
-                    )
-                else:
-                    print(
-                        renderer.render_month(monthly_summary),
-                        end="",
-                    )
-
-            finally:
-                xml_stream.close()
-                archive.close()
+    print(
+        output,
+        end="",
+    )
 
 
 if __name__ == "__main__":
