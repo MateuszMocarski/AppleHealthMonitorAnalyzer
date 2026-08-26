@@ -1,0 +1,10 @@
+# Complete run profile example.
+# Paths are resolved relative to the directory from which the application is started.
+
+[run]
+archive = "private/eksport.zip"
+year = 2026
+month = 8
+month_summary = false
+format = "text"
+config = "private/config.private.toml"

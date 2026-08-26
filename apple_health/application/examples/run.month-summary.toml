@@ -1,0 +1,9 @@
+# Monthly-summary JSON profile.
+
+[run]
+archive = "private/eksport.zip"
+year = 2026
+month = 8
+month_summary = true
+format = "json"
+config = "private/config.private.toml"

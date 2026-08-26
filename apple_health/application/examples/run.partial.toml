@@ -1,0 +1,6 @@
+# Partial profile.
+# Missing values are resolved from explicit CLI flags first, then built-in defaults.
+
+[run]
+month = 8
+format = "json"
