@@ -150,9 +150,37 @@ python app.py import export.zip --month 8 --month-summary --format json
 
 Text output remains the default when `--format` is omitted.
 
+### Run Profiles
+
+Application execution can be described by an optional TOML run profile. A profile may define the archive path, reporting period, output mode, monthly-summary mode, and the path to the application configuration file.
+
+```bash
+python app.py --profile apple_health/application/examples/run.example.toml
+```
+
+Run profiles may be partial. Final run options are resolved using the following precedence:
+
+```text
+CLI flags
+    ↓
+run.toml
+    ↓
+built-in defaults
+```
+
+This allows a reusable profile to provide normal execution settings while individual CLI flags override them for a single run. For example:
+
+```bash
+python app.py --profile apple_health/application/examples/run.month-summary.toml --enforce-daily --format text
+```
+
+`--month-summary` explicitly enables summary-only output, while `--enforce-daily` explicitly disables it and requests daily report details.
+
+Example run profiles are available in `apple_health/application/examples/`.
+
 ### Runtime Configuration
 
-Use `--config` to load an optional TOML configuration file:
+Use `--config` to load an optional TOML application configuration file:
 
 ```bash
 python app.py import export.zip --month 8 --config examples/config.example.toml
@@ -170,23 +198,25 @@ Example configuration profiles are available in [`examples/`](examples/). For th
 |----------|-------------|
 | `import` | Imports and analyzes an Apple Health export archive. |
 | `file` | Path to the exported Apple Health ZIP archive. |
-| `--month` | Month to analyze (`1`–`12`). Uses the current year if `--year` is omitted. |
-| `--year` | Year to analyze. Can only be used together with `--month`. |
-| `--month-summary` | Displays only the monthly summary. |
-| `--format` | Output format: `text` or `json`. Defaults to `text`. |
-| `--config` | Path to an optional TOML configuration file. When omitted, built-in defaults are used. |
-
-> **Note:** `--year` cannot be used without `--month`.
+| `--profile` | Path to an optional TOML run profile. |
+| `--month` | Month to analyze (`1`–`12`). Overrides the profile value when supplied. |
+| `--year` | Year to analyze. Overrides the profile value when supplied. |
+| `--month-summary` | Explicitly enables monthly-summary-only output. |
+| `--enforce-daily` | Explicitly requests daily report details, overriding `month_summary = true` from a profile. |
+| `--format` | Output format: `text` or `json`. Overrides the profile value when supplied. |
+| `--config` | Path to an optional TOML application configuration file. Overrides the profile value when supplied. |
 
 The application processes the archive and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
 
 ## Project Architecture
 
-The application follows a layered architecture that separates data import, parsing, analysis, and presentation. Each component has a single responsibility, making the codebase easier to maintain, test, and extend.
+The application follows a layered architecture that separates application execution, data import, parsing, analysis, and presentation. Each component has a single responsibility, making the codebase easier to maintain, test, and extend.
 
 ```mermaid
 flowchart TD
 
+    CLI["⌨️ CLI / Run Profile"]
+    APP["AppleHealthApplication<br/><i>Application Orchestrator</i>"]
     A["📦 Apple Health Export<br/><b>export.zip</b>"]
     CFG["⚙️ AppConfig<br/><i>Application Configuration</i>"]
 
@@ -205,6 +235,9 @@ flowchart TD
     H["📄 Text Report"]
     HJ["🧩 JSON Report"]
 
+    CLI -->|"Resolve RunOptions"| APP
+    APP -->|"Select archive and configuration"| A
+    APP -.->|"Load configuration"| CFG
     A -->|"Load archive"| B
     B -->|"Extract XML"| C
     C -->|"Parse records"| D
@@ -253,6 +286,8 @@ The diagram is organized into five logical layers, each with a clearly defined r
 | 🟡 **Analysis** | Calculate statistics and build report models |
 | 🟣 **Presentation** | Render report models into text or JSON representations |
 | 🔴 **Output** | Final human-readable or machine-readable report |
+
+Application execution is coordinated by `AppleHealthApplication`, which receives resolved `RunOptions` independently of the CLI. This keeps the processing pipeline reusable by future entry points such as an API. Run profiles and CLI values are resolved before execution.
 
 Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created by the application entry point and injected into components that require configurable behavior.
 
@@ -634,7 +669,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **220 test cases**, covering:
+The test suite currently contains **232 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis
@@ -644,6 +679,8 @@ The test suite currently contains **220 test cases**, covering:
 -   text rendering
 -   JSON rendering and API contract behavior
 -   ZIP import handling
+-   application execution and run-option resolution
+-   TOML run-profile loading and precedence
 -   end-to-end report generation
 
 Run the complete test suite with:

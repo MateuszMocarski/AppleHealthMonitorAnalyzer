@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **220 test cases**.
+The suite currently contains **232 test cases**.
 
 ## Test structure
 
@@ -13,6 +13,7 @@ The suite currently contains **220 test cases**.
 | `MetricsAnalyzer` | 11 |
 | `HealthAnalyzer` | 10 |
 | `AppleHealthParser` | 24 |
+| Application layer | 12 |
 | `AppConfig` | 1 |
 | `ConfigLoader` | 27 |
 | `SleepConfig` | 3 |
@@ -22,7 +23,7 @@ The suite currently contains **220 test cases**.
 | `JsonRenderer` | 21 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 10 |
-| **Total** | **220** |
+| **Total** | **232** |
 
 ## Analyzers
 
@@ -136,6 +137,33 @@ The suite verifies:
 - sleep-record duration calculation from timestamps
 - injected custom Apple Watch source selection
 - injected custom Apple Health application source selection
+
+
+## Application layer
+
+The application-layer tests cover the execution boundary introduced between CLI argument parsing and the health-processing pipeline.
+
+The suite verifies:
+
+- construction of final `RunOptions`
+- partial `RunProfile` values
+- TOML run-profile loading
+- rejection of unknown run-profile fields
+- validation of supported output formats
+- built-in run-option defaults
+- run-profile values overriding defaults
+- explicit CLI values overriding run-profile values
+- boolean precedence for monthly-summary mode
+- rejection of execution without an archive path
+- orchestration through `AppleHealthApplication` independently of the CLI
+
+The resolver establishes the runtime precedence contract:
+
+```text
+CLI flags > run profile > built-in defaults
+```
+
+This boundary allows future entry points such as an API to execute the same application workflow without reproducing CLI orchestration logic.
 
 ## Application configuration
 

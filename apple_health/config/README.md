@@ -96,11 +96,20 @@ This fallback is primarily useful for standalone use and tests. The application 
 
 The application supports one external configuration source: TOML.
 
-Use the CLI option:
+The application configuration can be selected directly with the CLI option:
 
 ```bash
 python app.py import export.zip --config path/to/config.toml
 ```
+
+or indirectly through a run profile:
+
+```toml
+[run]
+config = "path/to/config.toml"
+```
+
+Run profiles configure *how the application is executed*; this package continues to define *how Apple Health data is interpreted and scored*. The two configuration concerns remain separate.
 
 When `--config` is omitted, `ConfigLoader.load(None)` returns the default validated `AppConfig`.
 
