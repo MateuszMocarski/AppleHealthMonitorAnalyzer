@@ -1,11 +1,10 @@
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.application.run_options import RunOptions
 from apple_health.config.config_loader import ConfigLoader
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
-
-from apple_health.application.run_options import RunOptions
 
 
 class AppleHealthApplication:

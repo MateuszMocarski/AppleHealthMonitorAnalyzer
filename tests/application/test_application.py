@@ -92,7 +92,8 @@ def test_application_runs_monthly_text_report(
     assert calls["year"] == 2026
     assert calls["month"] == 8
     assert calls["summary"] == "summary"
-    
+
+
 def test_application_runs_json_month_summary(
     monkeypatch,
 ) -> None:
@@ -147,9 +148,7 @@ def test_application_runs_json_month_summary(
             return "json-summary"
 
         def render_month(self, summary):
-            raise AssertionError(
-                "render_month should not be called"
-            )
+            raise AssertionError("render_month should not be called")
 
     monkeypatch.setattr(
         "apple_health.application.application.ConfigLoader",
