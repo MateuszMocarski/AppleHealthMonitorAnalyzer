@@ -76,8 +76,8 @@ def _analyzer(
 
 
 # =====================================================================
-# Verifies that metrics_for_day returns the DailyMetrics object assigned
-# to the requested calendar day.
+# Verifies that metrics_for_day returns the DailyMetrics object
+# assigned to the requested calendar day.
 # =====================================================================
 
 
@@ -112,8 +112,8 @@ def test_metrics_for_day_returns_none_when_no_metrics_exist() -> None:
 
 
 # =====================================================================
-# Verifies that monthly metrics include only records within the requested
-# reporting-day range.
+# Verifies that monthly metrics include only records within the
+# requested reporting-day range.
 # =====================================================================
 
 
@@ -233,8 +233,8 @@ def test_summarize_month_calculates_energy_averages() -> None:
 
 
 # =====================================================================
-# Verifies that average step length is calculated from the total monthly
-# walking/running distance and total number of steps.
+# Verifies that average step length is calculated from the total
+# monthly walking/running distance and total number of steps.
 # =====================================================================
 
 
@@ -257,8 +257,8 @@ def test_summarize_month_calculates_average_step_length() -> None:
 
 
 # =====================================================================
-# Verifies that average step length is zero when no steps are available,
-# avoiding division by zero.
+# Verifies that average step length is zero when no steps are
+# available, avoiding division by zero.
 # =====================================================================
 
 
@@ -281,8 +281,8 @@ def test_average_step_length_is_zero_when_no_steps_exist() -> None:
 
 
 # =====================================================================
-# Verifies that nutrition values are summed from available daily records
-# and averaged across all completed reporting days.
+# Verifies that nutrition values are summed from available daily
+# records and averaged across all completed reporting days.
 # =====================================================================
 
 
@@ -361,8 +361,8 @@ def test_summarize_month_calculates_weight_statistics() -> None:
 
 
 # =====================================================================
-# Verifies that all optional body-weight statistics remain None when the
-# reporting period contains no weight measurements.
+# Verifies that all optional body-weight statistics remain None when
+# the reporting period contains no weight measurements.
 # =====================================================================
 
 

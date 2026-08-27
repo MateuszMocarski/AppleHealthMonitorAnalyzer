@@ -46,7 +46,7 @@ independent verification, and AI-assisted interpretation.
 
 - Daily activity summaries
 - Monthly activity summaries
-- Steps, distance, active energy and exercise time
+- Steps, distance, active energy and workout duration
 - Workout aggregation by activity type
 - Daily and monthly workout statistics
 - Daily energy expenditure analysis (Basal Energy, Active Energy, TDEE)

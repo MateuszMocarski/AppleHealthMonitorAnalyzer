@@ -142,7 +142,8 @@ def test_workouts_for_day_returns_empty_list_when_no_workouts_exist() -> None:
 
 # =====================================================================
 # Verifies that daily workouts of the same activity type are aggregated
-# into one summary with combined sessions, duration, energy and distance.
+# into one summary with combined sessions, duration, energy and
+# distance.
 # =====================================================================
 
 

@@ -42,8 +42,8 @@ def test_loads_run_profile_from_toml(
 
 
 # =====================================================================
-# Verifies that omitted run-profile fields remain unresolved rather than
-# being replaced with built-in defaults during TOML loading.
+# Verifies that omitted run-profile fields remain unresolved rather
+# than being replaced with built-in defaults during TOML loading.
 # =====================================================================
 
 
@@ -74,8 +74,8 @@ def test_loads_partial_run_profile_from_toml(
 
 
 # =====================================================================
-# Verifies that unknown fields inside the [run] section fail fast rather
-# than being silently ignored by run-profile loading.
+# Verifies that unknown fields inside the [run] section fail fast
+# rather than being silently ignored by run-profile loading.
 # =====================================================================
 
 
@@ -162,8 +162,8 @@ def test_unknown_top_level_section_raises_configuration_error(
 
 
 # =====================================================================
-# Verifies that all committed example run profiles remain compatible
-# with the current RunProfileLoader contract.
+# Verifies that every committed example run profile remains loadable by
+# RunProfileLoader.
 # =====================================================================
 
 

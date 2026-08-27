@@ -125,10 +125,11 @@ def _wake_up_max_score(
     ) / (wakeup_config.bedtime_weight + wakeup_config.duration_weight)
 
 
-# =====================================================================================
-# Verifies that consecutive sleep stage records are combined into a single
-# sleep session and that stage durations and total sleep time are calculated correctly.
-# =====================================================================================
+# =====================================================================
+# Verifies that consecutive sleep stage records are combined into a
+# single sleep session and that stage durations and total sleep time
+# are calculated correctly.
+# =====================================================================
 
 
 def test_reconstructs_single_sleep_session() -> None:
@@ -165,8 +166,9 @@ def test_reconstructs_single_sleep_session() -> None:
 
 
 # =====================================================================
-# Verifies that sleep-session reconstruction is independent of the input
-# record order by sorting eligible Apple Watch records chronologically.
+# Verifies that sleep-session reconstruction is independent of the
+# input record order by sorting eligible Apple Watch records
+# chronologically.
 # =====================================================================
 
 
@@ -203,10 +205,10 @@ def test_reconstructs_sleep_session_from_unsorted_records() -> None:
     assert session.time_asleep_minutes == 300
 
 
-# =================================================================
+# =====================================================================
 # Verifies that sleep records separated by more than the configured
 # session gap threshold are treated as separate sleep sessions.
-# =================================================================
+# =====================================================================
 
 
 def test_splits_sleep_sessions_when_gap_exceeds_threshold() -> None:
@@ -226,10 +228,10 @@ def test_splits_sleep_sessions_when_gap_exceeds_threshold() -> None:
     assert len(analyzer.sleep_sessions) == 2
 
 
-# =============================================================================
-# Verifies the session gap boundary condition: records separated by exactly
-# the configured threshold are still considered part of the same sleep session.
-# =============================================================================
+# =====================================================================
+# Verifies that records separated by exactly the configured gap
+# threshold remain in one sleep session.
+# =====================================================================
 
 
 def test_keeps_sleep_records_in_same_session_at_gap_threshold() -> None:
@@ -250,10 +252,11 @@ def test_keeps_sleep_records_in_same_session_at_gap_threshold() -> None:
     assert len(analyzer.sleep_sessions) == 1
 
 
-# ============================================================================
-# Verifies that when multiple sleep sessions belong to the same reporting day,
-# the longest session is selected as the primary sleep session.
-# ============================================================================
+# =====================================================================
+# Verifies that when multiple sleep sessions belong to the same
+# reporting day, the longest session is selected as the primary sleep
+# session.
+# =====================================================================
 
 
 def test_selects_longest_sleep_session_for_reporting_day() -> None:
@@ -278,10 +281,10 @@ def test_selects_longest_sleep_session_for_reporting_day() -> None:
     assert session.time_asleep_minutes == 420
 
 
-# =============================================================
-# Verifies that only sleep records originating from Apple Watch
-# are used when reconstructing sleep sessions.
-# =============================================================
+# =====================================================================
+# Verifies that only sleep records originating from Apple Watch are
+# used when reconstructing sleep sessions.
+# =====================================================================
 
 
 def test_ignores_sleep_records_from_non_watch_sources() -> None:
@@ -303,10 +306,10 @@ def test_ignores_sleep_records_from_non_watch_sources() -> None:
     assert analyzer.sleep_sessions[0].time_asleep_minutes == 420
 
 
-# =================================================================
-# Verifies that a sleep session starting in the evening is assigned
-# to the following calendar day for reporting purposes.
-# =================================================================
+# =====================================================================
+# Verifies that a sleep session starting in the evening is assigned to
+# the following calendar day for reporting purposes.
+# =====================================================================
 
 
 def test_assigns_evening_sleep_to_next_reporting_day() -> None:
@@ -326,8 +329,8 @@ def test_assigns_evening_sleep_to_next_reporting_day() -> None:
 
 
 # =====================================================================
-# Verifies the reporting-date boundary condition: a sleep session
-# starting at 12:00 or later is assigned to the following calendar day.
+# Verifies that a sleep session starting at noon is assigned to the
+# following reporting day.
 # =====================================================================
 
 
@@ -360,8 +363,8 @@ def test_bedtime_before_target_receives_maximum_score() -> None:
 
 
 # =====================================================================
-# Verifies the bedtime target boundary condition: going to bed exactly
-# at the configured target receives the maximum bedtime score.
+# Verifies that a bedtime exactly at the configured target receives the
+# maximum bedtime score.
 # =====================================================================
 
 
@@ -452,8 +455,8 @@ def test_duration_at_target_receives_maximum_score() -> None:
 
 
 # =====================================================================
-# Verifies the lower duration tolerance boundary: sleeping exactly at
-# the lower acceptable limit still receives the maximum duration score.
+# Verifies that sleep duration at the lower tolerance boundary receives
+# the maximum duration score.
 # =====================================================================
 
 
@@ -472,8 +475,8 @@ def test_duration_at_lower_tolerance_boundary_receives_maximum_score() -> None:
 
 
 # =====================================================================
-# Verifies the upper duration tolerance boundary: sleeping exactly at
-# the upper acceptable limit still receives the maximum duration score.
+# Verifies that sleep duration at the upper tolerance boundary receives
+# the maximum duration score.
 # =====================================================================
 
 
@@ -703,7 +706,8 @@ def test_total_sleep_score_stays_within_valid_range() -> None:
 
 # =====================================================================
 # Verifies that the monthly sleep summary calculates the average
-# bedtime, duration and wake-up component scores from daily sleep scores.
+# bedtime, duration and wake-up component scores from daily sleep
+# scores.
 # =====================================================================
 
 
@@ -755,7 +759,8 @@ def test_monthly_summary_calculates_average_component_scores() -> None:
 
 # =====================================================================
 # Verifies that the monthly average sleep score is calculated from the
-# final daily sleep scores rather than from independently averaged parts.
+# final daily sleep scores rather than from independently averaged
+# parts.
 # =====================================================================
 
 
@@ -1056,7 +1061,8 @@ def test_session_for_day_returns_none_when_no_session_exists() -> None:
 
 # =====================================================================
 # Verifies that monthly average bedtime is calculated correctly across
-# midnight instead of treating late evening and early morning as distant times.
+# midnight instead of treating late evening and early morning as
+# distant times.
 # =====================================================================
 
 

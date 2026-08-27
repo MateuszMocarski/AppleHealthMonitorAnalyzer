@@ -9,8 +9,8 @@ from apple_health.application.run_options_resolver import (
 from apple_health.application.run_profile import RunProfile
 
 # =====================================================================
-# Verifies that unresolved run parameters fall back to built-in defaults
-# while the explicitly supplied archive path is preserved.
+# Verifies that unresolved run parameters fall back to built-in
+# defaults while the explicitly supplied archive path is preserved.
 # =====================================================================
 
 
@@ -106,8 +106,8 @@ def test_missing_archive_path_is_rejected() -> None:
 
 
 # =====================================================================
-# Verifies that resolved months outside the supported calendar range are
-# rejected before RunOptions reach the application execution boundary.
+# Verifies that resolved month values outside the calendar range are
+# rejected.
 # =====================================================================
 
 

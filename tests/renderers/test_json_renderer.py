@@ -175,8 +175,8 @@ def _render_payload(
 
 
 # =====================================================================
-# Verifies that the monthly JSON report exposes the stable top-level API
-# contract together with schema version and report metadata.
+# Verifies that the monthly JSON report exposes the stable top-level
+# API contract together with schema version and report metadata.
 # =====================================================================
 
 
@@ -432,8 +432,9 @@ def test_render_month_summary_supports_partially_available_metrics() -> None:
 
 
 # =====================================================================
-# Verifies that a report with no completed reporting days exposes a null
-# data-through value while retaining the stable report metadata schema.
+# Verifies that a report with no completed reporting days exposes a
+# null data-through value while retaining the stable report metadata
+# schema.
 # =====================================================================
 
 
@@ -664,8 +665,8 @@ def test_render_day_builds_sleep_session() -> None:
 
 
 # =====================================================================
-# Verifies that daily Sleep Score components and total score are exposed
-# as normalized API values.
+# Verifies that daily Sleep Score components and total score are
+# exposed as normalized API values.
 # =====================================================================
 
 

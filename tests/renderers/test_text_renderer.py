@@ -168,8 +168,8 @@ def test_render_month_includes_daily_reports() -> None:
 
 
 # =====================================================================
-# Verifies that monthly body-weight output is omitted when the reporting
-# period contains no weight measurements.
+# Verifies that monthly body-weight output is omitted when the
+# reporting period contains no weight measurements.
 # =====================================================================
 
 
@@ -248,8 +248,8 @@ def test_monthly_sleep_score_uses_configured_maximum_points() -> None:
 
 
 # =====================================================================
-# Verifies that disabling the monthly bonus feature changes the rendered
-# Sleep Score section to an explicit disabled-state message.
+# Verifies that disabling the monthly bonus feature changes the
+# rendered Sleep Score section to an explicit disabled-state message.
 # =====================================================================
 
 
@@ -366,8 +366,9 @@ def test_monthly_report_without_general_activity_omits_section() -> None:
 
 
 # =====================================================================
-# Verifies that the monthly summary renders the injected effective sleep
-# configuration rather than implicit default configuration values.
+# Verifies that the monthly summary renders the injected effective
+# sleep configuration rather than implicit default configuration
+# values.
 # =====================================================================
 
 

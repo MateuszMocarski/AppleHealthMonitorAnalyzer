@@ -27,7 +27,8 @@ def test_parser_uses_none_for_unspecified_optional_arguments() -> None:
 
 # =====================================================================
 # Verifies that the CLI parser correctly converts a complete import
-# command into typed argument values without applying application logic.
+# command into typed argument values without applying application
+# logic.
 # =====================================================================
 
 
@@ -103,8 +104,8 @@ def test_import_requires_archive_path() -> None:
 
 
 # =====================================================================
-# Verifies that an archive path cannot be supplied as a positional value
-# without the supported import command preceding it.
+# Verifies that an archive path cannot be supplied as a positional
+# value without the supported import command preceding it.
 # =====================================================================
 
 
