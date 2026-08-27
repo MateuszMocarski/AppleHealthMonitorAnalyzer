@@ -1,29 +1,32 @@
 from __future__ import annotations
 
 import zipfile
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
-from zipfile import ZipExtFile, ZipFile
+from zipfile import ZipExtFile
 
 
 class AppleHealthImporter:
     def __init__(self, archive: Path) -> None:
         self.archive = archive
 
-    def open_export(self) -> tuple[ZipFile, ZipExtFile]:
+    @contextmanager
+    def open_export(
+        self,
+    ) -> Generator[ZipExtFile, None, None]:
         if not self.archive.exists():
             raise FileNotFoundError(self.archive)
 
-        archive = zipfile.ZipFile(self.archive, "r")
+        with zipfile.ZipFile(self.archive, "r") as archive:
+            xml_files = [
+                file
+                for file in archive.namelist()
+                if file.lower().endswith(".xml") and "cda" not in file.lower()
+            ]
 
-        xml_files = [
-            file
-            for file in archive.namelist()
-            if file.lower().endswith(".xml") and "cda" not in file.lower()
-        ]
+            if len(xml_files) != 1:
+                raise RuntimeError("Expected exactly one export XML, " f"found {len(xml_files)}.")
 
-        if len(xml_files) != 1:
-            archive.close()
-
-            raise RuntimeError(f"Expected exactly one export XML, found {len(xml_files)}.")
-
-        return archive, archive.open(xml_files[0])
+            with archive.open(xml_files[0]) as xml_stream:
+                yield xml_stream

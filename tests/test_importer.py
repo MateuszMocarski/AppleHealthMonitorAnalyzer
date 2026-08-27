@@ -32,7 +32,8 @@ def test_open_export_raises_when_archive_does_not_exist(
     importer = AppleHealthImporter(archive_path)
 
     with pytest.raises(FileNotFoundError):
-        importer.open_export()
+        with importer.open_export():
+            pass
 
 
 # =====================================================================
@@ -55,13 +56,8 @@ def test_open_export_returns_single_xml_file(
 
     importer = AppleHealthImporter(archive_path)
 
-    archive, xml_file = importer.open_export()
-
-    try:
+    with importer.open_export() as xml_file:
         assert xml_file.read() == b"<HealthData />"
-    finally:
-        xml_file.close()
-        archive.close()
 
 
 # =====================================================================
@@ -86,13 +82,8 @@ def test_open_export_ignores_non_xml_files(
 
     importer = AppleHealthImporter(archive_path)
 
-    archive, xml_file = importer.open_export()
-
-    try:
+    with importer.open_export() as xml_file:
         assert xml_file.name == "apple_health_export/export.xml"
-    finally:
-        xml_file.close()
-        archive.close()
 
 
 # =====================================================================
@@ -116,13 +107,8 @@ def test_open_export_ignores_cda_xml_files(
 
     importer = AppleHealthImporter(archive_path)
 
-    archive, xml_file = importer.open_export()
-
-    try:
+    with importer.open_export() as xml_file:
         assert xml_file.name == "apple_health_export/export.xml"
-    finally:
-        xml_file.close()
-        archive.close()
 
 
 # =====================================================================
@@ -158,4 +144,5 @@ def test_open_export_rejects_invalid_xml_file_count(
         RuntimeError,
         match=r"Expected exactly one export XML, found \d+\.",
     ):
-        importer.open_export()
+        with importer.open_export():
+            pass
