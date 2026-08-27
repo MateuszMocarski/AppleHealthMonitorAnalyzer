@@ -11,6 +11,10 @@ else:
     import tomli as tomllib
 
 
+_TOP_LEVEL_KEYS = {
+    "run",
+}
+
 _RUN_KEYS = {
     "archive",
     "year",
@@ -28,17 +32,24 @@ class RunProfileLoader:
     ) -> RunProfile:
         data = RunProfileLoader._load_toml(path)
 
+        RunProfileLoader._validate_top_level_keys(
+            data,
+        )
+
         if "run" not in data:
-            raise ConfigurationError("Missing required configuration section: run")
+            raise ConfigurationError(
+                "Missing required configuration section: run"
+            )
 
         run_data = data["run"]
 
         if not isinstance(run_data, dict):
             raise ConfigurationError(
-                "Invalid configuration value: run. " "Expected a TOML section."
+                "Invalid configuration value: run. "
+                "Expected a TOML section."
             )
 
-        RunProfileLoader._validate_keys(
+        RunProfileLoader._validate_run_keys(
             run_data,
         )
 
@@ -81,7 +92,8 @@ class RunProfileLoader:
                 "json",
             }:
                 raise ConfigurationError(
-                    "Invalid configuration value: run.format. " "Expected 'text' or 'json'."
+                    "Invalid configuration value: run.format. "
+                    "Expected 'text' or 'json'."
                 )
 
             kwargs["output_format"] = output_format
@@ -106,11 +118,17 @@ class RunProfileLoader:
             with path.open("rb") as profile_file:
                 data = tomllib.load(profile_file)
         except FileNotFoundError as exc:
-            raise ConfigurationError(f"Run profile file not found: {path}") from exc
+            raise ConfigurationError(
+                f"Run profile file not found: {path}"
+            ) from exc
         except tomllib.TOMLDecodeError as exc:
-            raise ConfigurationError(f"Invalid TOML run profile: {exc}") from exc
+            raise ConfigurationError(
+                f"Invalid TOML run profile: {exc}"
+            ) from exc
         except OSError as exc:
-            raise ConfigurationError(f"Could not read run profile file: {path}") from exc
+            raise ConfigurationError(
+                f"Could not read run profile file: {path}"
+            ) from exc
 
         return RunProfileLoader._normalize_keys(data)
 
@@ -120,22 +138,39 @@ class RunProfileLoader:
     ) -> Any:
         if isinstance(value, dict):
             return {
-                key.lower(): RunProfileLoader._normalize_keys(nested_value)
+                key.lower(): RunProfileLoader._normalize_keys(
+                    nested_value
+                )
                 for key, nested_value in value.items()
             }
 
         if isinstance(value, list):
-            return [RunProfileLoader._normalize_keys(item) for item in value]
+            return [
+                RunProfileLoader._normalize_keys(item)
+                for item in value
+            ]
 
         return value
 
     @staticmethod
-    def _validate_keys(
+    def _validate_top_level_keys(
+        data: dict[str, Any],
+    ) -> None:
+        for key in data:
+            if key not in _TOP_LEVEL_KEYS:
+                raise ConfigurationError(
+                    f"Unknown run profile section: {key}"
+                )
+
+    @staticmethod
+    def _validate_run_keys(
         data: dict[str, Any],
     ) -> None:
         for key in data:
             if key not in _RUN_KEYS:
-                raise ConfigurationError(f"Unknown run profile field: run.{key}")
+                raise ConfigurationError(
+                    f"Unknown run profile field: run.{key}"
+                )
 
     @staticmethod
     def _require_string(
@@ -143,7 +178,10 @@ class RunProfileLoader:
         path: str,
     ) -> str:
         if not isinstance(value, str):
-            raise ConfigurationError(f"Invalid configuration value: {path}. " "Expected string.")
+            raise ConfigurationError(
+                f"Invalid configuration value: {path}. "
+                "Expected string."
+            )
 
         return value
 
@@ -153,7 +191,10 @@ class RunProfileLoader:
         path: str,
     ) -> bool:
         if not isinstance(value, bool):
-            raise ConfigurationError(f"Invalid configuration value: {path}. " "Expected boolean.")
+            raise ConfigurationError(
+                f"Invalid configuration value: {path}. "
+                "Expected boolean."
+            )
 
         return value
 
@@ -163,7 +204,10 @@ class RunProfileLoader:
         path: str,
     ) -> int:
         if isinstance(value, bool):
-            raise ConfigurationError(f"Invalid configuration value: {path}. " "Expected integer.")
+            raise ConfigurationError(
+                f"Invalid configuration value: {path}. "
+                "Expected integer."
+            )
 
         if isinstance(value, int):
             return value
@@ -174,4 +218,7 @@ class RunProfileLoader:
             except ValueError:
                 pass
 
-        raise ConfigurationError(f"Invalid configuration value: {path}. " "Expected integer.")
+        raise ConfigurationError(
+            f"Invalid configuration value: {path}. "
+            "Expected integer."
+        )
