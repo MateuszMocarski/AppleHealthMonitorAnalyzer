@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from pathlib import Path
 
 from apple_health.application.application import AppleHealthApplication
@@ -28,12 +29,9 @@ def test_application_runs_monthly_text_report(
         def __init__(self, path):
             calls["archive_path"] = path
 
+        @contextmanager
         def open_export(self):
-            class FakeResource:
-                def close(self):
-                    pass
-
-            return FakeResource(), FakeResource()
+            yield object()
 
     class FakeParser:
         def __init__(self, xml_stream, config):
@@ -118,12 +116,9 @@ def test_application_runs_json_month_summary(
         def __init__(self, path):
             calls["archive_path"] = path
 
+        @contextmanager
         def open_export(self):
-            class FakeResource:
-                def close(self):
-                    pass
-
-            return FakeResource(), FakeResource()
+            yield object()
 
     class FakeParser:
         def __init__(self, xml_stream, config):

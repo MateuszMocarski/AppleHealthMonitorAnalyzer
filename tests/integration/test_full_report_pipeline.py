@@ -151,16 +151,11 @@ def _run_pipeline(
 ):
     importer = AppleHealthImporter(archive_path)
 
-    archive, xml_file = importer.open_export()
-
-    try:
+    with importer.open_export() as xml_file:
         health_data = AppleHealthParser(
             xml_file,
             config=config,
         ).parse()
-    finally:
-        xml_file.close()
-        archive.close()
 
     analyzer = HealthAnalyzer(
         health_data,

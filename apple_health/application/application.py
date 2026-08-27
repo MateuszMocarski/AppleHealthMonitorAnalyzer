@@ -20,16 +20,11 @@ class AppleHealthApplication:
             options.archive_path,
         )
 
-        archive, xml_stream = importer.open_export()
-
-        try:
+        with importer.open_export() as xml_stream:
             health_data = AppleHealthParser(
                 xml_stream,
                 config=config,
             ).parse()
-        finally:
-            xml_stream.close()
-            archive.close()
 
         analyzer = HealthAnalyzer(
             health_data,
