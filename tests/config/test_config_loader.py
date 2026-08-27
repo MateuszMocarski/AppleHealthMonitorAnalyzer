@@ -21,7 +21,8 @@ def _write_config(
 
 
 # =====================================================================
-# Defaults and source configuration
+# Verifies that loading without an explicit TOML path returns
+# the fully default AppConfig.
 # =====================================================================
 
 
@@ -29,6 +30,12 @@ def test_load_without_path_returns_default_app_config() -> None:
     config = ConfigLoader.load(None)
 
     assert config == AppConfig()
+
+
+# =====================================================================
+# Verifies that source-specific TOML values are loaded into
+# SourceConfig.
+# =====================================================================
 
 
 def test_loads_source_config_from_toml(
@@ -49,6 +56,12 @@ def test_loads_source_config_from_toml(
     assert config.source.apple_health_app_source == "Custom Health"
 
 
+# =====================================================================
+# Verifies that omitted source settings preserve their dataclass
+# defaults during partial TOML loading.
+# =====================================================================
+
+
 def test_partial_source_config_preserves_defaults(
     tmp_path: Path,
 ) -> None:
@@ -64,6 +77,12 @@ def test_partial_source_config_preserves_defaults(
 
     assert config.source.apple_watch_source == "Custom Watch"
     assert config.source.apple_health_app_source == "Zdrowie"
+
+
+# =====================================================================
+# Verifies that configuration section and field names are
+# matched case-insensitively.
+# =====================================================================
 
 
 def test_config_keys_are_case_insensitive(
@@ -83,7 +102,8 @@ def test_config_keys_are_case_insensitive(
 
 
 # =====================================================================
-# File and schema errors
+# Verifies that unknown SourceConfig fields fail fast with
+# a ConfigurationError.
 # =====================================================================
 
 
@@ -105,6 +125,12 @@ def test_unknown_source_field_raises_configuration_error(
         ConfigLoader.load(config_path)
 
 
+# =====================================================================
+# Verifies that unknown nested configuration fields are rejected
+# with their full configuration path.
+# =====================================================================
+
+
 def test_unknown_nested_field_raises_configuration_error(
     tmp_path: Path,
 ) -> None:
@@ -121,6 +147,12 @@ def test_unknown_nested_field_raises_configuration_error(
         match="sleep.score.duration.target_minuts",
     ):
         ConfigLoader.load(config_path)
+
+
+# =====================================================================
+# Verifies that unsupported top-level TOML sections are rejected
+# instead of being ignored.
+# =====================================================================
 
 
 def test_unknown_top_level_section_raises_configuration_error(
@@ -141,6 +173,12 @@ def test_unknown_top_level_section_raises_configuration_error(
         ConfigLoader.load(config_path)
 
 
+# =====================================================================
+# Verifies that a missing configuration file is reported
+# as a ConfigurationError.
+# =====================================================================
+
+
 def test_missing_config_file_raises_configuration_error(
     tmp_path: Path,
 ) -> None:
@@ -151,6 +189,12 @@ def test_missing_config_file_raises_configuration_error(
         match="Configuration file not found",
     ):
         ConfigLoader.load(config_path)
+
+
+# =====================================================================
+# Verifies that malformed TOML input is wrapped and exposed
+# as a ConfigurationError.
+# =====================================================================
 
 
 def test_malformed_toml_raises_configuration_error(
@@ -172,7 +216,7 @@ def test_malformed_toml_raises_configuration_error(
 
 
 # =====================================================================
-# Sleep configuration
+# Verifies that sleep-level configuration values are loaded from TOML.
 # =====================================================================
 
 
@@ -192,6 +236,12 @@ def test_loads_sleep_config_from_toml(
     assert config.sleep.session_gap_threshold_minutes == 60
 
 
+# =====================================================================
+# Verifies that partial SleepConfig overrides preserve the default
+# nested Sleep Score configuration.
+# =====================================================================
+
+
 def test_sleep_config_preserves_default_score_config(
     tmp_path: Path,
 ) -> None:
@@ -206,6 +256,11 @@ def test_sleep_config_preserves_default_score_config(
     config = ConfigLoader.load(config_path)
 
     assert config.sleep.score == AppConfig().sleep.score
+
+
+# =====================================================================
+# Verifies that root Sleep Score settings are loaded from TOML.
+# =====================================================================
 
 
 def test_loads_sleep_score_config_from_toml(
@@ -225,7 +280,8 @@ def test_loads_sleep_score_config_from_toml(
 
 
 # =====================================================================
-# Bedtime configuration
+# Verifies that bedtime target and penalty settings are converted
+# into BedtimeScoreConfig values.
 # =====================================================================
 
 
@@ -258,6 +314,13 @@ def test_loads_bedtime_score_config_from_toml(
         "24:00",
     ],
 )
+
+# =====================================================================
+# Verifies that invalid bedtime time strings are rejected
+# with a configuration-specific error.
+# =====================================================================
+
+
 def test_invalid_bedtime_target_raises_configuration_error(
     tmp_path: Path,
     invalid_time: str,
@@ -278,7 +341,8 @@ def test_invalid_bedtime_target_raises_configuration_error(
 
 
 # =====================================================================
-# Duration and wake-up configuration
+# Verifies that sleep-duration targets, tolerances, penalties,
+# and weights are loaded correctly.
 # =====================================================================
 
 
@@ -309,6 +373,12 @@ def test_loads_duration_score_config_from_toml(
     assert duration.undersleep_weight == 1.5
 
 
+# =====================================================================
+# Verifies that wake-up target, weighting, and penalty settings
+# are loaded correctly.
+# =====================================================================
+
+
 def test_loads_wake_up_score_config_from_toml(
     tmp_path: Path,
 ) -> None:
@@ -335,7 +405,8 @@ def test_loads_wake_up_score_config_from_toml(
 
 
 # =====================================================================
-# Daily score weights and monthly bonuses
+# Verifies that daily Sleep Score component weights are loaded
+# and normalized to numeric values.
 # =====================================================================
 
 
@@ -358,6 +429,12 @@ def test_loads_sleep_score_weights_from_toml(
     assert weights.bedtime == 1.0
     assert weights.duration == 2.5
     assert weights.wake_up == 3.0
+
+
+# =====================================================================
+# Verifies that monthly bonus enablement, cap, and threshold tables
+# are loaded from TOML.
+# =====================================================================
 
 
 def test_loads_monthly_bonus_config_from_toml(
@@ -402,7 +479,8 @@ def test_loads_monthly_bonus_config_from_toml(
 
 
 # =====================================================================
-# Type conversion and validation
+# Verifies that supported numeric strings are coerced into
+# numeric configuration values.
 # =====================================================================
 
 
@@ -454,6 +532,13 @@ def test_numeric_strings_are_coerced_for_numeric_fields(
         ),
     ],
 )
+
+# =====================================================================
+# Verifies that unsupported configuration value types
+# are rejected with the affected field path.
+# =====================================================================
+
+
 def test_invalid_value_types_raise_configuration_error(
     tmp_path: Path,
     toml: str,
@@ -469,6 +554,12 @@ def test_invalid_value_types_raise_configuration_error(
         match=expected_path,
     ):
         ConfigLoader.load(config_path)
+
+
+# =====================================================================
+# Verifies that malformed monthly bonus threshold entries
+# are rejected with a precise field path.
+# =====================================================================
 
 
 def test_invalid_threshold_shape_raises_configuration_error(
@@ -491,6 +582,12 @@ def test_invalid_threshold_shape_raises_configuration_error(
         ConfigLoader.load(config_path)
 
 
+# =====================================================================
+# Verifies that final SleepConfig validation failures are wrapped
+# as ConfigurationError instances.
+# =====================================================================
+
+
 def test_invalid_sleep_configuration_is_wrapped_as_configuration_error(
     tmp_path: Path,
 ) -> None:
@@ -507,6 +604,12 @@ def test_invalid_sleep_configuration_is_wrapped_as_configuration_error(
         match="Sleep duration target must be greater than zero",
     ):
         ConfigLoader.load(config_path)
+
+
+# =====================================================================
+# Verifies that partial nested TOML overrides preserve all omitted
+# nested default values.
+# =====================================================================
 
 
 def test_partial_nested_config_preserves_unset_defaults(
@@ -530,3 +633,28 @@ def test_partial_nested_config_preserves_unset_defaults(
     )
     assert config.sleep.score.bedtime == defaults.sleep.score.bedtime
     assert config.source == defaults.source
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        Path("apple_health/config/examples/config.example.toml"),
+        Path("apple_health/config/examples/config.lenient.toml"),
+        Path("apple_health/config/examples/config.oversleeping.toml"),
+        Path("apple_health/config/examples/config.strict-schedule.toml"),
+        Path("apple_health/config/examples/config.undersleeping.toml"),
+    ],
+)
+
+# =====================================================================
+# Verifies that every committed example application configuration
+# remains loadable by ConfigLoader.
+# =====================================================================
+
+
+def test_example_config_file_is_loadable(
+    config_path: Path,
+) -> None:
+    config = ConfigLoader.load(config_path)
+
+    assert config is not None

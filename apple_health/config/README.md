@@ -813,9 +813,9 @@ Configuration behavior is covered at several levels:
 - analyzer tests verify that injected values affect scoring and session reconstruction;
 - parser tests verify custom source injection;
 - renderer tests verify configuration-dependent presentation behavior;
-- `test_config_loader.py` verifies TOML loading, type conversion, partial overrides, error handling, and final validation;
+- `test_config_loader.py` verifies TOML loading, type conversion, partial overrides, error handling, final validation, and compatibility of all committed example configuration files;
 - full pipeline tests verify that one shared configuration instance can flow through the application;
-- integration tests verify that TOML overrides produce observable report changes and that the committed example configuration remains loadable.
+- integration tests verify that TOML overrides produce observable report changes and that the reference example configuration remains loadable.
 
 Run the complete test suite with:
 
@@ -837,12 +837,12 @@ apple_health/config/
 ├── __init__.py
 ├── app_config.py
 ├── config_loader.py
-├── apple_health/config/examples/
-    ├── config.example.toml
-    ├── config.undersleeping.toml
-    ├── config.oversleeping.toml
-    ├── config.strict-schedule.toml
-    └── config.lenient.toml
+├── examples/
+│   ├── config.example.toml
+│   ├── config.undersleeping.toml
+│   ├── config.oversleeping.toml
+│   ├── config.strict-schedule.toml
+│   └── config.lenient.toml
 ├── exceptions.py
 ├── source_config.py
 ├── sleep_config.py
