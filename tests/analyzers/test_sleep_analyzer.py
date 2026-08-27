@@ -164,6 +164,45 @@ def test_reconstructs_single_sleep_session() -> None:
     assert session.time_asleep_minutes == 300
 
 
+# =====================================================================
+# Verifies that sleep-session reconstruction is independent of the input
+# record order by sorting eligible Apple Watch records chronologically.
+# =====================================================================
+
+
+def test_reconstructs_sleep_session_from_unsorted_records() -> None:
+    start = _datetime(10, 23, 30)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start + timedelta(hours=3),
+            start + timedelta(hours=5),
+            SleepStage.REM,
+        ),
+        _sleep_record(
+            start,
+            start + timedelta(hours=2),
+            SleepStage.CORE,
+        ),
+        _sleep_record(
+            start + timedelta(hours=2),
+            start + timedelta(hours=3),
+            SleepStage.DEEP,
+        ),
+    )
+
+    assert len(analyzer.sleep_sessions) == 1
+
+    session = analyzer.sleep_sessions[0]
+
+    assert session.bedtime == start
+    assert session.wake_up == start + timedelta(hours=5)
+    assert session.core_minutes == 120
+    assert session.deep_minutes == 60
+    assert session.rem_minutes == 120
+    assert session.time_asleep_minutes == 300
+
+
 # =================================================================
 # Verifies that sleep records separated by more than the configured
 # session gap threshold are treated as separate sleep sessions.

@@ -310,7 +310,7 @@ Detailed configuration structure, TOML loading behavior, defaults, validation ru
 #### AppleHealthImporter
 
 Responsible for loading the Apple Health export archive and extracting the XML data required for further processing.
-The importer is intentionally isolated from the parsing logic, allowing the parser to operate independently of the data source.
+The importer owns the lifecycle of both the ZIP archive and extracted XML stream through its context-managed interface. It is intentionally isolated from the parsing logic, allowing the parser to operate independently of the data source.
 
 #### AppleHealthParser
 
@@ -337,7 +337,7 @@ Processes aggregated daily metrics and calculates daily and monthly statistics f
 
 #### SleepAnalyzer
 
-Reconstructs sleep sessions from Apple Health sleep records, selects the primary sleep session for each reporting day, calculates sleep statistics and applies the configurable Sleep Score model.
+Reconstructs sleep sessions from chronologically ordered Apple Health sleep records, selects the primary sleep session for each reporting day, calculates sleep statistics and applies the configurable Sleep Score model.
 
 #### Health Report
 
@@ -347,7 +347,7 @@ Separating report generation from rendering makes it easy to support additional 
 #### TextRenderer
 
 Transforms the report model into a human-readable text representation.
-The renderer contains no business logic and returns the rendered report as a string, leaving the application layer responsible for deciding where that output is sent.
+The renderer contains no business logic and builds output in an isolated in-memory writer without redirecting global process output. It returns the rendered report as a string, leaving the application layer responsible for deciding where that output is sent.
 
 #### JsonRenderer
 
@@ -679,7 +679,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **237 test cases**, covering:
+The test suite currently contains **249 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis
@@ -691,7 +691,8 @@ The test suite currently contains **237 test cases**, covering:
 -   ZIP import handling
 -   command-line parsing and CLI validation
 -   application execution and run-option resolution
--   TOML run-profile loading and precedence
+-   resolved run-option validation
+-   TOML run-profile loading, structure validation, and precedence
 -   end-to-end report generation
 
 Run the complete test suite with:

@@ -26,11 +26,14 @@ class SleepAnalyzer:
 
     def analyze(self) -> list[SleepSession]:
         session_gap_threshold = timedelta(minutes=self.config.sleep.session_gap_threshold_minutes)
-        watch_sleep_records = [
-            record
-            for record in self.sleep_records
-            if (self.config.source.apple_watch_source in record.source_name)
-        ]
+        watch_sleep_records = sorted(
+            (
+                record
+                for record in self.sleep_records
+                if self.config.source.apple_watch_source in record.source_name
+            ),
+            key=lambda record: record.start,
+        )
 
         sessions: list[SleepSession] = []
         current_session: list[SleepRecord] = []
@@ -309,12 +312,12 @@ class SleepAnalyzer:
         if duration_minutes < lower_bound:
             deviation_minutes = lower_bound - duration_minutes
 
-            penalty_weight = penalty_weight = duration_config.undersleep_weight
+            penalty_weight = duration_config.undersleep_weight
 
         else:
             deviation_minutes = duration_minutes - upper_bound
 
-            penalty_weight = penalty_weight = duration_config.oversleep_weight
+            penalty_weight = duration_config.oversleep_weight
 
         penalty = self._calculate_penalty(
             deviation_minutes=deviation_minutes,

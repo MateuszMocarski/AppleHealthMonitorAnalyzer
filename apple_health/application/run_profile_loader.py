@@ -11,6 +11,10 @@ else:
     import tomli as tomllib
 
 
+_TOP_LEVEL_KEYS = {
+    "run",
+}
+
 _RUN_KEYS = {
     "archive",
     "year",
@@ -28,6 +32,10 @@ class RunProfileLoader:
     ) -> RunProfile:
         data = RunProfileLoader._load_toml(path)
 
+        RunProfileLoader._validate_top_level_keys(
+            data,
+        )
+
         if "run" not in data:
             raise ConfigurationError("Missing required configuration section: run")
 
@@ -38,7 +46,7 @@ class RunProfileLoader:
                 "Invalid configuration value: run. " "Expected a TOML section."
             )
 
-        RunProfileLoader._validate_keys(
+        RunProfileLoader._validate_run_keys(
             run_data,
         )
 
@@ -130,7 +138,15 @@ class RunProfileLoader:
         return value
 
     @staticmethod
-    def _validate_keys(
+    def _validate_top_level_keys(
+        data: dict[str, Any],
+    ) -> None:
+        for key in data:
+            if key not in _TOP_LEVEL_KEYS:
+                raise ConfigurationError(f"Unknown run profile section: {key}")
+
+    @staticmethod
+    def _validate_run_keys(
         data: dict[str, Any],
     ) -> None:
         for key in data:

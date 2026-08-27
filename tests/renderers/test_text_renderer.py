@@ -231,6 +231,23 @@ def test_daily_report_distinguishes_steps_without_workouts() -> None:
 
 
 # =====================================================================
+# Verifies that the monthly text report uses the configured maximum
+# monthly bonus when displaying the maximum possible Sleep Score.
+# =====================================================================
+
+
+def test_monthly_sleep_score_uses_configured_maximum_points() -> None:
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.max_points = 25
+
+    renderer = TextRenderer(config=config)
+
+    output = renderer.render_month_summary(_monthly_summary())
+
+    assert "Monthly score:     102/125" in output
+
+
+# =====================================================================
 # Verifies that disabling the monthly bonus feature changes the rendered
 # Sleep Score section to an explicit disabled-state message.
 # =====================================================================

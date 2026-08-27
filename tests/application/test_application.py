@@ -4,6 +4,11 @@ from pathlib import Path
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.run_options import RunOptions
 
+# =====================================================================
+# Verifies that the application orchestrates a complete monthly text
+# report using resolved run options and the shared application config.
+# =====================================================================
+
 
 def test_application_runs_monthly_text_report(
     monkeypatch,
@@ -90,6 +95,12 @@ def test_application_runs_monthly_text_report(
     assert calls["year"] == 2026
     assert calls["month"] == 8
     assert calls["summary"] == "summary"
+
+
+# =====================================================================
+# Verifies that the application selects JsonRenderer and renders only
+# the monthly summary when resolved run options request that behavior.
+# =====================================================================
 
 
 def test_application_runs_json_month_summary(

@@ -769,6 +769,24 @@ def test_uses_configured_monthly_sleep_bonus_max_points() -> None:
 
 
 # =====================================================================
+# Verifies that disabling the monthly bonus system limits the maximum
+# monthly Sleep Score exposed by JSON to the base 100-point scale.
+# =====================================================================
+
+
+def test_disabled_monthly_sleep_bonus_uses_base_score_maximum() -> None:
+    config = AppConfig()
+    config.sleep.score.monthly_bonus.enabled = False
+
+    payload = _render_payload(
+        _monthly_summary(),
+        config=config,
+    )
+
+    assert payload["sleep"]["score"]["monthly_score_max"] == 100
+
+
+# =====================================================================
 # Verifies that the monthly sleep JSON section exposes the effective
 # injected sleep configuration using API-friendly values.
 # =====================================================================
