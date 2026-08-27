@@ -190,7 +190,7 @@ When `--config` is omitted, the application uses the defaults defined by the con
 
 TOML files may be partial: only explicitly provided values override defaults. Configuration keys are case-insensitive, unknown fields fail fast, and invalid values stop the application with a configuration error.
 
-Example configuration profiles are available in [`examples/`](examples/). For the complete configuration reference, see [`apple_health/config/README.md`](apple_health/config/README.md).
+Example application configuration files are available in [`apple_health/config/examples/`](apple_health/config/examples/). For the complete configuration reference, see [`apple_health/config/README.md`](apple_health/config/README.md).
 
 ### Command Line Arguments
 
@@ -215,7 +215,9 @@ The application follows a layered architecture that separates application execut
 ```mermaid
 flowchart TD
 
-    CLI["⌨️ CLI / Run Profile"]
+    ENTRY["⌨️ app.py<br/><i>CLI Entry Point</i>"]
+    CLI["apple_health.cli<br/><i>CLI Adapter</i>"]
+    PROFILE["📋 Run Profile<br/><i>Optional TOML</i>"]
     APP["AppleHealthApplication<br/><i>Application Orchestrator</i>"]
     A["📦 Apple Health Export<br/><b>export.zip</b>"]
     CFG["⚙️ AppConfig<br/><i>Application Configuration</i>"]
@@ -235,6 +237,8 @@ flowchart TD
     H["📄 Text Report"]
     HJ["🧩 JSON Report"]
 
+    ENTRY --> CLI
+    PROFILE -.->|"Load optional settings"| CLI
     CLI -->|"Resolve RunOptions"| APP
     APP -->|"Select archive and configuration"| A
     APP -.->|"Load configuration"| CFG
@@ -289,11 +293,17 @@ The diagram is organized into five logical layers, each with a clearly defined r
 
 Application execution is coordinated by `AppleHealthApplication`, which receives resolved `RunOptions` independently of the CLI. This keeps the processing pipeline reusable by future entry points such as an API. Run profiles and CLI values are resolved before execution.
 
-Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created by the application entry point and injected into components that require configurable behavior.
+Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created for each application run and injected into components that require configurable behavior.
+
+#### CLI
+
+The `apple_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
+
+The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `AppleHealthApplication`, allowing future entry points such as an API to reuse the same application workflow without depending on command-line parsing.
 
 #### AppConfig
 
-Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once by the application entry point before being injected into configurable components.
+Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once for each application run before being injected into configurable components.
 
 Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
 
@@ -362,7 +372,7 @@ Both renderers are isolated in the `renderers` package, allowing presentation fo
 
 Application behavior is represented by a hierarchy of strongly typed Python dataclasses rooted in `AppConfig`.
 
-The configuration model separates settings by responsibility, including source selection, sleep-session reconstruction, and Sleep Score behavior. A single `AppConfig` instance is created by the application entry point and passed through the processing pipeline using dependency injection.
+The configuration model separates settings by responsibility, including source selection, sleep-session reconstruction, and Sleep Score behavior. A single `AppConfig` instance is created for each application run and passed through the processing pipeline using dependency injection.
 
 ```text
 AppConfig
@@ -669,7 +679,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **232 test cases**, covering:
+The test suite currently contains **237 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis
@@ -679,6 +689,7 @@ The test suite currently contains **232 test cases**, covering:
 -   text rendering
 -   JSON rendering and API contract behavior
 -   ZIP import handling
+-   command-line parsing and CLI validation
 -   application execution and run-option resolution
 -   TOML run-profile loading and precedence
 -   end-to-end report generation
