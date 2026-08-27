@@ -42,7 +42,7 @@ The configuration model is designed around several principles:
 
 ## Dependency Injection
 
-The application entry point creates one `AppConfig` instance for a processing run and passes it to components that require configurable behavior.
+The application layer creates one `AppConfig` instance for each processing run and passes it to components that require configurable behavior.
 
 The intended application-level flow is:
 
@@ -90,7 +90,7 @@ renderer = TextRenderer()
 
 When no configuration is injected, the component creates a default `AppConfig`.
 
-This fallback is primarily useful for standalone use and tests. The application entry point should prefer one shared configuration instance.
+This fallback is primarily useful for standalone use and tests. Application execution should prefer one shared configuration instance for the complete processing run.
 
 ## Runtime TOML Configuration
 
@@ -485,7 +485,9 @@ Average Daily Sleep Score
 = Monthly Sleep Score
 ```
 
-With the default `max_points = 20`, the documented maximum monthly score is:
+When the monthly bonus system is enabled, the maximum monthly score is calculated dynamically as `100 + max_points`.
+
+With the default `max_points = 20`, the maximum monthly score is:
 
 ```text
 120
@@ -542,7 +544,9 @@ When disabled:
 - Average Bonus is not applied.
 - Consistency Bonus is not applied.
 - Monthly Sleep Score remains the average daily Sleep Score.
+- The effective maximum monthly score remains `100`.
 - Text output reports the monthly bonus system as disabled.
+- JSON output exposes `monthly_score_max` as `100`.
 
 ## Validation Rules
 
@@ -745,7 +749,7 @@ apple_health/config/examples/
 Example usage:
 
 ```bash
-python app.py import export.zip --config apple_health_config/examples/config.strict-schedule.toml
+python app.py import export.zip --config apple_health/config/examples/config.strict-schedule.toml
 ```
 
 ## Why Configuration Is Injected

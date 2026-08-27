@@ -8,7 +8,6 @@ from apple_health.application.run_options_resolver import (
 )
 from apple_health.application.run_profile import RunProfile
 
-
 # =====================================================================
 # Verifies that unresolved run parameters fall back to built-in defaults
 # while the explicitly supplied archive path is preserved.

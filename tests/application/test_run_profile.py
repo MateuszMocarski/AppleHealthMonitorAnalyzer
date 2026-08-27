@@ -2,7 +2,6 @@ from pathlib import Path
 
 from apple_health.application.run_profile import RunProfile
 
-
 # =====================================================================
 # Verifies that RunProfile supports partial execution settings so that
 # omitted values can be resolved later from CLI input or defaults.

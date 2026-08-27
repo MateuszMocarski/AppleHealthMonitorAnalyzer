@@ -2,39 +2,40 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **237 test cases**.
+The suite currently contains **249 test cases**.
 
 ## Test structure
 
 | Area | Test cases |
 | --- | ---: |
-| `SleepAnalyzer` | 39 |
+| `SleepAnalyzer` | 40 |
 | `ActivityAnalyzer` | 7 |
 | `MetricsAnalyzer` | 11 |
 | `HealthAnalyzer` | 10 |
 | `AppleHealthParser` | 24 |
 | CLI | 5 |
-| Application layer | 12 |
+| Application layer | 21 |
 | `AppConfig` | 1 |
 | `ConfigLoader` | 27 |
 | `SleepConfig` | 3 |
 | Sleep Score configuration | 32 |
 | Report models | 17 |
-| `TextRenderer` | 12 |
-| `JsonRenderer` | 21 |
+| `TextRenderer` | 13 |
+| `JsonRenderer` | 22 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 10 |
-| **Total** | **237** |
+| **Total** | **249** |
 
 ## Analyzers
 
 ### SleepAnalyzer
 
-`tests/analyzers/test_sleep_analyzer.py` contains **39 test cases** covering the complete sleep-analysis and scoring flow.
+`tests/analyzers/test_sleep_analyzer.py` contains **40 test cases** covering the complete sleep-analysis and scoring flow.
 
 The suite verifies:
 
 - reconstruction of sleep sessions from individual Apple Health sleep records
+- chronological normalization of unsorted sleep records before session reconstruction
 - session splitting based on the configured gap threshold
 - the exact session-gap boundary condition
 - selection of the longest primary sleep session for a reporting day
@@ -163,14 +164,16 @@ The suite verifies:
 - construction of final `RunOptions`
 - partial `RunProfile` values
 - TOML run-profile loading
-- rejection of unknown run-profile fields
+- rejection of unknown run-profile fields and top-level sections
 - validation of supported output formats
+- validation of resolved month, year, output format, and monthly-summary types
 - built-in run-option defaults
 - run-profile values overriding defaults
 - explicit CLI values overriding run-profile values
 - boolean precedence for monthly-summary mode
 - rejection of execution without an archive path
 - orchestration through `AppleHealthApplication` independently of the CLI
+- compatibility of all committed example run-profile TOML files
 
 The resolver establishes the runtime precedence contract:
 
@@ -281,7 +284,7 @@ Simple dataclass field storage is intentionally not tested; the suite focuses on
 
 ## TextRenderer
 
-`tests/renderers/test_text_renderer.py` contains **12 test cases** covering the renderer's public textual output contract.
+`tests/renderers/test_text_renderer.py` contains **13 test cases** covering the renderer's public textual output contract.
 
 The suite verifies:
 
@@ -291,6 +294,7 @@ The suite verifies:
 - explicit messaging when daily nutrition data is missing
 - distinction between activity without workouts and complete absence of activity
 - rendering of the disabled monthly Sleep Score bonus state
+- use of the configured monthly bonus maximum in the displayed monthly Sleep Score maximum
 - omission of monthly sleep sections when sleep data is unavailable
 - omission of the monthly workouts section when no workouts exist
 - omission of monthly nutrition when nutrition data is unavailable
@@ -298,7 +302,7 @@ The suite verifies:
 - omission of monthly general activity when step and distance data are unavailable
 - rendering of the effective injected Sleep configuration in monthly summaries
 
-The renderer tests intentionally avoid testing every private `print()` helper individually. They verify user-visible behavior through the public `render_month()` and `render_month_summary()` methods.
+The renderer tests intentionally avoid testing private writer helpers individually. They verify user-visible behavior through the public `render_month()` and `render_month_summary()` methods.
 
 ### Partial monthly reports
 
@@ -319,7 +323,7 @@ This allows a valid monthly report to be produced from incomplete Apple Health d
 
 ## JsonRenderer
 
-`tests/renderers/test_json_renderer.py` contains **21 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
+`tests/renderers/test_json_renderer.py` contains **22 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
 
 The monthly contract tests verify:
 
@@ -328,6 +332,7 @@ The monthly contract tests verify:
 - general activity representation
 - sleep summary, sleep stages and monthly Sleep Score data
 - configured maximum monthly Sleep Score
+- base 100-point monthly Sleep Score maximum when the monthly bonus system is disabled
 - stable workout identifiers derived from enum names
 - explicit workout averaging basis (`daily` or `workout`)
 - body-weight statistics

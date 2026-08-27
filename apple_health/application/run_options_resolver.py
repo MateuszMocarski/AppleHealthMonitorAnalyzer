@@ -4,7 +4,6 @@ from pathlib import Path
 from apple_health.application.run_options import RunOptions
 from apple_health.application.run_profile import RunProfile
 
-
 _SUPPORTED_OUTPUT_FORMATS = {
     "text",
     "json",
@@ -27,57 +26,31 @@ class RunOptionsResolver:
 
         profile = profile or RunProfile()
 
-        resolved_archive_path = (
-            archive_path
-            if archive_path is not None
-            else profile.archive_path
-        )
+        resolved_archive_path = archive_path if archive_path is not None else profile.archive_path
 
         resolved_year = (
-            year
-            if year is not None
-            else (
-                profile.year
-                if profile.year is not None
-                else today.year
-            )
+            year if year is not None else (profile.year if profile.year is not None else today.year)
         )
 
         resolved_month = (
             month
             if month is not None
-            else (
-                profile.month
-                if profile.month is not None
-                else today.month
-            )
+            else (profile.month if profile.month is not None else today.month)
         )
 
         resolved_month_summary = (
             month_summary
             if month_summary is not None
-            else (
-                profile.month_summary
-                if profile.month_summary is not None
-                else False
-            )
+            else (profile.month_summary if profile.month_summary is not None else False)
         )
 
         resolved_output_format = (
             output_format
             if output_format is not None
-            else (
-                profile.output_format
-                if profile.output_format is not None
-                else "text"
-            )
+            else (profile.output_format if profile.output_format is not None else "text")
         )
 
-        resolved_config_path = (
-            config_path
-            if config_path is not None
-            else profile.config_path
-        )
+        resolved_config_path = config_path if config_path is not None else profile.config_path
 
         RunOptionsResolver._validate(
             archive_path=resolved_archive_path,
@@ -111,17 +84,11 @@ class RunOptionsResolver:
         if isinstance(year, bool) or not isinstance(year, int) or year <= 0:
             raise ValueError("Year must be a positive integer.")
 
-        if (
-            isinstance(month, bool)
-            or not isinstance(month, int)
-            or not 1 <= month <= 12
-        ):
+        if isinstance(month, bool) or not isinstance(month, int) or not 1 <= month <= 12:
             raise ValueError("Month must be between 1 and 12.")
 
         if not isinstance(month_summary, bool):
             raise ValueError("Month summary must be a boolean.")
 
         if output_format not in _SUPPORTED_OUTPUT_FORMATS:
-            raise ValueError(
-                "Output format must be 'text' or 'json'."
-            )
+            raise ValueError("Output format must be 'text' or 'json'.")

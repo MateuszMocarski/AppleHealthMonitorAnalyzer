@@ -2,7 +2,6 @@ from pathlib import Path
 
 from apple_health.application.run_options import RunOptions
 
-
 # =====================================================================
 # Verifies that RunOptions preserves the complete resolved parameter set
 # passed to the application execution boundary.

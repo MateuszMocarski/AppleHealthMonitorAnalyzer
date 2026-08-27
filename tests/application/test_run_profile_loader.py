@@ -5,7 +5,6 @@ import pytest
 from apple_health.application.run_profile_loader import RunProfileLoader
 from apple_health.config.exceptions import ConfigurationError
 
-
 # =====================================================================
 # Verifies that a complete [run] TOML section is converted into a fully
 # populated RunProfile using the supported run-profile fields.
@@ -160,3 +159,27 @@ def test_unknown_top_level_section_raises_configuration_error(
         RunProfileLoader.load(
             profile_path,
         )
+
+
+# =====================================================================
+# Verifies that all committed example run profiles remain compatible
+# with the current RunProfileLoader contract.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "profile_path",
+    [
+        Path("apple_health/application/examples/run.example.toml"),
+        Path("apple_health/application/examples/run.month-summary.toml"),
+        Path("apple_health/application/examples/run.partial.toml"),
+    ],
+)
+def test_example_run_profile_is_loadable(
+    profile_path: Path,
+) -> None:
+    profile = RunProfileLoader.load(
+        profile_path,
+    )
+
+    assert profile is not None

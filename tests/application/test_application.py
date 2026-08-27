@@ -4,7 +4,6 @@ from pathlib import Path
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.run_options import RunOptions
 
-
 # =====================================================================
 # Verifies that the application orchestrates a complete monthly text
 # report using resolved run options and the shared application config.
