@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **232 test cases**.
+The suite currently contains **237 test cases**.
 
 ## Test structure
 
@@ -13,6 +13,7 @@ The suite currently contains **232 test cases**.
 | `MetricsAnalyzer` | 11 |
 | `HealthAnalyzer` | 10 |
 | `AppleHealthParser` | 24 |
+| CLI | 5 |
 | Application layer | 12 |
 | `AppConfig` | 1 |
 | `ConfigLoader` | 27 |
@@ -23,7 +24,7 @@ The suite currently contains **232 test cases**.
 | `JsonRenderer` | 21 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 10 |
-| **Total** | **232** |
+| **Total** | **237** |
 
 ## Analyzers
 
@@ -138,6 +139,20 @@ The suite verifies:
 - injected custom Apple Watch source selection
 - injected custom Apple Health application source selection
 
+
+## CLI
+
+`tests/test_cli.py` contains **5 test cases** covering command-line parsing and validation.
+
+The suite verifies:
+
+- unresolved optional CLI arguments remain `None` for later profile/default resolution
+- parsing of a complete import command into typed argument values
+- explicit `--enforce-daily` handling for monthly-summary precedence
+- rejection of the `import` command without an archive path
+- rejection of an archive path supplied without the `import` command
+
+The CLI tests focus on the command-line adapter boundary. Application execution, run-profile precedence, and report-generation behavior remain covered independently by the application and integration test suites.
 
 ## Application layer
 
@@ -358,6 +373,8 @@ The suite verifies:
 - rejection of archives containing more than one valid export XML
 
 Temporary files are created with pytest's `tmp_path` fixture, allowing the importer to be tested against real ZIP archives without storing generated archives in the repository.
+
+`AppleHealthImporter` owns the lifecycle of both the ZIP archive and the extracted XML stream through its context-managed `open_export()` interface, preventing callers from managing archive resources directly.
 
 ## Integration tests
 

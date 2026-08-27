@@ -732,7 +732,7 @@ Normally these values do not need to be assigned manually because they are alrea
 The repository includes example configuration profiles in:
 
 ```text
-examples/
+apple_health/config/examples/
 ├── config.example.toml
 ├── config.undersleeping.toml
 ├── config.oversleeping.toml
@@ -745,7 +745,7 @@ examples/
 Example usage:
 
 ```bash
-python app.py import export.zip --config examples/config.strict-schedule.toml
+python app.py import export.zip --config apple_health_config/examples/config.strict-schedule.toml
 ```
 
 ## Why Configuration Is Injected

@@ -421,7 +421,7 @@ def test_full_pipeline_renders_json_month_summary(
 
 
 def test_example_config_file_is_loadable() -> None:
-    config_path = Path("examples/config.example.toml")
+    config_path = Path("apple_health/config/examples/config.example.toml")
 
     config = ConfigLoader.load(config_path)
 
