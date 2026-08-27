@@ -183,7 +183,7 @@ Example run profiles are available in `apple_health/application/examples/`.
 Use `--config` to load an optional TOML application configuration file:
 
 ```bash
-python app.py import export.zip --month 8 --config examples/config.example.toml
+python app.py import export.zip --month 8 --config apple_health/config/examples/config.example.toml
 ```
 
 When `--config` is omitted, the application uses the defaults defined by the configuration dataclasses.
