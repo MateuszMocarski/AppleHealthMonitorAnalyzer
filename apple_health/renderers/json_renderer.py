@@ -130,7 +130,11 @@ class JsonRenderer:
                 "average_bonus": self._round_number(summary.average_bonus),
                 "consistency_bonus": self._round_number(summary.consistency_bonus),
                 "monthly_score": self._round_number(summary.monthly_sleep_score),
-                "monthly_score_max": 100 + self.config.sleep.score.monthly_bonus.max_points,
+                "monthly_score_max": (
+                    100 + score_config.monthly_bonus.max_points
+                    if score_config.monthly_bonus.enabled
+                    else 100
+                ),
             },
             "configuration": {
                 "session_gap_threshold_minutes": (self.config.sleep.session_gap_threshold_minutes),

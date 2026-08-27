@@ -285,7 +285,11 @@ class TextRenderer:
             return
         writer.write(f'  Average bonus:     +{summary.average_bonus:.0f}')
         writer.write(f'  Consistency bonus: +{summary.consistency_bonus:.0f}')
-        writer.write(f'  Monthly score:     {summary.monthly_sleep_score:.0f}/120')
+        monthly_score_max = 100 + self.config.sleep.score.monthly_bonus.max_points
+        writer.write(
+            f'  Monthly score:     '
+            f'{summary.monthly_sleep_score:.0f}/{monthly_score_max}'
+        )
 
     def _render_day_nutrition(self, writer: _TextWriter, summary: DailySummary) -> None:
         writer.write('Daily nutrition')
