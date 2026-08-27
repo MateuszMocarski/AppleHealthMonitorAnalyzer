@@ -625,14 +625,14 @@ Monthly sleep scoring reports the average Bedtime Score, Duration Score, Wake-up
 
 Monthly text and JSON reports also include the effective `AppConfig.sleep` configuration used for the run. This makes the reported scores self-describing and allows the same output to be interpreted correctly even when runtime TOML overrides were used.
 
-An optional monthly bonus system can extend the monthly score from 0–100 to 0–120. The bonus system consists of two independently calculated components:
+An optional monthly bonus system can extend the monthly score above the base 0–100 scale. The effective maximum is calculated as `100 + max_points` when the bonus system is enabled. The bonus system consists of two independently calculated components:
 
 - **Average Bonus** – rewards reaching configurable monthly average Sleep Score thresholds.
 - **Consistency Bonus** – rewards consistency based on the population standard deviation of Daily Sleep Scores.
 
 Both bonus threshold sets are configurable. The maximum combined bonus is also configurable and validated against the configured threshold values.
 
-When the monthly bonus system is disabled, the report continues to provide the standard monthly Sleep Score without applying any bonuses.
+When the monthly bonus system is disabled, the report continues to provide the standard monthly Sleep Score without applying any bonuses, and the effective maximum remains `100`.
 
 ### Activities
 
@@ -679,7 +679,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 The project includes a comprehensive automated test suite covering the
 core application logic and the complete report-generation pipeline.
 
-The test suite currently contains **249 test cases**, covering:
+The test suite currently contains **254 test cases**, covering:
 
 -   sleep analysis and scoring
 -   activity and health metrics analysis
