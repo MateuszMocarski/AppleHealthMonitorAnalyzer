@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **249 test cases**.
+The suite currently contains **254 test cases**.
 
 ## Test structure
 
@@ -16,7 +16,7 @@ The suite currently contains **249 test cases**.
 | CLI | 5 |
 | Application layer | 21 |
 | `AppConfig` | 1 |
-| `ConfigLoader` | 27 |
+| `ConfigLoader` | 32 |
 | `SleepConfig` | 3 |
 | Sleep Score configuration | 32 |
 | Report models | 17 |
@@ -24,7 +24,7 @@ The suite currently contains **249 test cases**.
 | `JsonRenderer` | 22 |
 | `AppleHealthImporter` | 6 |
 | Integration tests | 10 |
-| **Total** | **249** |
+| **Total** | **254** |
 
 ## Analyzers
 
@@ -166,7 +166,7 @@ The suite verifies:
 - TOML run-profile loading
 - rejection of unknown run-profile fields and top-level sections
 - validation of supported output formats
-- validation of resolved month, year, output format, and monthly-summary types
+- validation of resolved month/year ranges, output format, and monthly-summary type
 - built-in run-option defaults
 - run-profile values overriding defaults
 - explicit CLI values overriding run-profile values
@@ -198,7 +198,7 @@ The test verifies:
 
 ### ConfigLoader
 
-`tests/config/test_config_loader.py` contains **27 test cases** covering TOML configuration loading.
+`tests/config/test_config_loader.py` contains **32 test cases** covering TOML configuration loading.
 
 The suite verifies:
 
@@ -218,6 +218,7 @@ The suite verifies:
 - invalid threshold shapes
 - final configuration validation
 - preservation of defaults for omitted nested values
+- compatibility of all committed example application configuration TOML files
 
 The loader tests treat configuration loading as a public boundary: valid TOML must produce a validated `AppConfig`, while invalid configuration must fail with `ConfigurationError`.
 
