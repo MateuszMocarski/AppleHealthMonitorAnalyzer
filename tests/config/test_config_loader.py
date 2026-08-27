@@ -21,8 +21,8 @@ def _write_config(
 
 
 # =====================================================================
-# Verifies that loading without an explicit TOML path returns
-# the fully default AppConfig.
+# Verifies that loading without an explicit TOML path returns the fully
+# default AppConfig.
 # =====================================================================
 
 
@@ -80,8 +80,8 @@ def test_partial_source_config_preserves_defaults(
 
 
 # =====================================================================
-# Verifies that configuration section and field names are
-# matched case-insensitively.
+# Verifies that configuration section and field names are matched
+# case-insensitively.
 # =====================================================================
 
 
@@ -102,8 +102,8 @@ def test_config_keys_are_case_insensitive(
 
 
 # =====================================================================
-# Verifies that unknown SourceConfig fields fail fast with
-# a ConfigurationError.
+# Verifies that unknown SourceConfig fields fail fast with a
+# ConfigurationError.
 # =====================================================================
 
 
@@ -126,8 +126,8 @@ def test_unknown_source_field_raises_configuration_error(
 
 
 # =====================================================================
-# Verifies that unknown nested configuration fields are rejected
-# with their full configuration path.
+# Verifies that unknown nested configuration fields are rejected with
+# their full configuration path.
 # =====================================================================
 
 
@@ -174,8 +174,8 @@ def test_unknown_top_level_section_raises_configuration_error(
 
 
 # =====================================================================
-# Verifies that a missing configuration file is reported
-# as a ConfigurationError.
+# Verifies that a missing configuration file is reported as a
+# ConfigurationError.
 # =====================================================================
 
 
@@ -192,8 +192,8 @@ def test_missing_config_file_raises_configuration_error(
 
 
 # =====================================================================
-# Verifies that malformed TOML input is wrapped and exposed
-# as a ConfigurationError.
+# Verifies that malformed TOML input is wrapped and exposed as a
+# ConfigurationError.
 # =====================================================================
 
 
@@ -280,8 +280,8 @@ def test_loads_sleep_score_config_from_toml(
 
 
 # =====================================================================
-# Verifies that bedtime target and penalty settings are converted
-# into BedtimeScoreConfig values.
+# Verifies that bedtime target and penalty settings are converted into
+# BedtimeScoreConfig values.
 # =====================================================================
 
 
@@ -306,6 +306,11 @@ def test_loads_bedtime_score_config_from_toml(
     assert bedtime.penalty_points == 4.0
 
 
+# =====================================================================
+# Verifies that invalid bedtime target raises configuration error.
+# =====================================================================
+
+
 @pytest.mark.parametrize(
     "invalid_time",
     [
@@ -314,13 +319,6 @@ def test_loads_bedtime_score_config_from_toml(
         "24:00",
     ],
 )
-
-# =====================================================================
-# Verifies that invalid bedtime time strings are rejected
-# with a configuration-specific error.
-# =====================================================================
-
-
 def test_invalid_bedtime_target_raises_configuration_error(
     tmp_path: Path,
     invalid_time: str,
@@ -341,8 +339,8 @@ def test_invalid_bedtime_target_raises_configuration_error(
 
 
 # =====================================================================
-# Verifies that sleep-duration targets, tolerances, penalties,
-# and weights are loaded correctly.
+# Verifies that sleep-duration targets, tolerances, penalties, and
+# weights are loaded correctly.
 # =====================================================================
 
 
@@ -374,8 +372,8 @@ def test_loads_duration_score_config_from_toml(
 
 
 # =====================================================================
-# Verifies that wake-up target, weighting, and penalty settings
-# are loaded correctly.
+# Verifies that wake-up target, weighting, and penalty settings are
+# loaded correctly.
 # =====================================================================
 
 
@@ -405,8 +403,8 @@ def test_loads_wake_up_score_config_from_toml(
 
 
 # =====================================================================
-# Verifies that daily Sleep Score component weights are loaded
-# and normalized to numeric values.
+# Verifies that daily Sleep Score component weights are loaded and
+# normalized to numeric values.
 # =====================================================================
 
 
@@ -432,8 +430,8 @@ def test_loads_sleep_score_weights_from_toml(
 
 
 # =====================================================================
-# Verifies that monthly bonus enablement, cap, and threshold tables
-# are loaded from TOML.
+# Verifies that monthly bonus enablement, cap, and threshold tables are
+# loaded from TOML.
 # =====================================================================
 
 
@@ -479,8 +477,8 @@ def test_loads_monthly_bonus_config_from_toml(
 
 
 # =====================================================================
-# Verifies that supported numeric strings are coerced into
-# numeric configuration values.
+# Verifies that supported numeric strings are coerced into numeric
+# configuration values.
 # =====================================================================
 
 
@@ -504,6 +502,11 @@ def test_numeric_strings_are_coerced_for_numeric_fields(
     assert config.sleep.session_gap_threshold_minutes == 45
     assert config.sleep.score.duration.target_minutes == 450
     assert config.sleep.score.duration.penalty_points == 3.5
+
+
+# =====================================================================
+# Verifies that invalid value types raise configuration error.
+# =====================================================================
 
 
 @pytest.mark.parametrize(
@@ -532,13 +535,6 @@ def test_numeric_strings_are_coerced_for_numeric_fields(
         ),
     ],
 )
-
-# =====================================================================
-# Verifies that unsupported configuration value types
-# are rejected with the affected field path.
-# =====================================================================
-
-
 def test_invalid_value_types_raise_configuration_error(
     tmp_path: Path,
     toml: str,
@@ -557,8 +553,8 @@ def test_invalid_value_types_raise_configuration_error(
 
 
 # =====================================================================
-# Verifies that malformed monthly bonus threshold entries
-# are rejected with a precise field path.
+# Verifies that malformed monthly bonus threshold entries are rejected
+# with a precise field path.
 # =====================================================================
 
 
@@ -583,8 +579,8 @@ def test_invalid_threshold_shape_raises_configuration_error(
 
 
 # =====================================================================
-# Verifies that final SleepConfig validation failures are wrapped
-# as ConfigurationError instances.
+# Verifies that final SleepConfig validation failures are wrapped as
+# ConfigurationError instances.
 # =====================================================================
 
 
@@ -635,6 +631,12 @@ def test_partial_nested_config_preserves_unset_defaults(
     assert config.source == defaults.source
 
 
+# =====================================================================
+# Verifies that the committed example application configuration is
+# loadable by ConfigLoader.
+# =====================================================================
+
+
 @pytest.mark.parametrize(
     "config_path",
     [
@@ -645,13 +647,6 @@ def test_partial_nested_config_preserves_unset_defaults(
         Path("apple_health/config/examples/config.undersleeping.toml"),
     ],
 )
-
-# =====================================================================
-# Verifies that every committed example application configuration
-# remains loadable by ConfigLoader.
-# =====================================================================
-
-
 def test_example_config_file_is_loadable(
     config_path: Path,
 ) -> None:

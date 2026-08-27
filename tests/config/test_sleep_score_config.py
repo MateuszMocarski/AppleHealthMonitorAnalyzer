@@ -38,8 +38,8 @@ def test_default_sleep_score_config_is_valid() -> None:
 
 
 # =====================================================================
-# Verifies that every daily Sleep Score component weight must be
-# non-negative.
+# Verifies that negative daily Sleep Score component weights are
+# rejected.
 # =====================================================================
 
 
@@ -90,8 +90,8 @@ def test_all_zero_score_component_weights_are_rejected() -> None:
 
 
 # =====================================================================
-# Verifies that every configured penalty interval must be greater than
-# zero to avoid invalid penalty calculations.
+# Verifies that zero or negative Sleep Score penalty intervals are
+# rejected.
 # =====================================================================
 
 
@@ -126,8 +126,7 @@ def test_non_positive_penalty_interval_is_rejected(
 
 
 # =====================================================================
-# Verifies that penalty points cannot be negative for any Sleep Score
-# component.
+# Verifies that negative Sleep Score penalty-point values are rejected.
 # =====================================================================
 
 
@@ -158,8 +157,7 @@ def test_negative_penalty_points_are_rejected(
 
 
 # =====================================================================
-# Verifies that the configured sleep duration target must be greater
-# than zero.
+# Verifies that zero or negative sleep-duration targets are rejected.
 # =====================================================================
 
 
@@ -202,8 +200,8 @@ def test_negative_sleep_duration_tolerance_is_rejected() -> None:
 
 
 # =====================================================================
-# Verifies that sleep duration tolerance must remain lower than the
-# configured target duration.
+# Verifies that sleep-duration tolerance must remain strictly lower
+# than the target duration.
 # =====================================================================
 
 
@@ -229,8 +227,8 @@ def test_sleep_duration_tolerance_not_lower_than_target_is_rejected(
 
 
 # =====================================================================
-# Verifies that oversleep and undersleep penalty weights cannot be
-# negative.
+# Verifies that negative oversleep and undersleep penalty weights are
+# rejected.
 # =====================================================================
 
 
@@ -260,8 +258,8 @@ def test_negative_duration_penalty_weight_is_rejected(
 
 
 # =====================================================================
-# Verifies that monthly average bonus score thresholds must stay within
-# the valid Daily Sleep Score range of 0-100.
+# Verifies that monthly average bonus thresholds outside the 0-100
+# score range are rejected.
 # =====================================================================
 
 
@@ -356,8 +354,8 @@ def test_average_bonus_points_cannot_increase_as_threshold_decreases() -> None:
 
 
 # =====================================================================
-# Verifies that consistency bonus deviation thresholds must always be
-# greater than zero.
+# Verifies that zero or negative monthly consistency thresholds are
+# rejected.
 # =====================================================================
 
 

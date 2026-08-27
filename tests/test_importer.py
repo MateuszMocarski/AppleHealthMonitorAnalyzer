@@ -112,8 +112,8 @@ def test_open_export_ignores_cda_xml_files(
 
 
 # =====================================================================
-# Verifies that an archive containing anything other than exactly one
-# valid export XML file is rejected.
+# Verifies that importer rejects archives containing anything other
+# than exactly one valid export XML.
 # =====================================================================
 
 

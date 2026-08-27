@@ -3,8 +3,8 @@ import pytest
 from apple_health.config.sleep_config import SleepConfig
 
 # =====================================================================
-# Verifies that the default sleep configuration satisfies all validation
-# rules and can be used without raising an exception.
+# Verifies that the default sleep configuration satisfies all
+# validation rules and can be used without raising an exception.
 # =====================================================================
 
 

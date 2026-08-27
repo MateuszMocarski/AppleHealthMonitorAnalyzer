@@ -169,8 +169,8 @@ def _run_pipeline(
 
 
 # =====================================================================
-# Verifies the complete Apple Health report pipeline from a ZIP archive
-# through importing, parsing and analysis to the final rendered report.
+# Verifies that the complete Apple Health report pipeline runs from ZIP
+# import through rendering.
 # =====================================================================
 
 
@@ -214,8 +214,9 @@ def test_full_report_pipeline(
 
 
 # =====================================================================
-# Verifies that values imported from the Apple Health XML remain correct
-# after parsing, aggregation and construction of the monthly report.
+# Verifies that values imported from the Apple Health XML remain
+# correct after parsing, aggregation and construction of the monthly
+# report.
 # =====================================================================
 
 
@@ -256,7 +257,8 @@ def test_full_pipeline_preserves_report_values(
 
 # =====================================================================
 # Verifies that the complete import and analysis pipeline can produce a
-# monthly-only report without rendering individual daily report sections.
+# monthly-only report without rendering individual daily report
+# sections.
 # =====================================================================
 
 
@@ -420,6 +422,12 @@ def test_full_pipeline_renders_json_month_summary(
     assert "days" not in payload
 
 
+# =====================================================================
+# Verifies that the committed example application configuration is
+# loadable by ConfigLoader.
+# =====================================================================
+
+
 def test_example_config_file_is_loadable() -> None:
     config_path = Path("apple_health/config/examples/config.example.toml")
 
@@ -428,6 +436,12 @@ def test_example_config_file_is_loadable() -> None:
     assert config.sleep.session_gap_threshold_minutes == 30
     assert config.sleep.score.duration.target_minutes == 480
     assert config.sleep.score.wake_up.target.hour == 8
+
+
+# =====================================================================
+# Verifies that TOML configuration overrides change the effective
+# sleep-scoring settings.
+# =====================================================================
 
 
 def test_toml_configuration_changes_sleep_scoring(
@@ -466,6 +480,12 @@ def test_toml_configuration_changes_sleep_scoring(
     assert summary.sleep_summary.average_sleep_score != 100.0
 
 
+# =====================================================================
+# Verifies that TOML sleep-scoring overrides produce an observable
+# change in the pipeline result.
+# =====================================================================
+
+
 def test_toml_configuration_changes_pipeline_result(
     tmp_path: Path,
 ) -> None:
@@ -502,6 +522,12 @@ def test_toml_configuration_changes_pipeline_result(
 
     assert default_summary.sleep_summary.average_sleep_score == 100.0
     assert custom_summary.sleep_summary.average_sleep_score < 100.0
+
+
+# =====================================================================
+# Verifies that the pipeline uses default application configuration
+# when no TOML file is supplied.
+# =====================================================================
 
 
 def test_pipeline_without_config_uses_default_configuration(

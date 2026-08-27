@@ -101,8 +101,8 @@ def test_daily_summary_calculates_average_step_length() -> None:
 
 
 # =====================================================================
-# Verifies that average step length is zero when no steps are available,
-# preventing division by zero.
+# Verifies that average step length is zero when no steps are
+# available, preventing division by zero.
 # =====================================================================
 
 
@@ -131,8 +131,8 @@ def test_daily_summary_calculates_tdee() -> None:
 
 
 # =====================================================================
-# Verifies that daily calorie balance is calculated as consumed calories
-# minus total daily energy expenditure.
+# Verifies that daily calorie balance is calculated as consumed
+# calories minus total daily energy expenditure.
 # =====================================================================
 
 
@@ -168,8 +168,8 @@ def test_daily_summary_calorie_balance_is_none_without_nutrition() -> None:
 
 
 # =====================================================================
-# Verifies that MonthlySummary exposes the final completed reporting day
-# as the date through which monthly data is available.
+# Verifies that MonthlySummary exposes the final completed reporting
+# day as the date through which monthly data is available.
 # =====================================================================
 
 
@@ -212,8 +212,8 @@ def test_monthly_summary_data_through_is_none_without_reporting_days() -> None:
 
 
 # =====================================================================
-# Verifies that average monthly TDEE is calculated as the sum of average
-# active and basal energy expenditure.
+# Verifies that average monthly TDEE is calculated as the sum of
+# average active and basal energy expenditure.
 # =====================================================================
 
 
@@ -242,8 +242,8 @@ def test_activity_metrics_summary_calculates_weight_change() -> None:
 
 
 # =====================================================================
-# Verifies that body-weight change is unavailable when either the start
-# or end weight measurement is missing.
+# Verifies that monthly weight change is unavailable when either
+# endpoint measurement is missing.
 # =====================================================================
 
 
@@ -267,8 +267,8 @@ def test_activity_metrics_summary_weight_change_is_none_when_incomplete(
 
 
 # =====================================================================
-# Verifies that average monthly calorie balance is calculated as average
-# calorie intake minus average total daily energy expenditure.
+# Verifies that average monthly calorie balance is calculated as
+# average calorie intake minus average total daily energy expenditure.
 # =====================================================================
 
 
@@ -389,8 +389,8 @@ def test_sleep_session_at_noon_uses_next_reporting_date() -> None:
 
 
 # =====================================================================
-# Verifies that the monthly Sleep Score combines the average daily score
-# with both configured monthly bonuses.
+# Verifies that the monthly Sleep Score combines the average daily
+# score with both configured monthly bonuses.
 # =====================================================================
 
 
@@ -405,8 +405,8 @@ def test_sleep_monthly_summary_combines_score_and_bonuses() -> None:
 
 
 # =====================================================================
-# Verifies that the final daily Sleep Score is calculated as the weighted
-# average of its three configured component scores.
+# Verifies that the final daily Sleep Score is calculated as the
+# weighted average of its three configured component scores.
 # =====================================================================
 
 

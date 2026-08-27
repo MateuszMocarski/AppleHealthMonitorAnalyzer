@@ -202,7 +202,8 @@ def test_parses_cycling_distance_statistics() -> None:
 
 # =====================================================================
 # Verifies that Apple Watch daily activity records are aggregated into
-# DailyMetrics when they originate from the expected Apple Watch source.
+# DailyMetrics when they originate from the expected Apple Watch
+# source.
 # =====================================================================
 
 
@@ -290,8 +291,8 @@ def test_ignores_unknown_daily_metric_types() -> None:
 
 
 # =====================================================================
-# Verifies that nutrition records from Apple Health are accumulated into
-# one NutritionData object for the corresponding calendar day.
+# Verifies that nutrition records from Apple Health are accumulated
+# into one NutritionData object for the corresponding calendar day.
 # =====================================================================
 
 
@@ -338,8 +339,8 @@ def test_aggregates_nutrition_records() -> None:
 
 
 # =====================================================================
-# Verifies that Apple Health nutrition and body-mass records originating
-# from an unexpected source are rejected.
+# Verifies that Apple Health nutrition and body-mass records
+# originating from an unexpected source are rejected.
 # =====================================================================
 
 
@@ -436,8 +437,9 @@ def test_latest_weight_replaces_older_measurement() -> None:
 
 
 # =====================================================================
-# Verifies that parsed DailyMetrics objects are returned in chronological
-# order even when XML records appear in a different order.
+# Verifies that parsed DailyMetrics objects are returned in
+# chronological order even when XML records appear in a different
+# order.
 # =====================================================================
 
 
@@ -475,8 +477,8 @@ def test_daily_metrics_are_sorted_by_date() -> None:
 
 
 # =====================================================================
-# Verifies that every known Apple sleep-analysis value is mapped to the
-# corresponding internal SleepStage.
+# Verifies that all supported Apple Health sleep-stage values map to
+# the expected SleepStage enum.
 # =====================================================================
 
 
