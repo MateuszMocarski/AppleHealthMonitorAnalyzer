@@ -103,7 +103,7 @@ class TextRenderer:
 
     def _render_monthly_weight(self, writer: _TextWriter, summary: MonthlySummary) -> None:
         metrics = summary.activity_metrics
-        if metrics.measurements == 0:
+        if metrics is None or metrics.measurements == 0:
             return
         weight_header = "Body weight:"
         writer.write(weight_header)
