@@ -8,7 +8,6 @@ from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
-from apple_health.report_models import MonthlySummary
 
 
 class AppleHealthApplication:
@@ -57,37 +56,6 @@ class AppleHealthApplication:
         return renderer.render_month(
             summary,
         )
-
-    def summarize_months(
-        self,
-        options: MultiMonthRunOptions,
-    ) -> list[MonthlySummary]:
-        config = ConfigLoader.load(
-            options.config_path,
-        )
-
-        importer = AppleHealthImporter(
-            options.archive_path,
-        )
-
-        with importer.open_export() as xml_stream:
-            health_data = AppleHealthParser(
-                xml_stream,
-                config=config,
-            ).parse()
-
-        analyzer = HealthAnalyzer(
-            health_data,
-            config=config,
-        )
-
-        return [
-            analyzer.summarize_month(
-                year=period.year,
-                month=period.month,
-            )
-            for period in options.periods
-        ]
 
     def generate_reports(
         self,
