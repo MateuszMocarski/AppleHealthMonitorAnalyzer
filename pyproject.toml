@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 dependencies = [
+    "fastapi>=0.116.0",
+    "httpx2",
     "tomli>=2.0.0; python_version < '3.11'",
+    "uvicorn>=0.35.0",
 ]
 
 [tool.setuptools.packages.find]
