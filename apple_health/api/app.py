@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse
 
 from apple_health.api.models import (
     MonthlyReportResponse,
@@ -15,6 +16,13 @@ app = FastAPI(
     title="Apple Health Monitor Analyzer",
     version="0.1.0",
 )
+
+
+@app.get("/")
+def index() -> FileResponse:
+    return FileResponse(
+        Path(__file__).parent / "web" / "index.html",
+    )
 
 
 @app.get("/health")
