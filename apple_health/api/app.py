@@ -7,7 +7,6 @@ from apple_health.api.models import ReportResponse
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.run_options import RunOptions
 
-
 app = FastAPI(
     title="Apple Health Monitor Analyzer",
     version="0.1.0",
