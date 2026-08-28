@@ -15,3 +15,26 @@ def test_health_endpoint_returns_ok() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+# =====================================================================
+# Verifies that report generation rejects an invalid reporting month.
+# =====================================================================
+
+
+def test_report_generation_rejects_invalid_month() -> None:
+    response = client.post(
+        "/reports/generate",
+        data={
+            "year": "2026",
+            "month": "13",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"not-a-real-zip",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 422
