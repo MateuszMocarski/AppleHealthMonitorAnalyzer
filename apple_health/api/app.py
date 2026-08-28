@@ -25,7 +25,7 @@ def health() -> dict[str, str]:
 @app.post("/reports/generate", response_model=MultiMonthReportResponse)
 def generate_report(
     archive: UploadFile = File(),
-    periods: list[str] = Form(),
+    periods: str = Form(),
 ) -> MultiMonthReportResponse:
     with NamedTemporaryFile(suffix=".zip") as temporary_archive:
         temporary_archive.write(archive.file.read())
@@ -36,7 +36,7 @@ def generate_report(
                 year=int(period.split("-")[0]),
                 month=int(period.split("-")[1]),
             )
-            for period in periods
+            for period in periods.split(",")
         )
 
         options = MultiMonthRunOptions(

@@ -119,9 +119,7 @@ def test_report_generation_returns_generated_report(
         response = client.post(
             "/reports/generate",
             data={
-                "periods": [
-                    "2026-08",
-                ],
+                "periods": "2026-08",
             },
             files={
                 "archive": (
@@ -214,10 +212,7 @@ def test_generate_reports_for_multiple_months(
             ),
         },
         data={
-            "periods": [
-                "2026-08",
-                "2026-09",
-            ],
+            "periods": "2026-08,2026-09",
         },
     )
 
