@@ -172,6 +172,7 @@ def test_open_export_accepts_localized_export_xml_filename(
     with importer.open_export() as xml_file:
         assert xml_file.read() == b"<HealthData />"
 
+
 # =====================================================================
 # Verifies that the importer rejects an Apple Health export XML whose
 # uncompressed size exceeds the configured safety limit.

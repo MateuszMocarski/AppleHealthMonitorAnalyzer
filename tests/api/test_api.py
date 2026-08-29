@@ -1061,6 +1061,7 @@ def test_report_generation_preserves_unhandled_exception_types(
 
     assert response.status_code == 500
 
+
 # =====================================================================
 # Verifies that report generation rejects requests containing more
 # reporting periods than the configured safety limit.
@@ -1093,7 +1094,8 @@ def test_report_generation_rejects_too_many_periods(
     assert response.json() == {
         "detail": "Too many reporting periods requested.",
     }
-    
+
+
 # =====================================================================
 # Verifies that an oversized Apple Health export XML is exposed as a
 # controlled payload-too-large API response.
@@ -1107,9 +1109,7 @@ def test_report_generation_rejects_oversized_export_xml(
         self,
         options,
     ):
-        raise RuntimeError(
-            "Apple Health export XML is too large."
-        )
+        raise RuntimeError("Apple Health export XML is too large.")
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1135,7 +1135,8 @@ def test_report_generation_rejects_oversized_export_xml(
     assert response.json() == {
         "detail": "Apple Health export XML is too large.",
     }
-    
+
+
 # =====================================================================
 # Verifies that generated health reports are explicitly marked as
 # non-cacheable because the response contains private health data.

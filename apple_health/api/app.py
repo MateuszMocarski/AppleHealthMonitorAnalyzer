@@ -96,7 +96,7 @@ def generate_report(
                     status_code=422,
                     detail="Too many reporting periods requested.",
                 )
-                
+
             if len(parsed_periods) != len(set(parsed_periods)):
                 raise HTTPException(
                     status_code=422,
@@ -133,13 +133,13 @@ def generate_report(
                 raise
             except RuntimeError as exc:
                 message = str(exc)
-                
+
                 if message == "Apple Health export XML is too large.":
                     raise HTTPException(
                         status_code=413,
                         detail="Apple Health export XML is too large.",
                     ) from exc
-                    
+
                 if message == "Expected exactly one export XML, found 0.":
                     raise HTTPException(
                         status_code=422,
