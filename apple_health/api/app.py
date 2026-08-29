@@ -8,6 +8,10 @@ from apple_health.api.models import (
     MonthlyReportResponse,
     MultiMonthReportResponse,
 )
+from zipfile import BadZipFile
+
+from xml.etree.ElementTree import ParseError
+
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
 from apple_health.application.report_period import ReportPeriod
@@ -48,6 +52,17 @@ def index() -> FileResponse:
     )
 
 
+@app.get(
+    "/favicon.svg",
+    include_in_schema=False,
+)
+def favicon() -> FileResponse:
+    return FileResponse(
+        Path(__file__).parent / "web" / "favicon.svg",
+        media_type="image/svg+xml",
+    )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -67,7 +82,7 @@ def generate_report(
 
         try:
             parsed_periods = tuple(
-                ReportPeriod.from_string(period) for period in periods.split(",")
+                ReportPeriod.from_string(period.strip()) for period in periods.split(",")
             )
         except ValueError as exc:
             raise HTTPException(
@@ -75,13 +90,56 @@ def generate_report(
                 detail="Invalid reporting period.",
             ) from exc
 
+        if len(parsed_periods) != len(set(parsed_periods)):
+            raise HTTPException(
+                status_code=422,
+                detail="Duplicate reporting periods are not allowed.",
+            )
+
         options = MultiMonthRunOptions(
             archive_path=Path(temporary_archive.name),
             periods=parsed_periods,
             config_path=None,
         )
 
-        reports = AppleHealthApplication().generate_reports(options)
+        try:
+            reports = AppleHealthApplication().generate_reports(
+                options,
+            )
+        except BadZipFile as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid Apple Health export archive.",
+            ) from exc
+        except ParseError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid Apple Health export XML.",
+            ) from exc
+        except ValueError as exc:
+            if str(exc) == "Expected Apple HealthData root element.":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Invalid Apple Health export XML.",
+                ) from exc
+        except RuntimeError as exc:
+            message = str(exc)
+
+            if message == "Expected exactly one export XML, found 0.":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Apple Health export.xml not found in archive.",
+                ) from exc
+
+            if message.startswith(
+                "Expected exactly one export XML, found "
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Archive contains multiple Apple Health export.xml files.",
+                ) from exc
+
+            raise
 
     return MultiMonthReportResponse(
         reports=[

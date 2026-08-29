@@ -1,4 +1,6 @@
+from io import BytesIO
 import json
+from zipfile import ZipFile
 import zipfile
 from pathlib import Path
 
@@ -298,3 +300,422 @@ def test_report_generation_rejects_invalid_period() -> None:
     assert response.json() == {
         "detail": "Invalid reporting period.",
     }
+
+
+# =====================================================================
+# Verifies that the web interface exposes a favicon without returning
+# a missing-resource error to the browser.
+# =====================================================================
+
+
+def test_favicon_is_available() -> None:
+    response = client.get(
+        "/favicon.svg",
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+
+
+# =====================================================================
+# Verifies that report generation rejects an empty reporting period
+# instead of attempting to generate a report.
+# =====================================================================
+
+
+def test_report_generation_rejects_empty_periods() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "",
+        },
+    )
+
+    assert response.status_code == 422
+    
+# =====================================================================
+# Verifies that report generation rejects reporting periods containing
+# only whitespace.
+# =====================================================================
+
+
+def test_report_generation_rejects_whitespace_periods() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "   ",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid reporting period.",
+    }
+    
+# =====================================================================
+# Verifies that report generation accepts reporting periods separated
+# by commas with surrounding whitespace.
+# =====================================================================
+
+
+def test_report_generation_accepts_whitespace_between_periods(
+    monkeypatch,
+) -> None:
+    captured_periods = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_periods
+        captured_periods = options.periods
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08, 2026-09",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_periods == (
+        ReportPeriod(
+            year=2026,
+            month=8,
+        ),
+        ReportPeriod(
+            year=2026,
+            month=9,
+        ),
+    )
+    
+# =====================================================================
+# Verifies that report generation rejects duplicate reporting periods
+# instead of generating the same month more than once.
+# =====================================================================
+
+
+def test_report_generation_rejects_duplicate_periods() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08,2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Duplicate reporting periods are not allowed.",
+    }
+    
+# =====================================================================
+# Verifies that report generation rejects files that are not valid ZIP
+# archives instead of returning an internal server error.
+# =====================================================================
+
+
+def test_report_generation_rejects_invalid_zip_archive() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"this-is-not-a-zip",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export archive.",
+    }
+    
+# =====================================================================
+# Verifies that report generation rejects ZIP archives that do not
+# contain the Apple Health export.xml file.
+# =====================================================================
+
+
+def test_report_generation_rejects_archive_without_export_xml() -> None:
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/readme.txt",
+            "not an Apple Health export",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Apple Health export.xml not found in archive.",
+    }
+    
+# =====================================================================
+# Verifies that report generation rejects ZIP archives containing more
+# than one Apple Health export XML file.
+# =====================================================================
+
+
+def test_report_generation_rejects_archive_with_multiple_export_xml_files() -> None:
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            "<HealthData />",
+        )
+        archive.writestr(
+            "duplicate/export.xml",
+            "<HealthData />",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Archive contains multiple Apple Health export.xml files.",
+    }
+    
+# =====================================================================
+# Verifies that report generation rejects an empty ZIP archive because
+# it does not contain an Apple Health export XML file.
+# =====================================================================
+
+
+def test_report_generation_rejects_empty_zip_archive() -> None:
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ):
+        pass
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Apple Health export.xml not found in archive.",
+    }
+    
+# =====================================================================
+# Verifies that report generation rejects archives whose export.xml
+# content is not valid XML.
+# =====================================================================
+
+
+def test_report_generation_rejects_invalid_export_xml() -> None:
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            "this-is-not-valid-xml",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+    
+# =====================================================================
+# Verifies that report generation rejects valid XML that is not an
+# Apple Health export document.
+# =====================================================================
+
+
+def test_report_generation_rejects_non_apple_health_xml() -> None:
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<NotHealthData>
+    <Something />
+</NotHealthData>
+""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+    
+# =====================================================================
+# Verifies that report generation accepts a valid Apple Health archive
+# regardless of the uploaded filename or MIME type.
+# =====================================================================
+
+
+def test_report_generation_does_not_trust_filename_or_mime_type(
+    monkeypatch,
+) -> None:
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<HealthData>
+</HealthData>
+""",
+        )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: [],
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "archive.bin",
+                archive_buffer.getvalue(),
+                "application/octet-stream",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    
+# =====================================================================
+# Verifies that report generation rejects requests without an uploaded
+# archive file.
+# =====================================================================
+
+
+def test_report_generation_rejects_missing_archive() -> None:
+    response = client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
