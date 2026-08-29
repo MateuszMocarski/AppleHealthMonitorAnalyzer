@@ -36,7 +36,21 @@ class AppleHealthParser:
         daily_metrics: dict[date, DailyMetrics] = {}
         sleep_records: list[SleepRecord] = []
 
-        for _, element in ET.iterparse(self.xml_stream, events=("end",)):
+        root_checked = False
+
+        for event, element in ET.iterparse(
+            self.xml_stream,
+            events=("start", "end"),
+        ):
+            if event == "start":
+                if not root_checked:
+                    root_checked = True
+
+                    if element.tag != "HealthData":
+                        raise ValueError("Expected Apple HealthData root element.")
+
+                continue
+
             if element.tag == "Workout":
                 workouts.append(self._parse_workout(element))
                 element.clear()

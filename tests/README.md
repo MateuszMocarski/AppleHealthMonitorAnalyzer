@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **254 test cases**.
+The suite currently contains **298 test cases**.
 
 ## Test structure
 
@@ -12,9 +12,15 @@ The suite currently contains **254 test cases**.
 | `ActivityAnalyzer` | 7 |
 | `MetricsAnalyzer` | 11 |
 | `HealthAnalyzer` | 10 |
-| `AppleHealthParser` | 24 |
+| FastAPI | 29 |
+| `AppleHealthParser` | 25 |
 | CLI | 5 |
-| Application layer | 21 |
+| `AppleHealthApplication` | 3 |
+| `ReportPeriod` | 10 |
+| `RunOptions` | 1 |
+| `RunOptionsResolver` | 9 |
+| `RunProfile` | 1 |
+| `RunProfileLoader` | 8 |
 | `AppConfig` | 1 |
 | `ConfigLoader` | 32 |
 | `SleepConfig` | 3 |
@@ -22,9 +28,9 @@ The suite currently contains **254 test cases**.
 | Report models | 17 |
 | `TextRenderer` | 13 |
 | `JsonRenderer` | 22 |
-| `AppleHealthImporter` | 6 |
-| Integration tests | 10 |
-| **Total** | **254** |
+| `AppleHealthImporter` | 8 |
+| Integration tests | 11 |
+| **Total** | **298** |
 
 ## Analyzers
 
@@ -115,7 +121,7 @@ The suite verifies:
 
 ## AppleHealthParser
 
-`tests/test_parser.py` contains **24 test cases** using synthetic Apple Health XML.
+`tests/test_parser.py` contains **25 test cases** using synthetic Apple Health XML.
 
 The suite verifies:
 
@@ -139,6 +145,7 @@ The suite verifies:
 - sleep-record duration calculation from timestamps
 - injected custom Apple Watch source selection
 - injected custom Apple Health application source selection
+- rejection of XML documents whose root element is not Apple Health `HealthData`
 
 
 ## CLI
@@ -155,9 +162,63 @@ The suite verifies:
 
 The CLI tests focus on the command-line adapter boundary. Application execution, run-profile precedence, and report-generation behavior remain covered independently by the application and integration test suites.
 
+## FastAPI
+
+`tests/api/test_api.py` contains **29 test cases** covering the HTTP boundary and browser-facing report-generation behavior.
+
+The suite verifies:
+
+- the `/health` endpoint
+- availability of the browser favicon
+- successful report generation through the real application pipeline
+- multi-month requests and four report variants per month
+- strict period validation, whitespace handling, and duplicate rejection
+- the maximum requested-period limit
+- missing uploads
+- chunked upload handling and the compressed upload-size limit
+- malformed, empty, and otherwise invalid ZIP archives
+- missing and multiple eligible Apple Health export XML entries
+- malformed XML and non-Apple-Health XML roots
+- localized/non-standard filenames without trusting the client filename or MIME type as proof of validity
+- the uncompressed export XML size limit
+- deletion of the temporary archive after both successful and failed processing
+- stable client-facing mappings for known upload/XML errors
+- preservation of unexpected server exceptions as server errors
+- prevention of internal exception messages and local filesystem paths leaking into 500 responses
+- `Cache-Control: no-store` on responses containing generated health reports
+
+API tests intentionally exercise both synthetic real-pipeline requests and isolated error/orchestration cases. This keeps the HTTP contract explicit without duplicating analyzer and renderer business-rule coverage.
+
 ## Application layer
 
-The application-layer tests cover the execution boundary introduced between CLI argument parsing and the health-processing pipeline.
+Application-layer tests cover both the original single-month CLI execution contract and the multi-month report-generation workflow used by the FastAPI adapter.
+
+### AppleHealthApplication
+
+`tests/application/test_application.py` contains **3 test cases**.
+
+The suite verifies:
+
+- orchestration of a single monthly text report independently of the CLI
+- selection of JSON monthly-summary rendering from resolved `RunOptions`
+- generation of all four report variants for multiple months
+- exactly one parser invocation for a multi-month generation call
+- preservation of requested period order
+
+### ReportPeriod
+
+`tests/application/test_report_period.py` contains **10 collected test cases** after parameterization.
+
+The suite verifies:
+
+- parsing of the strict `YYYY-MM` representation
+- rejection of malformed period formats
+- rejection of month values outside `1`–`12`
+- rejection of non-positive years
+
+### Run options and profiles
+
+The remaining application tests cover `RunOptions`, `RunOptionsResolver`, `RunProfile`, and `RunProfileLoader`.
 
 The suite verifies:
 
@@ -172,7 +233,6 @@ The suite verifies:
 - explicit CLI values overriding run-profile values
 - boolean precedence for monthly-summary mode
 - rejection of execution without an archive path
-- orchestration through `AppleHealthApplication` independently of the CLI
 - compatibility of all committed example run-profile TOML files
 
 The resolver establishes the runtime precedence contract:
@@ -181,7 +241,7 @@ The resolver establishes the runtime precedence contract:
 CLI flags > run profile > built-in defaults
 ```
 
-This boundary allows future entry points such as an API to execute the same application workflow without reproducing CLI orchestration logic.
+The application boundary keeps CLI and HTTP adapters out of report-processing business logic. `AppleHealthApplication.run()` preserves the single-month CLI contract, while `generate_reports()` provides the parse-once, multi-month contract used by the API.
 
 ## Application configuration
 
@@ -367,7 +427,7 @@ The renderer intentionally does not serialize internal dataclasses directly. Its
 
 ## AppleHealthImporter
 
-`tests/test_importer.py` contains **6 test cases** using temporary ZIP archives.
+`tests/test_importer.py` contains **8 collected test cases** using temporary ZIP archives.
 
 The suite verifies:
 
@@ -377,14 +437,16 @@ The suite verifies:
 - ignoring CDA XML documents
 - rejection of archives containing no valid export XML
 - rejection of archives containing more than one valid export XML
+- acceptance of a localized main export XML filename in the Apple Health export directory
+- rejection of an export XML whose declared uncompressed size exceeds the safety limit
 
 Temporary files are created with pytest's `tmp_path` fixture, allowing the importer to be tested against real ZIP archives without storing generated archives in the repository.
 
-`AppleHealthImporter` owns the lifecycle of both the ZIP archive and the extracted XML stream through its context-managed `open_export()` interface, preventing callers from managing archive resources directly.
+`AppleHealthImporter` owns the lifecycle of both the ZIP archive and the streamed XML entry through its context-managed `open_export()` interface, preventing callers from managing archive resources directly. The importer opens the selected entry rather than extracting it to an arbitrary filesystem path.
 
 ## Integration tests
 
-`tests/integration/test_full_report_pipeline.py` contains **10 end-to-end integration tests**.
+`tests/integration/test_full_report_pipeline.py` contains **11 end-to-end integration tests**.
 
 They exercise the complete application pipeline using one shared `AppConfig` instance across configuration-aware components:
 
@@ -412,7 +474,7 @@ MonthlySummary
          Final JSON report
 ```
 
-The end-to-end integration suite exercises both the text- and JSON-rendering pipelines. `JsonRenderer` is additionally covered by dedicated contract tests at the renderer layer.
+The end-to-end integration suite exercises both the text- and JSON-rendering pipelines. It also protects the P4 multi-month invariant that one archive is parsed once and then reused to generate independent monthly outputs. `JsonRenderer` is additionally covered by dedicated contract tests at the renderer layer.
 
 The integration suite verifies:
 
@@ -427,6 +489,7 @@ The integration suite verifies:
 - observable report changes produced by runtime TOML overrides
 - preservation of default pipeline behavior when no configuration file is supplied
 - presence of effective Sleep configuration in monthly text and JSON report output
+- multi-month generation from one archive with month-isolated output and one shared parse
 
 The approved reference output is stored in:
 
@@ -516,6 +579,9 @@ The suite follows several general rules:
 - use a golden report to protect the deterministic final text output contract
 - test JSON through parsed structures to protect the versioned API contract independently of whitespace
 - preserve explicit `null` and empty-collection semantics in JSON contract tests
+- exercise the API boundary with synthetic archives rather than private health exports
+- verify temporary-file cleanup and stable error behavior at the HTTP boundary
+- protect the parse-once multi-month generation contract with application and integration tests
 - avoid tests that merely confirm that dataclass fields store assigned values
 
 This keeps the test suite useful during future refactoring while still providing strong regression protection for the application's core behavior.

@@ -631,3 +631,29 @@ def test_uses_configured_apple_health_source() -> None:
 
     assert nutrition is not None
     assert nutrition.protein_g == pytest.approx(150)
+
+
+# =====================================================================
+# Verifies that the parser rejects XML documents whose root element is
+# not the Apple HealthData element.
+# =====================================================================
+
+
+def test_parser_rejects_non_health_data_root() -> None:
+    xml_stream = BytesIO(
+        b"""<?xml version="1.0" encoding="UTF-8"?>
+<NotHealthData>
+    <Record />
+</NotHealthData>
+"""
+    )
+
+    parser = AppleHealthParser(
+        xml_stream=xml_stream,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Expected Apple HealthData root element.",
+    ):
+        parser.parse()

@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Apple Health Monitor</title>
+    
+    <link
+        rel="icon"
+        type="image/svg+xml"
+        href="/favicon.svg"
+    >
+
+    <meta
+        name="description"
+        content="Private Apple Health report generator for selected monthly periods."
+    >
+
+    <meta
+        name="theme-color"
+        content="#07090d"
+    >
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        :root {
+            color-scheme: dark;
+
+            --background: #07090d;
+            --surface: rgba(18, 21, 28, 0.82);
+            --surface-hover: rgba(25, 29, 38, 0.95);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.14);
+
+            --text: #f5f7fa;
+            --text-secondary: #989faa;
+            --text-muted: #666e79;
+
+            --accent: #ff375f;
+            --accent-hover: #ff5472;
+            --accent-soft: rgba(255, 55, 95, 0.13);
+
+            --success: #32d583;
+            --error: #ff5a65;
+
+            --radius-large: 24px;
+            --radius-medium: 16px;
+            --radius-small: 10px;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+            background:
+                radial-gradient(
+                    circle at 20% 0%,
+                    rgba(255, 55, 95, 0.11),
+                    transparent 35%
+                ),
+                radial-gradient(
+                    circle at 90% 30%,
+                    rgba(88, 86, 214, 0.08),
+                    transparent 30%
+                ),
+                var(--background);
+
+            color: var(--text);
+        }
+
+        .page {
+            width: min(1080px, calc(100% - 40px));
+            margin: 0 auto;
+            padding: 72px 0 100px;
+        }
+
+        .header {
+            margin-bottom: 42px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-icon {
+            width: 30px;
+            height: 30px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 9px;
+            background: var(--accent-soft);
+
+            color: var(--accent);
+            font-size: 17px;
+        }
+
+        h1 {
+            margin: 0;
+
+            max-width: 760px;
+
+            font-size: clamp(42px, 7vw, 72px);
+            line-height: 0.98;
+            letter-spacing: -0.055em;
+            font-weight: 720;
+        }
+
+        .subtitle {
+            margin: 24px 0 0;
+
+            max-width: 620px;
+
+            color: var(--text-secondary);
+            font-size: 18px;
+            line-height: 1.65;
+        }
+
+        .panel {
+            padding: 28px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-large);
+
+            background: var(--surface);
+            backdrop-filter: blur(24px);
+
+            box-shadow:
+                0 24px 70px rgba(0, 0, 0, 0.26),
+                inset 0 1px 0 rgba(255, 255, 255, 0.025);
+        }
+
+        .section + .section {
+            margin-top: 30px;
+            padding-top: 30px;
+
+            border-top: 1px solid var(--border);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 20px;
+
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 650;
+        }
+
+        .section-hint {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .drop-zone {
+            position: relative;
+
+            display: flex;
+            align-items: center;
+            gap: 18px;
+
+            width: 100%;
+            min-height: 108px;
+
+            padding: 20px 22px;
+
+            border: 1px dashed var(--border-strong);
+            border-radius: var(--radius-medium);
+
+            background: rgba(255, 255, 255, 0.018);
+
+            cursor: pointer;
+
+            transition:
+                border-color 160ms ease,
+                background 160ms ease,
+                transform 160ms ease;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragging {
+            border-color: rgba(255, 55, 95, 0.48);
+            background: var(--accent-soft);
+        }
+
+        .drop-zone:active {
+            transform: scale(0.997);
+        }
+
+        .drop-icon {
+            flex: 0 0 auto;
+
+            width: 52px;
+            height: 52px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 14px;
+
+            background: rgba(255, 255, 255, 0.05);
+
+            font-size: 24px;
+        }
+
+        .drop-primary {
+            margin-bottom: 5px;
+
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .drop-secondary {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        #archive {
+            display: none;
+        }
+
+        .month-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .month-input {
+            height: 44px;
+            padding: 0 13px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 14px;
+
+            outline: none;
+        }
+
+        .month-input:focus {
+            border-color: rgba(255, 55, 95, 0.55);
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .secondary-button {
+            height: 44px;
+            padding: 0 16px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+
+            cursor: pointer;
+
+            transition: background 150ms ease;
+        }
+
+        .secondary-button:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .month-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+
+            margin-top: 14px;
+        }
+
+        .month-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+
+            padding: 8px 10px 8px 12px;
+
+            border: 1px solid rgba(255, 55, 95, 0.2);
+            border-radius: 999px;
+
+            background: var(--accent-soft);
+
+            color: #ff8aa1;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .month-chip button {
+            padding: 0;
+            border: 0;
+            background: transparent;
+
+            color: #ff8aa1;
+
+            cursor: pointer;
+            opacity: 0.65;
+        }
+
+        .month-chip button:hover {
+            opacity: 1;
+        }
+
+        .generate-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+
+            margin-top: 30px;
+        }
+
+        .privacy-note {
+            max-width: 480px;
+
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .generate-button {
+            min-width: 170px;
+            height: 50px;
+            padding: 0 22px;
+
+            border: 0;
+            border-radius: 13px;
+
+            background: var(--accent);
+            color: white;
+
+            font-weight: 700;
+
+            cursor: pointer;
+
+            box-shadow: 0 10px 28px rgba(255, 55, 95, 0.2);
+
+            transition:
+                background 150ms ease,
+                transform 150ms ease,
+                opacity 150ms ease;
+        }
+
+        .generate-button:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .generate-button:disabled {
+            cursor: wait;
+            opacity: 0.55;
+        }
+
+        .status {
+            display: none;
+
+            margin-top: 20px;
+            padding: 14px 16px;
+
+            border-radius: 12px;
+
+            font-size: 13px;
+        }
+
+        .status.visible {
+            display: block;
+        }
+
+        .status.success {
+            background: rgba(50, 213, 131, 0.1);
+            color: var(--success);
+        }
+
+        .status.error {
+            background: rgba(255, 90, 101, 0.1);
+            color: var(--error);
+        }
+
+        .results {
+            display: none;
+            margin-top: 28px;
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .results-heading {
+            margin: 0 0 14px;
+
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .result-card {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 24px;
+
+            padding: 22px 24px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .result-card + .result-card {
+            margin-top: 10px;
+        }
+
+        .result-period {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .result-files {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .download-button {
+            padding: 8px 11px;
+
+            border: 1px solid var(--border);
+            border-radius: 9px;
+
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text-secondary);
+
+            font-size: 12px;
+            font-weight: 600;
+
+            cursor: pointer;
+        }
+
+        .download-button:hover {
+            background: rgba(255, 255, 255, 0.075);
+            color: var(--text);
+        }
+
+        @media (max-width: 680px) {
+            .page {
+                width: min(100% - 24px, 1080px);
+                padding-top: 38px;
+            }
+
+            .panel {
+                padding: 20px;
+            }
+
+            .generate-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .generate-button {
+                width: 100%;
+            }
+
+            .result-card {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <header class="header">
+            <div class="brand">
+                <div class="brand-icon">♥</div>
+                Apple Health Monitor
+            </div>
+
+            <h1>
+                Your health data.<br>
+                Actually readable.
+            </h1>
+
+            <p class="subtitle">
+                Upload an Apple Health export, choose the months you want
+                to analyse, and generate detailed private reports.
+            </p>
+        </header>
+
+        <section class="panel">
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">
+                        Apple Health export
+                    </div>
+
+                    <div class="section-hint">
+                        ZIP archive
+                    </div>
+                </div>
+
+                <label
+                    class="drop-zone"
+                    id="drop-zone"
+                    for="archive"
+                >
+                    <div class="drop-icon">⇧</div>
+
+                    <div>
+                        <div
+                            class="drop-primary"
+                            id="file-name"
+                        >
+                            Choose export.zip
+                        </div>
+
+                        <div class="drop-secondary">
+                            Click to browse or drop the file here
+                        </div>
+                    </div>
+
+                    <input
+                        id="archive"
+                        type="file"
+                        accept=".zip,application/zip"
+                    >
+                </label>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">
+                        Reporting periods
+                    </div>
+
+                    <div class="section-hint">
+                        Select one or more months
+                    </div>
+                </div>
+
+                <div class="month-row">
+                    <input
+                        id="month-input"
+                        class="month-input"
+                        type="month"
+                    >
+
+                    <button
+                        class="secondary-button"
+                        id="add-month-button"
+                        type="button"
+                    >
+                        Add month
+                    </button>
+                </div>
+
+                <div
+                    class="month-chips"
+                    id="month-chips"
+                ></div>
+            </div>
+
+            <div class="generate-row">
+                <div class="privacy-note">
+                    The uploaded archive is used only to generate the selected
+                    reports and is deleted immediately after processing.
+                </div>
+
+                <button
+                    class="generate-button"
+                    id="generate-button"
+                    type="button"
+                >
+                    Generate reports
+                </button>
+            </div>
+
+            <div
+                class="status"
+                id="status"
+            ></div>
+        </section>
+
+        <section
+            class="results"
+            id="results"
+        >
+            <h2 class="results-heading">
+                Generated reports
+            </h2>
+
+            <div id="result-list"></div>
+        </section>
+    </main>
+
+    <script>
+        const archiveInput =
+            document.getElementById("archive");
+
+        const fileName =
+            document.getElementById("file-name");
+
+        const dropZone =
+            document.getElementById("drop-zone");
+
+        const monthInput =
+            document.getElementById("month-input");
+
+        const addMonthButton =
+            document.getElementById("add-month-button");
+
+        const monthChips =
+            document.getElementById("month-chips");
+
+        const generateButton =
+            document.getElementById("generate-button");
+
+        const status =
+            document.getElementById("status");
+
+        const results =
+            document.getElementById("results");
+
+        const resultList =
+            document.getElementById("result-list");
+
+        const selectedMonths = new Set();
+
+        archiveInput.addEventListener(
+            "change",
+            () => {
+                const file = archiveInput.files[0];
+
+                fileName.textContent =
+                    file
+                        ? file.name
+                        : "Choose export.zip";
+            },
+        );
+
+        dropZone.addEventListener(
+            "dragover",
+            (event) => {
+                event.preventDefault();
+                dropZone.classList.add("dragging");
+            },
+        );
+
+        dropZone.addEventListener(
+            "dragleave",
+            () => {
+                dropZone.classList.remove("dragging");
+            },
+        );
+
+        dropZone.addEventListener(
+            "drop",
+            (event) => {
+                event.preventDefault();
+
+                dropZone.classList.remove("dragging");
+
+                const file =
+                    event.dataTransfer.files[0];
+
+                if (!file) {
+                    return;
+                }
+
+                const transfer =
+                    new DataTransfer();
+
+                transfer.items.add(file);
+                archiveInput.files = transfer.files;
+
+                fileName.textContent = file.name;
+            },
+        );
+
+        addMonthButton.addEventListener(
+            "click",
+            () => {
+                const month = monthInput.value;
+
+                if (!month) {
+                    return;
+                }
+
+                selectedMonths.add(month);
+                renderMonthChips();
+
+                monthInput.value = "";
+            },
+        );
+
+        function renderMonthChips() {
+            monthChips.innerHTML = "";
+
+            [...selectedMonths]
+                .sort()
+                .forEach((month) => {
+                    const chip =
+                        document.createElement("div");
+
+                    chip.className =
+                        "month-chip";
+
+                    chip.innerHTML = `
+                        <span>${month}</span>
+                        <button
+                            type="button"
+                            aria-label="Remove ${month}"
+                        >
+                            ×
+                        </button>
+                    `;
+
+                    chip
+                        .querySelector("button")
+                        .addEventListener(
+                            "click",
+                            () => {
+                                selectedMonths.delete(month);
+                                renderMonthChips();
+                            },
+                        );
+
+                    monthChips.appendChild(chip);
+                });
+        }
+
+        function showStatus(
+            message,
+            type,
+        ) {
+            status.textContent = message;
+            status.className =
+                `status visible ${type}`;
+        }
+
+        function downloadText(
+            filename,
+            content,
+            mimeType,
+        ) {
+            const blob =
+                new Blob(
+                    [content],
+                    {
+                        type: mimeType,
+                    },
+                );
+
+            const url =
+                URL.createObjectURL(blob);
+
+            const link =
+                document.createElement("a");
+
+            link.href = url;
+            link.download = filename;
+
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            URL.revokeObjectURL(url);
+        }
+
+        function renderReports(reports) {
+            resultList.innerHTML = "";
+
+            reports.forEach((report) => {
+                const month =
+                    String(report.month)
+                        .padStart(2, "0");
+
+                const period =
+                    `${report.year}-${month}`;
+
+                const card =
+                    document.createElement("article");
+
+                card.className =
+                    "result-card";
+
+                card.innerHTML = `
+                    <div class="result-period">
+                        ${period}
+                    </div>
+
+                    <div class="result-files">
+                        <button
+                            class="download-button"
+                            data-file="full_text"
+                        >
+                            full.txt
+                        </button>
+
+                        <button
+                            class="download-button"
+                            data-file="full_json"
+                        >
+                            full.json
+                        </button>
+
+                        <button
+                            class="download-button"
+                            data-file="summary_text"
+                        >
+                            summary.txt
+                        </button>
+
+                        <button
+                            class="download-button"
+                            data-file="summary_json"
+                        >
+                            summary.json
+                        </button>
+                    </div>
+                `;
+
+                card
+                    .querySelector('[data-file="full_text"]')
+                    .addEventListener(
+                        "click",
+                        () => downloadText(
+                            `${period}-full.txt`,
+                            report.full_text,
+                            "text/plain",
+                        ),
+                    );
+
+                card
+                    .querySelector('[data-file="full_json"]')
+                    .addEventListener(
+                        "click",
+                        () => downloadText(
+                            `${period}-full.json`,
+                            report.full_json,
+                            "application/json",
+                        ),
+                    );
+
+                card
+                    .querySelector('[data-file="summary_text"]')
+                    .addEventListener(
+                        "click",
+                        () => downloadText(
+                            `${period}-summary.txt`,
+                            report.summary_text,
+                            "text/plain",
+                        ),
+                    );
+
+                card
+                    .querySelector('[data-file="summary_json"]')
+                    .addEventListener(
+                        "click",
+                        () => downloadText(
+                            `${period}-summary.json`,
+                            report.summary_json,
+                            "application/json",
+                        ),
+                    );
+
+                resultList.appendChild(card);
+            });
+
+            results.classList.add("visible");
+        }
+
+        generateButton.addEventListener(
+            "click",
+            async () => {
+                const file =
+                    archiveInput.files[0];
+
+                if (!file) {
+                    showStatus(
+                        "Choose an Apple Health ZIP archive first.",
+                        "error",
+                    );
+                    return;
+                }
+
+                if (selectedMonths.size === 0) {
+                    showStatus(
+                        "Select at least one reporting month.",
+                        "error",
+                    );
+                    return;
+                }
+
+                const formData =
+                    new FormData();
+
+                formData.append(
+                    "archive",
+                    file,
+                );
+
+                formData.append(
+                    "periods",
+                    [...selectedMonths]
+                        .sort()
+                        .join(","),
+                );
+
+                generateButton.disabled = true;
+                generateButton.textContent =
+                    "Generating…";
+
+                results.classList.remove("visible");
+
+                showStatus(
+                    "Parsing Apple Health data and generating reports…",
+                    "success",
+                );
+
+                try {
+                    const response =
+                        await fetch(
+                            "/reports/generate",
+                            {
+                                method: "POST",
+                                body: formData,
+                            },
+                        );
+
+                    if (!response.ok) {
+                        let message =
+                            `Request failed with status ${response.status}`;
+
+                        try {
+                            const errorPayload =
+                                await response.json();
+
+                            if (errorPayload.detail) {
+                                message = errorPayload.detail;
+                            }
+                        } catch {
+                            // Keep the generic HTTP status message.
+                        }
+
+                        throw new Error(message);
+                    }
+
+                    const payload =
+                        await response.json();
+
+                    renderReports(
+                        payload.reports,
+                    );
+
+                    showStatus(
+                        `Generated ${payload.reports.length} monthly report set(s).`,
+                        "success",
+                    );
+                } catch (error) {
+                    showStatus(
+                        error.message,
+                        "error",
+                    );
+                } finally {
+                    generateButton.disabled = false;
+                    generateButton.textContent =
+                        "Generate reports";
+                }
+            },
+        );
+    </script>
+</body>
+</html>

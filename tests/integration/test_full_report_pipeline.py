@@ -5,6 +5,9 @@ from pathlib import Path
 import pytest
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.application.application import AppleHealthApplication
+from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
 from apple_health.config.config_loader import ConfigLoader
 from apple_health.enums import WorkoutType
@@ -143,6 +146,85 @@ def _create_export_archive(
         )
 
         return archive_path
+
+
+def _create_multi_month_export_archive(
+    tmp_path: Path,
+    config: AppConfig,
+) -> Path:
+    archive_path = tmp_path / "multi_month_export.zip"
+    source_config = config.source
+
+    xml = f"""
+        <HealthData>
+            <Record
+                type="HKQuantityTypeIdentifierStepCount"
+                sourceName="{source_config.apple_watch_source}"
+                value="8000"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierActiveEnergyBurned"
+                sourceName="{source_config.apple_watch_source}"
+                value="700"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierBasalEnergyBurned"
+                sourceName="{source_config.apple_watch_source}"
+                value="1900"
+                startDate="2026-08-01 10:00:00 +0200"
+                endDate="2026-08-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierStepCount"
+                sourceName="{source_config.apple_watch_source}"
+                value="9000"
+                startDate="2026-09-01 10:00:00 +0200"
+                endDate="2026-09-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierActiveEnergyBurned"
+                sourceName="{source_config.apple_watch_source}"
+                value="750"
+                startDate="2026-09-01 10:00:00 +0200"
+                endDate="2026-09-01 10:00:00 +0200"
+            />
+
+            <Record
+                type="HKQuantityTypeIdentifierBasalEnergyBurned"
+                sourceName="{source_config.apple_watch_source}"
+                value="1900"
+                startDate="2026-09-01 10:00:00 +0200"
+                endDate="2026-09-01 10:00:00 +0200"
+            />
+            
+            <Record
+                type="HKQuantityTypeIdentifierStepCount"
+                sourceName="{source_config.apple_watch_source}"
+                value="10000"
+                startDate="2026-09-02 10:00:00 +0200"
+                endDate="2026-09-02 10:00:00 +0200"
+            />
+        </HealthData>
+        """
+
+    with zipfile.ZipFile(
+        archive_path,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            xml,
+        )
+
+    return archive_path
 
 
 def _run_pipeline(
@@ -548,3 +630,86 @@ def test_pipeline_without_config_uses_default_configuration(
     )
 
     assert summary.sleep_summary is not None
+
+
+# =====================================================================
+# Verifies that multi-month report generation processes one Apple
+# Health archive and returns all report variants for each requested month.
+# =====================================================================
+
+
+def test_multi_month_report_generation_pipeline(
+    tmp_path: Path,
+) -> None:
+    config = AppConfig()
+    archive_path = _create_multi_month_export_archive(
+        tmp_path,
+        config,
+    )
+
+    options = MultiMonthRunOptions(
+        archive_path=archive_path,
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+            ReportPeriod(
+                year=2026,
+                month=9,
+            ),
+        ),
+        config_path=None,
+    )
+
+    reports = AppleHealthApplication().generate_reports(
+        options,
+    )
+
+    assert len(reports) == 2
+
+    august_report = reports[0]
+    september_report = reports[1]
+
+    assert august_report.period == ReportPeriod(
+        year=2026,
+        month=8,
+    )
+    assert september_report.period == ReportPeriod(
+        year=2026,
+        month=9,
+    )
+
+    assert august_report.full_text
+    assert august_report.full_json
+    assert august_report.summary_text
+    assert august_report.summary_json
+
+    assert september_report.full_text
+    assert september_report.full_json
+    assert september_report.summary_text
+    assert september_report.summary_json
+
+    august_json = json.loads(
+        august_report.full_json,
+    )
+    september_json = json.loads(
+        september_report.full_json,
+    )
+
+    assert august_json["report"]["year"] == 2026
+    assert august_json["report"]["month"] == 8
+
+    assert september_json["report"]["year"] == 2026
+    assert september_json["report"]["month"] == 9
+
+    assert august_json["schema_version"] == "1.0"
+    assert september_json["schema_version"] == "1.0"
+
+    assert august_json["general_activity"]["total_steps"] == 8000
+
+    assert september_json["general_activity"]["total_steps"] == 9000
+
+    assert all(day["date"].startswith("2026-08") for day in august_json["days"])
+
+    assert all(day["date"].startswith("2026-09") for day in september_json["days"])

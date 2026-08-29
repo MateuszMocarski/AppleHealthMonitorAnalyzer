@@ -3,6 +3,8 @@
 ### Highlights
 
 - 📅 Daily and monthly reports
+- 🌐 Browser interface and FastAPI report-generation API
+- 🗓️ Multi-month generation from a single Apple Health parse
 - 😴 Automatic sleep session reconstruction
 - 🚶 Activity and workout aggregation
 - 📊 Deterministic and comparable reports
@@ -10,9 +12,9 @@
 
 ## Overview
 
-Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports.
+Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports. It can be used from the command line or through a local web interface backed by FastAPI.
 
-The application parses Apple Health XML exports, reconstructs sleep sessions, aggregates daily activity, energy, body weight, and nutrition metrics, and generates comprehensive reports designed for long-term health and fitness tracking.
+The application parses Apple Health XML exports, reconstructs sleep sessions, aggregates daily activity, energy, body weight, and nutrition metrics, and generates comprehensive reports designed for long-term health and fitness tracking. The web workflow can generate multiple months from one uploaded archive while parsing the Apple Health XML only once.
 
 Unlike the Apple Health application, which focuses on browsing recorded data, Apple Health Monitor Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
 
@@ -83,10 +85,23 @@ independent verification, and AI-assisted interpretation.
 - Human-readable text reports
 - Structured JSON reports with a versioned schema
 - Daily and monthly summaries
+- Four report variants per selected month: full text, full JSON, summary text, and summary JSON
 - AI-friendly report formats
 - Effective Sleep configuration included in monthly text and JSON reports
 - Partial monthly reports that preserve available data when individual sections are missing
 - Documented calculation methodology
+
+### Web and API
+
+- FastAPI application with a browser-based report generator
+- Multipart Apple Health ZIP upload
+- Selection of one or more reporting months using `YYYY-MM` periods
+- One archive parse shared across all requested months
+- Browser downloads for all four generated report variants
+- Health-check endpoint for deployment readiness
+- Disposable temporary ZIP handling with cleanup after success or failure
+- Application-level limits for upload size, uncompressed export XML size, and number of requested periods
+- Non-cacheable report-generation responses (`Cache-Control: no-store`)
 
 ### Design
 
@@ -97,9 +112,93 @@ independent verification, and AI-assisted interpretation.
 
 ## Usage
 
+The project currently supports two entry points: a browser/FastAPI workflow for multi-month report generation and the original command-line interface for single-month execution. Both reuse the same application, parser, analyzer, and renderer layers.
+
+### Web Interface
+
+Start the FastAPI application with Uvicorn:
+
+```bash
+uvicorn apple_health.api.app:app --reload
+```
+
+Then open the local application in a browser, normally at `http://127.0.0.1:8000/`.
+
+The web interface allows you to:
+
+1. select an Apple Health export ZIP,
+2. choose one or more reporting months,
+3. generate all selected months in one request, and
+4. download `full.txt`, `full.json`, `summary.txt`, or `summary.json` for each generated month.
+
+The uploaded ZIP is copied to a disposable temporary file for processing and is deleted when the request completes, including controlled failure paths. Generated report content is returned directly to the browser; P4 does not persist reports on the server.
+
+> **Current deployment status:** the web application does not yet include authentication. It is intended for local/development use until the private-authentication phase is implemented. Do not expose the report-generation endpoint publicly without an appropriate access-control layer.
+
+### Report Generation API
+
+`POST /reports/generate` accepts multipart form data:
+
+| Field | Description |
+| --- | --- |
+| `archive` | Apple Health export ZIP archive |
+| `periods` | Comma-separated reporting periods in strict `YYYY-MM` format |
+
+Example:
+
+```bash
+curl -X POST \
+  -F "archive=@export.zip" \
+  -F "periods=2026-07,2026-08" \
+  http://127.0.0.1:8000/reports/generate
+```
+
+The response contains one object per requested month. Each object includes the reporting year/month and four rendered strings:
+
+```json
+{
+  "reports": [
+    {
+      "year": 2026,
+      "month": 8,
+      "full_text": "...",
+      "full_json": "...",
+      "summary_text": "...",
+      "summary_json": "..."
+    }
+  ]
+}
+```
+
+Requested periods preserve their request order. Duplicate periods are rejected, and at most 120 periods may be requested in one call.
+
+Other HTTP endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /` | Browser report-generation interface |
+| `GET /health` | Lightweight API health check |
+| `GET /favicon.svg` | Web-interface favicon |
+
+### Upload and Processing Limits
+
+P4 includes application-level resource safeguards around Apple Health uploads:
+
+- uploaded ZIP data is copied in 1 MiB chunks instead of being read into memory as one byte string,
+- compressed upload size is limited to 1 GiB by the application,
+- the selected Apple Health XML entry is limited to 4 GiB of declared uncompressed size,
+- at most 120 reporting periods are accepted per generation request,
+- the importer streams the selected XML entry directly from the ZIP,
+- the parser processes XML incrementally with `ElementTree.iterparse()` and clears processed elements, and
+- the ZIP is never extracted to an arbitrary filesystem path.
+
+These are application safeguards, not a complete public-hosting security layer. Reverse-proxy/request limits, authentication, rate/concurrency controls, HTTPS, and production API-documentation settings belong to the later deployment/authentication phases.
+
+### Command Line Interface
+
 Run the application from the command line using the `import` command followed by the path to the Apple Health export archive.
 
-### Basic Usage
+#### Basic Usage
 
 ```bash
 python app.py import export.zip
@@ -107,7 +206,7 @@ python app.py import export.zip
 
 Analyzes the current month of the current year.
 
-### Analyze a Specific Month
+#### Analyze a Specific Month
 
 ```bash
 python app.py import export.zip --month 7
@@ -115,7 +214,7 @@ python app.py import export.zip --month 7
 
 Analyzes the specified month of the current year.
 
-### Analyze a Specific Year and Month
+#### Analyze a Specific Year and Month
 
 ```bash
 python app.py import export.zip --year 2025 --month 12
@@ -123,7 +222,7 @@ python app.py import export.zip --year 2025 --month 12
 
 Both `--year` and `--month` can be used together to analyze a specific month from a different year.
 
-### Show Only Monthly Summary
+#### Show Only Monthly Summary
 
 ```bash
 python app.py import export.zip --month 7 --month-summary
@@ -131,8 +230,7 @@ python app.py import export.zip --month 7 --month-summary
 
 Displays only the aggregated monthly statistics without the detailed daily report.
 
-
-### JSON Output
+#### JSON Output
 
 Use `--format json` to generate a structured JSON report instead of the default text output.
 
@@ -140,7 +238,7 @@ Use `--format json` to generate a structured JSON report instead of the default 
 python app.py import export.zip --month 8 --format json
 ```
 
-JSON output uses a versioned schema intended for machine consumption, API integration, and future frontend clients. Numeric values remain JSON numbers, dates and timestamps use ISO-compatible representations, and unavailable report sections are represented explicitly with `null` while empty collections remain `[]`.
+JSON output uses a versioned schema intended for machine consumption, API integration, and frontend clients. Numeric values remain JSON numbers, dates and timestamps use ISO-compatible representations, and unavailable report sections are represented explicitly with `null` while empty collections remain `[]`.
 
 Combine JSON output with `--month-summary` to return only monthly aggregates without daily entries:
 
@@ -206,7 +304,7 @@ Example application configuration files are available in [`apple_health/config/e
 | `--format` | Output format: `text` or `json`. Overrides the profile value when supplied. |
 | `--config` | Path to an optional TOML application configuration file. Overrides the profile value when supplied. |
 
-The application processes the archive and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics.
+The CLI processes one reporting month per execution and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics. The multi-month four-output workflow is exposed separately through `AppleHealthApplication.generate_reports()` and the FastAPI endpoint.
 
 ## Project Architecture
 
@@ -215,6 +313,8 @@ The application follows a layered architecture that separates application execut
 ```mermaid
 flowchart TD
 
+    WEB["🌐 Browser UI"]
+    API["FastAPI<br/><i>HTTP Adapter</i>"]
     ENTRY["⌨️ app.py<br/><i>CLI Entry Point</i>"]
     CLI["apple_health.cli<br/><i>CLI Adapter</i>"]
     PROFILE["📋 Run Profile<br/><i>Optional TOML</i>"]
@@ -237,15 +337,17 @@ flowchart TD
     H["📄 Text Report"]
     HJ["🧩 JSON Report"]
 
+    WEB -->|"Multipart ZIP + periods"| API
+    API -->|"MultiMonthRunOptions"| APP
     ENTRY --> CLI
     PROFILE -.->|"Load optional settings"| CLI
     CLI -->|"Resolve RunOptions"| APP
     APP -->|"Select archive and configuration"| A
     APP -.->|"Load configuration"| CFG
-    A -->|"Load archive"| B
-    B -->|"Extract XML"| C
-    C -->|"Parse records"| D
-    D -->|"Analyze health data"| E
+    A -->|"Open XML stream"| B
+    B -->|"Stream XML"| C
+    C -->|"Parse once"| D
+    D -->|"Analyze requested month(s)"| E
 
     CFG -.->|"Configure"| C
     CFG -.->|"Configure"| E
@@ -266,6 +368,7 @@ flowchart TD
     G --> H
     GJ --> HJ
 
+    classDef adapter fill:#EAF2F8,stroke:#5D6D7E,color:#000,stroke-width:2px;
     classDef import fill:#D6EAF8,stroke:#2E86C1,color:#000,stroke-width:2px;
     classDef config fill:#FDEBD0,stroke:#CA6F1E,color:#000,stroke-width:2px;
     classDef domain fill:#D5F5E3,stroke:#239B56,color:#000,stroke-width:2px;
@@ -273,6 +376,7 @@ flowchart TD
     classDef presentation fill:#E8DAEF,stroke:#8E44AD,color:#000,stroke-width:2px;
     classDef output fill:#FADBD8,stroke:#CB4335,color:#000,stroke-width:2px;
 
+    class WEB,API,ENTRY,CLI,PROFILE adapter;
     class A,B,C import;
     class CFG config;
     class D domain;
@@ -281,17 +385,18 @@ flowchart TD
     class H,HJ output;
 ```
 
-The diagram is organized into five logical layers, each with a clearly defined responsibility.
+The diagram keeps the processing core independent from its adapters. The CLI and FastAPI layers both delegate to the same application orchestration and therefore share the same parsing, analysis, configuration, and rendering behavior.
 
 | Layer | Responsibility |
 |-------|----------------|
-| 🔵 **Import** | Load and parse Apple Health export |
+| ⚪ **Adapters** | Translate CLI or HTTP input into application-level execution options |
+| 🔵 **Import** | Open and stream the Apple Health export XML |
 | 🟢 **Domain** | In-memory representation of imported health data |
 | 🟡 **Analysis** | Calculate statistics and build report models |
 | 🟣 **Presentation** | Render report models into text or JSON representations |
 | 🔴 **Output** | Final human-readable or machine-readable report |
 
-Application execution is coordinated by `AppleHealthApplication`, which receives resolved `RunOptions` independently of the CLI. This keeps the processing pipeline reusable by future entry points such as an API. Run profiles and CLI values are resolved before execution.
+Application execution is coordinated by `AppleHealthApplication`. `run()` preserves the single-month CLI workflow, while `generate_reports()` supports the web/API workflow by parsing one archive once and rendering four report variants for every requested `ReportPeriod`.
 
 Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created for each application run and injected into components that require configurable behavior.
 
@@ -299,7 +404,7 @@ Configuration is treated as a cross-cutting application concern rather than a se
 
 The `apple_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
 
-The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `AppleHealthApplication`, allowing future entry points such as an API to reuse the same application workflow without depending on command-line parsing.
+The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `AppleHealthApplication`; the FastAPI adapter reuses the same application workflow without depending on command-line parsing.
 
 #### AppConfig
 
@@ -309,13 +414,36 @@ Detailed configuration structure, TOML loading behavior, defaults, validation ru
 
 #### AppleHealthImporter
 
-Responsible for loading the Apple Health export archive and extracting the XML data required for further processing.
-The importer owns the lifecycle of both the ZIP archive and extracted XML stream through its context-managed interface. It is intentionally isolated from the parsing logic, allowing the parser to operate independently of the data source.
+Responsible for opening the Apple Health export archive and exposing the single eligible Apple Health XML entry as a stream. The importer does not extract the XML to an arbitrary filesystem path.
+
+The importer owns the lifecycle of both the ZIP archive and XML stream through its context-managed interface. It accepts localized main-export XML filenames within the `apple_health_export` directory, excludes CDA XML documents, requires exactly one eligible XML entry, and rejects an entry whose declared uncompressed size exceeds the configured 4 GiB safety limit. It is intentionally isolated from parsing logic, allowing the parser to operate independently of the data source.
 
 #### AppleHealthParser
 
 Parses Apple Health XML records and converts them into strongly typed domain objects.
 The parser performs data transformation only and does not calculate statistics or generate reports.
+
+The parser consumes the ZIP entry incrementally with `ElementTree.iterparse()`, validates the `HealthData` root element, and clears processed XML elements. This avoids materializing the complete export XML document as one in-memory string.
+
+#### FastAPI Adapter
+
+Owns the HTTP boundary for the browser workflow. It validates reporting-period input, copies uploads to a disposable temporary ZIP in chunks, maps known malformed-upload conditions to stable client errors, closes the uploaded file, and returns generated reports without persisting them.
+
+The adapter does not accept arbitrary server-side archive or configuration paths from remote clients. Multi-month requests are converted into `MultiMonthRunOptions` before being passed to the application layer.
+
+#### Multi-month Application Contract
+
+`ReportPeriod` represents one strict `YYYY-MM` reporting period. `MultiMonthRunOptions` groups the temporary archive path with an ordered tuple of periods and optional application configuration. `MonthlyReports` carries the four rendered artifacts produced for one month.
+
+`AppleHealthApplication.generate_reports()` loads configuration once, opens and parses the Apple Health export once, creates one analyzer over the resulting `AppleHealthData`, and then summarizes and renders each requested month independently. This preserves the core P4 invariant:
+
+```text
+ONE ZIP
+→ ONE PARSE
+→ ONE AppleHealthData
+→ N MONTHS
+→ 4 REPORTS PER MONTH
+```
 
 #### AppleHealthData (Domain Model Root)
 
@@ -367,6 +495,9 @@ Both renderers are isolated in the `renderers` package, allowing presentation fo
 - Specialized analyzers separate activity, daily metrics and sleep responsibilities behind a single `HealthAnalyzer` orchestration layer.
 - Renderers produce representations of report models without controlling the final output destination.
 - Configurable components receive application settings through dependency injection rather than depending on module-level configuration globals.
+- CLI and HTTP adapters remain outside report-processing business logic.
+- Multi-month generation parses each uploaded archive once and reuses one `AppleHealthData` instance across requested months.
+- Temporary uploaded archives are disposable inputs rather than durable application state.
 
 ## Configuration
 
@@ -493,6 +624,8 @@ Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorde
 ## Report Format
 
 The application can generate both a structured, human-readable text report and a versioned JSON representation summarizing activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
+
+For every period requested through the multi-month workflow, the application produces four independent representations: full text, full JSON, summary text, and summary JSON. P4 returns these representations directly to the API client; durable report storage is planned for the Google Drive phase.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
 
@@ -676,46 +809,73 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 ## Testing
 
-The project includes a comprehensive automated test suite covering the
-core application logic and the complete report-generation pipeline.
+The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The test suite currently contains **254 test cases**, covering:
+The test suite currently contains **298 test cases**, including coverage for:
 
--   sleep analysis and scoring
--   activity and health metrics analysis
--   Apple Health XML parsing
--   configuration validation
--   report models
--   text rendering
--   JSON rendering and API contract behavior
--   ZIP import handling
--   command-line parsing and CLI validation
--   application execution and run-option resolution
--   resolved run-option validation
--   TOML run-profile loading, structure validation, and precedence
--   end-to-end report generation
+- sleep analysis and scoring
+- activity and health metrics analysis
+- Apple Health XML parsing and root validation
+- ZIP import handling, localized export filenames, and uncompressed XML size limits
+- configuration validation
+- report models
+- text rendering
+- JSON rendering and API contract behavior
+- command-line parsing and CLI validation
+- application execution and run-option resolution
+- strict `ReportPeriod` parsing and validation
+- multi-month application orchestration with one parse per archive
+- FastAPI upload, period, error-handling, cleanup, and privacy behavior
+- run-profile loading, structure validation, and precedence
+- end-to-end single- and multi-month report generation
 
 Run the complete test suite with:
 
-``` bash
+```bash
 pytest
 ```
 
 Code quality checks:
 
-``` bash
+```bash
 ruff check .
 black --check .
 ```
 
-For a detailed breakdown of the test suite, see
-[`tests/README.md`](tests/README.md).
+For a detailed breakdown of the test suite, see [`tests/README.md`](tests/README.md).
+
+## Current Web-Application Boundary
+
+P4 establishes the report-generation boundary but deliberately does not implement persistent cloud storage or public authentication yet. Current behavior is intentionally stateless:
+
+```text
+Browser
+  ↓ multipart ZIP + selected periods
+FastAPI
+  ↓ disposable temporary ZIP
+AppleHealthApplication.generate_reports()
+  ↓ parse once
+AppleHealthData
+  ↓ analyze N months
+4 rendered reports per month
+  ↓
+HTTP response / browser downloads
+```
+
+The uploaded Apple Health ZIP is not application-level durable storage, and generated reports are not persisted by P4. This separation allows later storage and authentication work to be added around a tested report-generation core without changing the domain pipeline.
 
 ## Future Development
 
-The project currently fulfills its original purpose.
+The processing and multi-month generation foundation is complete. The next planned web-application phases are:
 
-Future development may include additional health metrics when practical needs arise, additional presentation formats where justified, API and frontend integration, and further technical improvements focused on maintainability, code quality and architecture.
+1. **Google Drive report storage** – store generated monthly artifacts in a private dedicated Drive folder, list available reports, and support safe regeneration/replacement semantics.
+2. **Web report viewer** – list stored months and render monthly summaries, day-by-day data, charts, and download links from stored JSON/report artifacts.
+3. **Private authentication** – protect health-report access and generation before public exposure.
+4. **Stateless/free deployment** – deploy the application with HTTPS and hosting-layer request/resource controls while keeping Google Drive as durable report storage.
+
+The intended durable report layout is one directory per month containing `full.json`, `full.txt`, `summary.json`, and `summary.txt`. The uploaded Apple Health export remains disposable input and is not intended to be persisted.
+
+Additional health metrics and presentation formats may be added when they provide concrete value, but they are intentionally secondary to completing the private hosted-report workflow.
 
 ## License
 
