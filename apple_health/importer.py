@@ -22,7 +22,7 @@ class AppleHealthImporter:
             xml_files = [
                 file
                 for file in archive.namelist()
-                if file.lower().endswith(".xml") and "cda" not in file.lower()
+                if Path(file).name.lower() == "export.xml"
             ]
 
             if len(xml_files) != 1:

@@ -97,10 +97,7 @@ class AppleHealthApplication:
 
             reports.append(
                 MonthlyReports(
-                    period=ReportPeriod(
-                        year=period.year,
-                        month=period.month,
-                    ),
+                    period=period,
                     full_text=text_renderer.render_month(
                         summary,
                     ),
