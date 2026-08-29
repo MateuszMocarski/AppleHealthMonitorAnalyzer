@@ -271,3 +271,30 @@ def test_report_generation_rejects_oversized_archive(
     assert response.json() == {
         "detail": "Uploaded archive is too large.",
     }
+
+
+# =====================================================================
+# Verifies that report generation returns a client error when a
+# reporting period is invalid.
+# =====================================================================
+
+
+def test_report_generation_rejects_invalid_period() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-13",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid reporting period.",
+    }

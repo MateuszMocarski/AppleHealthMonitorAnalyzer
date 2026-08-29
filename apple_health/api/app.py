@@ -65,13 +65,15 @@ def generate_report(
         )
         temporary_archive.flush()
 
-        parsed_periods = tuple(
-            ReportPeriod(
-                year=int(period.split("-")[0]),
-                month=int(period.split("-")[1]),
+        try:
+            parsed_periods = tuple(
+                ReportPeriod.from_string(period) for period in periods.split(",")
             )
-            for period in periods.split(",")
-        )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid reporting period.",
+            ) from exc
 
         options = MultiMonthRunOptions(
             archive_path=Path(temporary_archive.name),
