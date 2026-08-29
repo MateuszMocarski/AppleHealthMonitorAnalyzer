@@ -697,9 +697,6 @@ def test_multi_month_report_generation_pipeline(
         september_report.full_json,
     )
 
-    print(json.dumps(august_json, indent=2))
-    print(json.dumps(september_json, indent=2))
-
     assert august_json["report"]["year"] == 2026
     assert august_json["report"]["month"] == 8
 
@@ -708,3 +705,23 @@ def test_multi_month_report_generation_pipeline(
 
     assert august_json["schema_version"] == "1.0"
     assert september_json["schema_version"] == "1.0"
+    
+    assert (
+        august_json["general_activity"]["total_steps"]
+        == 8000
+    )
+
+    assert (
+        september_json["general_activity"]["total_steps"]
+        == 9000
+    )
+
+    assert all(
+        day["date"].startswith("2026-08")
+        for day in august_json["days"]
+    )
+
+    assert all(
+        day["date"].startswith("2026-09")
+        for day in september_json["days"]
+    )
