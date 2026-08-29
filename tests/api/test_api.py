@@ -237,3 +237,37 @@ def test_generate_reports_for_multiple_months(
             },
         ]
     }
+
+
+# =====================================================================
+# Verifies that report generation rejects archives exceeding the
+# configured upload size limit.
+# =====================================================================
+
+
+def test_report_generation_rejects_oversized_archive(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "apple_health.api.app.MAX_UPLOAD_SIZE",
+        10,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"12345678901",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "Uploaded archive is too large.",
+    }
