@@ -811,3 +811,267 @@ def test_report_generation_deletes_temporary_archive_after_failure(
     assert response.status_code == 422
     assert temporary_archive_path is not None
     assert not temporary_archive_path.exists()
+    
+# =====================================================================
+# Verifies that unexpected application errors are not misclassified as
+# client input errors.
+# =====================================================================
+
+
+def test_report_generation_preserves_unexpected_server_errors(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise RuntimeError("unexpected failure")
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    client_without_server_exceptions = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    response = client_without_server_exceptions.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 500
+    
+# =====================================================================
+# Verifies that unexpected ValueError exceptions remain server errors
+# instead of being incorrectly converted into client input errors.
+# =====================================================================
+
+
+def test_report_generation_preserves_unexpected_value_errors(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise ValueError("unexpected value error")
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    client_without_server_exceptions = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    response = client_without_server_exceptions.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 500
+
+
+# =====================================================================
+# Verifies that unexpected server errors do not expose their exception
+# messages in the HTTP response body.
+# =====================================================================
+
+
+def test_report_generation_does_not_expose_server_error_message(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise RuntimeError(
+            "SECRET_INTERNAL_ERROR_MESSAGE"
+        )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    client_without_server_exceptions = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    response = client_without_server_exceptions.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 500
+    assert "SECRET_INTERNAL_ERROR_MESSAGE" not in response.text
+
+
+# =====================================================================
+# Verifies that unexpected server errors do not expose local filesystem
+# paths in the HTTP response body.
+# =====================================================================
+
+
+def test_report_generation_does_not_expose_local_paths(
+    monkeypatch,
+) -> None:
+    local_path = "/home/private/apple-health/export.xml"
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise RuntimeError(
+            f"Failed while reading {local_path}"
+        )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    client_without_server_exceptions = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    response = client_without_server_exceptions.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 500
+    assert local_path not in response.text
+
+
+# =====================================================================
+# Verifies that the known Apple Health root validation error is exposed
+# as a stable client-facing API error.
+# =====================================================================
+
+
+def test_report_generation_maps_invalid_health_root_to_stable_error(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise ValueError(
+            "Expected Apple HealthData root element."
+        )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that unexpected exceptions from the application layer are
+# not accidentally swallowed by API-specific exception handling.
+# =====================================================================
+
+
+def test_report_generation_preserves_unhandled_exception_types(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise OSError("unexpected filesystem failure")
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    client_without_server_exceptions = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    response = client_without_server_exceptions.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 500
