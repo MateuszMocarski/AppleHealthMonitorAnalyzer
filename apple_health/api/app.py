@@ -73,84 +73,90 @@ def generate_report(
     archive: UploadFile = File(),
     periods: str = Form(),
 ) -> MultiMonthReportResponse:
-    with NamedTemporaryFile(suffix=".zip") as temporary_archive:
-        _copy_upload_to_file(
-            archive,
-            temporary_archive,
-        )
-        temporary_archive.flush()
-
-        try:
-            parsed_periods = tuple(
-                ReportPeriod.from_string(period.strip()) for period in periods.split(",")
+    try:
+        with NamedTemporaryFile(suffix=".zip") as temporary_archive:
+            _copy_upload_to_file(
+                archive,
+                temporary_archive,
             )
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid reporting period.",
-            ) from exc
+            temporary_archive.flush()
 
-        if len(parsed_periods) != len(set(parsed_periods)):
-            raise HTTPException(
-                status_code=422,
-                detail="Duplicate reporting periods are not allowed.",
+            try:
+                parsed_periods = tuple(
+                    ReportPeriod.from_string(period.strip())
+                    for period in periods.split(",")
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Invalid reporting period.",
+                ) from exc
+
+            if len(parsed_periods) != len(set(parsed_periods)):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Duplicate reporting periods are not allowed.",
+                )
+
+            options = MultiMonthRunOptions(
+                archive_path=Path(temporary_archive.name),
+                periods=parsed_periods,
+                config_path=None,
             )
 
-        options = MultiMonthRunOptions(
-            archive_path=Path(temporary_archive.name),
-            periods=parsed_periods,
-            config_path=None,
-        )
-
-        try:
-            reports = AppleHealthApplication().generate_reports(
-                options,
-            )
-        except BadZipFile as exc:
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid Apple Health export archive.",
-            ) from exc
-        except ParseError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid Apple Health export XML.",
-            ) from exc
-        except ValueError as exc:
-            if str(exc) == "Expected Apple HealthData root element.":
+            try:
+                reports = AppleHealthApplication().generate_reports(
+                    options,
+                )
+            except BadZipFile as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Invalid Apple Health export archive.",
+                ) from exc
+            except ParseError as exc:
                 raise HTTPException(
                     status_code=422,
                     detail="Invalid Apple Health export XML.",
                 ) from exc
-        except RuntimeError as exc:
-            message = str(exc)
+            except ValueError as exc:
+                if str(exc) == "Expected Apple HealthData root element.":
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Invalid Apple Health export XML.",
+                    ) from exc
 
-            if message == "Expected exactly one export XML, found 0.":
-                raise HTTPException(
-                    status_code=422,
-                    detail="Apple Health export.xml not found in archive.",
-                ) from exc
+                raise
+            except RuntimeError as exc:
+                message = str(exc)
 
-            if message.startswith(
-                "Expected exactly one export XML, found "
-            ):
-                raise HTTPException(
-                    status_code=422,
-                    detail="Archive contains multiple Apple Health export.xml files.",
-                ) from exc
+                if message == "Expected exactly one export XML, found 0.":
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Apple Health export.xml not found in archive.",
+                    ) from exc
 
-            raise
+                if message.startswith(
+                    "Expected exactly one export XML, found "
+                ):
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Archive contains multiple Apple Health export.xml files.",
+                    ) from exc
 
-    return MultiMonthReportResponse(
-        reports=[
-            MonthlyReportResponse(
-                year=report.period.year,
-                month=report.period.month,
-                full_text=report.full_text,
-                full_json=report.full_json,
-                summary_text=report.summary_text,
-                summary_json=report.summary_json,
-            )
-            for report in reports
-        ]
-    )
+                raise
+
+        return MultiMonthReportResponse(
+            reports=[
+                MonthlyReportResponse(
+                    year=report.period.year,
+                    month=report.period.month,
+                    full_text=report.full_text,
+                    full_json=report.full_json,
+                    summary_text=report.summary_text,
+                    summary_json=report.summary_json,
+                )
+                for report in reports
+            ]
+        )
+    finally:
+        archive.file.close()

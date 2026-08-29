@@ -1,6 +1,6 @@
 from io import BytesIO
 import json
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 import zipfile
 from pathlib import Path
 
@@ -719,3 +719,95 @@ def test_report_generation_rejects_missing_archive() -> None:
     )
 
     assert response.status_code == 422
+    
+# =====================================================================
+# Verifies that the temporary uploaded archive is deleted after report
+# generation completes successfully.
+# =====================================================================
+
+
+def test_report_generation_deletes_temporary_archive_after_success(
+    monkeypatch,
+) -> None:
+    temporary_archive_path = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal temporary_archive_path
+        temporary_archive_path = options.archive_path
+
+        assert temporary_archive_path.exists()
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert temporary_archive_path is not None
+    assert not temporary_archive_path.exists()
+    
+# =====================================================================
+# Verifies that the temporary uploaded archive is deleted when report
+# generation fails.
+# =====================================================================
+
+
+def test_report_generation_deletes_temporary_archive_after_failure(
+    monkeypatch,
+) -> None:
+    temporary_archive_path = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal temporary_archive_path
+        temporary_archive_path = options.archive_path
+
+        assert temporary_archive_path.exists()
+
+        raise BadZipFile("invalid archive")
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert temporary_archive_path is not None
+    assert not temporary_archive_path.exists()
