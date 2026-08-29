@@ -600,8 +600,7 @@
             <div class="generate-row">
                 <div class="privacy-note">
                     The uploaded archive is used only to generate the selected
-                    reports. Temporary files are not intended to become
-                    persistent application data.
+                    reports and is deleted immediately after processing.
                 </div>
 
                 <button
@@ -967,9 +966,21 @@
                         );
 
                     if (!response.ok) {
-                        throw new Error(
-                            `Request failed with status ${response.status}`,
-                        );
+                        let message =
+                            `Request failed with status ${response.status}`;
+
+                        try {
+                            const errorPayload =
+                                await response.json();
+
+                            if (errorPayload.detail) {
+                                message = errorPayload.detail;
+                            }
+                        } catch {
+                            // Keep the generic HTTP status message.
+                        }
+
+                        throw new Error(message);
                     }
 
                     const payload =

@@ -483,44 +483,47 @@ def test_report_generation_rejects_archive_without_export_xml() -> None:
     }
     
 # =====================================================================
-# Verifies that report generation rejects ZIP archives containing more
-# than one Apple Health export XML file.
+# Verifies that an archive containing multiple candidate Apple Health
+# export XML files is rejected with a controlled API error.
 # =====================================================================
 
 
-def test_report_generation_rejects_archive_with_multiple_export_xml_files() -> None:
-    archive_buffer = BytesIO()
+def test_report_generation_rejects_archive_with_multiple_export_xml_files(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "export.zip"
 
-    with ZipFile(
-        archive_buffer,
-        "w",
-    ) as archive:
+    with zipfile.ZipFile(archive_path, "w") as archive:
         archive.writestr(
             "apple_health_export/export.xml",
             "<HealthData />",
         )
         archive.writestr(
-            "duplicate/export.xml",
+            "apple_health_export/eksport.xml",
             "<HealthData />",
         )
 
-    response = client.post(
-        "/reports/generate",
-        files={
-            "archive": (
-                "export.zip",
-                archive_buffer.getvalue(),
-                "application/zip",
-            ),
-        },
-        data={
-            "periods": "2026-08",
-        },
-    )
+    with archive_path.open("rb") as archive_file:
+        response = client.post(
+            "/reports/generate",
+            files={
+                "archive": (
+                    "export.zip",
+                    archive_file,
+                    "application/zip",
+                ),
+            },
+            data={
+                "periods": "2026-08",
+            },
+        )
 
     assert response.status_code == 422
     assert response.json() == {
-        "detail": "Archive contains multiple Apple Health export.xml files.",
+        "detail": (
+            "Archive contains multiple Apple Health "
+            "export.xml files."
+        ),
     }
     
 # =====================================================================
