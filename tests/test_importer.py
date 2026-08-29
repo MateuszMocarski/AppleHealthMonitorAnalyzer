@@ -171,3 +171,38 @@ def test_open_export_accepts_localized_export_xml_filename(
 
     with importer.open_export() as xml_file:
         assert xml_file.read() == b"<HealthData />"
+
+# =====================================================================
+# Verifies that the importer rejects an Apple Health export XML whose
+# uncompressed size exceeds the configured safety limit.
+# =====================================================================
+
+
+def test_open_export_rejects_oversized_export_xml(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    archive_path = tmp_path / "export.zip"
+
+    _create_zip(
+        archive_path,
+        {
+            "apple_health_export/export.xml": "<HealthData />",
+        },
+    )
+
+    monkeypatch.setattr(
+        "apple_health.importer.MAX_EXPORT_XML_SIZE",
+        10,
+    )
+
+    importer = AppleHealthImporter(
+        archive_path,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Apple Health export XML is too large.",
+    ):
+        with importer.open_export():
+            pass

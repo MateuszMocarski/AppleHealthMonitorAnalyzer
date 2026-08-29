@@ -1060,3 +1060,110 @@ def test_report_generation_preserves_unhandled_exception_types(
     )
 
     assert response.status_code == 500
+
+# =====================================================================
+# Verifies that report generation rejects requests containing more
+# reporting periods than the configured safety limit.
+# =====================================================================
+
+
+def test_report_generation_rejects_too_many_periods(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "apple_health.api.app.MAX_REPORT_PERIODS",
+        2,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08,2026-09,2026-10",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Too many reporting periods requested.",
+    }
+    
+# =====================================================================
+# Verifies that an oversized Apple Health export XML is exposed as a
+# controlled payload-too-large API response.
+# =====================================================================
+
+
+def test_report_generation_rejects_oversized_export_xml(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        raise RuntimeError(
+            "Apple Health export XML is too large."
+        )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "Apple Health export XML is too large.",
+    }
+    
+# =====================================================================
+# Verifies that generated health reports are explicitly marked as
+# non-cacheable because the response contains private health data.
+# =====================================================================
+
+
+def test_report_generation_disables_response_caching(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: [],
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"

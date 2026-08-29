@@ -3,7 +3,7 @@ from tempfile import NamedTemporaryFile
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
 
 from apple_health.api.models import (
@@ -16,6 +16,7 @@ from apple_health.application.report_period import ReportPeriod
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 UPLOAD_CHUNK_SIZE = 1024 * 1024
+MAX_REPORT_PERIODS = 120
 
 app = FastAPI(
     title="Apple Health Monitor Analyzer",
@@ -68,9 +69,11 @@ def health() -> dict[str, str]:
 
 @app.post("/reports/generate", response_model=MultiMonthReportResponse)
 def generate_report(
+    response: Response,
     archive: UploadFile = File(),
     periods: str = Form(),
 ) -> MultiMonthReportResponse:
+    response.headers["Cache-Control"] = "no-store"
     try:
         with NamedTemporaryFile(suffix=".zip") as temporary_archive:
             _copy_upload_to_file(
@@ -88,7 +91,12 @@ def generate_report(
                     status_code=422,
                     detail="Invalid reporting period.",
                 ) from exc
-
+            if len(parsed_periods) > MAX_REPORT_PERIODS:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Too many reporting periods requested.",
+                )
+                
             if len(parsed_periods) != len(set(parsed_periods)):
                 raise HTTPException(
                     status_code=422,
@@ -125,7 +133,13 @@ def generate_report(
                 raise
             except RuntimeError as exc:
                 message = str(exc)
-
+                
+                if message == "Apple Health export XML is too large.":
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Apple Health export XML is too large.",
+                    ) from exc
+                    
                 if message == "Expected exactly one export XML, found 0.":
                     raise HTTPException(
                         status_code=422,
