@@ -47,9 +47,7 @@ class AppleHealthParser:
                     root_checked = True
 
                     if element.tag != "HealthData":
-                        raise ValueError(
-                            "Expected Apple HealthData root element."
-                        )
+                        raise ValueError("Expected Apple HealthData root element.")
 
                 continue
 
@@ -61,9 +59,7 @@ class AppleHealthParser:
                 record_type = element.attrib.get("type")
 
                 if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
-                    sleep_records.append(
-                        self._parse_sleep_record(element)
-                    )
+                    sleep_records.append(self._parse_sleep_record(element))
 
                 else:
                     self._parse_daily_metrics(

@@ -1,5 +1,7 @@
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -8,10 +10,6 @@ from apple_health.api.models import (
     MonthlyReportResponse,
     MultiMonthReportResponse,
 )
-from zipfile import BadZipFile
-
-from xml.etree.ElementTree import ParseError
-
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
 from apple_health.application.report_period import ReportPeriod
@@ -83,8 +81,7 @@ def generate_report(
 
             try:
                 parsed_periods = tuple(
-                    ReportPeriod.from_string(period.strip())
-                    for period in periods.split(",")
+                    ReportPeriod.from_string(period.strip()) for period in periods.split(",")
                 )
             except ValueError as exc:
                 raise HTTPException(
@@ -132,15 +129,13 @@ def generate_report(
                 if message == "Expected exactly one export XML, found 0.":
                     raise HTTPException(
                         status_code=422,
-                        detail="Apple Health export.xml not found in archive.",
+                        detail="Apple Health export XML not found in archive.",
                     ) from exc
 
-                if message.startswith(
-                    "Expected exactly one export XML, found "
-                ):
+                if message.startswith("Expected exactly one export XML, found "):
                     raise HTTPException(
                         status_code=422,
-                        detail="Archive contains multiple Apple Health export.xml files.",
+                        detail="Archive contains multiple Apple Health export XML files.",
                     ) from exc
 
                 raise

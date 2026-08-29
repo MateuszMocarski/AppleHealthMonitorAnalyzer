@@ -1,8 +1,8 @@
-from io import BytesIO
 import json
-from zipfile import BadZipFile, ZipFile
 import zipfile
+from io import BytesIO
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 from fastapi.testclient import TestClient
 
@@ -315,7 +315,8 @@ def test_report_generation_rejects_empty_periods() -> None:
     )
 
     assert response.status_code == 422
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects reporting periods containing
 # only whitespace.
@@ -341,7 +342,8 @@ def test_report_generation_rejects_whitespace_periods() -> None:
     assert response.json() == {
         "detail": "Invalid reporting period.",
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation accepts reporting periods separated
 # by commas with surrounding whitespace.
@@ -392,7 +394,8 @@ def test_report_generation_accepts_whitespace_between_periods(
             month=9,
         ),
     )
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects duplicate reporting periods
 # instead of generating the same month more than once.
@@ -418,7 +421,8 @@ def test_report_generation_rejects_duplicate_periods() -> None:
     assert response.json() == {
         "detail": "Duplicate reporting periods are not allowed.",
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects files that are not valid ZIP
 # archives instead of returning an internal server error.
@@ -444,7 +448,8 @@ def test_report_generation_rejects_invalid_zip_archive() -> None:
     assert response.json() == {
         "detail": "Invalid Apple Health export archive.",
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects ZIP archives that do not
 # contain the Apple Health export.xml file.
@@ -479,9 +484,10 @@ def test_report_generation_rejects_archive_without_export_xml() -> None:
 
     assert response.status_code == 422
     assert response.json() == {
-        "detail": "Apple Health export.xml not found in archive.",
+        "detail": "Apple Health export XML not found in archive.",
     }
-    
+
+
 # =====================================================================
 # Verifies that an archive containing multiple candidate Apple Health
 # export XML files is rejected with a controlled API error.
@@ -520,12 +526,10 @@ def test_report_generation_rejects_archive_with_multiple_export_xml_files(
 
     assert response.status_code == 422
     assert response.json() == {
-        "detail": (
-            "Archive contains multiple Apple Health "
-            "export.xml files."
-        ),
+        "detail": ("Archive contains multiple Apple Health " "export XML files."),
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects an empty ZIP archive because
 # it does not contain an Apple Health export XML file.
@@ -557,9 +561,10 @@ def test_report_generation_rejects_empty_zip_archive() -> None:
 
     assert response.status_code == 422
     assert response.json() == {
-        "detail": "Apple Health export.xml not found in archive.",
+        "detail": "Apple Health export XML not found in archive.",
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects archives whose export.xml
 # content is not valid XML.
@@ -596,7 +601,8 @@ def test_report_generation_rejects_invalid_export_xml() -> None:
     assert response.json() == {
         "detail": "Invalid Apple Health export XML.",
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects valid XML that is not an
 # Apple Health export document.
@@ -637,7 +643,8 @@ def test_report_generation_rejects_non_apple_health_xml() -> None:
     assert response.json() == {
         "detail": "Invalid Apple Health export XML.",
     }
-    
+
+
 # =====================================================================
 # Verifies that report generation accepts a valid Apple Health archive
 # regardless of the uploaded filename or MIME type.
@@ -682,7 +689,8 @@ def test_report_generation_does_not_trust_filename_or_mime_type(
     )
 
     assert response.status_code == 200
-    
+
+
 # =====================================================================
 # Verifies that report generation rejects requests without an uploaded
 # archive file.
@@ -698,7 +706,8 @@ def test_report_generation_rejects_missing_archive() -> None:
     )
 
     assert response.status_code == 422
-    
+
+
 # =====================================================================
 # Verifies that the temporary uploaded archive is deleted after report
 # generation completes successfully.
@@ -744,7 +753,8 @@ def test_report_generation_deletes_temporary_archive_after_success(
     assert response.status_code == 200
     assert temporary_archive_path is not None
     assert not temporary_archive_path.exists()
-    
+
+
 # =====================================================================
 # Verifies that the temporary uploaded archive is deleted when report
 # generation fails.
@@ -790,7 +800,8 @@ def test_report_generation_deletes_temporary_archive_after_failure(
     assert response.status_code == 422
     assert temporary_archive_path is not None
     assert not temporary_archive_path.exists()
-    
+
+
 # =====================================================================
 # Verifies that unexpected application errors are not misclassified as
 # client input errors.
@@ -832,7 +843,8 @@ def test_report_generation_preserves_unexpected_server_errors(
     )
 
     assert response.status_code == 500
-    
+
+
 # =====================================================================
 # Verifies that unexpected ValueError exceptions remain server errors
 # instead of being incorrectly converted into client input errors.
@@ -889,9 +901,7 @@ def test_report_generation_does_not_expose_server_error_message(
         self,
         options,
     ):
-        raise RuntimeError(
-            "SECRET_INTERNAL_ERROR_MESSAGE"
-        )
+        raise RuntimeError("SECRET_INTERNAL_ERROR_MESSAGE")
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -937,9 +947,7 @@ def test_report_generation_does_not_expose_local_paths(
         self,
         options,
     ):
-        raise RuntimeError(
-            f"Failed while reading {local_path}"
-        )
+        raise RuntimeError(f"Failed while reading {local_path}")
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -983,9 +991,7 @@ def test_report_generation_maps_invalid_health_root_to_stable_error(
         self,
         options,
     ):
-        raise ValueError(
-            "Expected Apple HealthData root element."
-        )
+        raise ValueError("Expected Apple HealthData root element.")
 
     monkeypatch.setattr(
         AppleHealthApplication,

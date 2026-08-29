@@ -705,23 +705,11 @@ def test_multi_month_report_generation_pipeline(
 
     assert august_json["schema_version"] == "1.0"
     assert september_json["schema_version"] == "1.0"
-    
-    assert (
-        august_json["general_activity"]["total_steps"]
-        == 8000
-    )
 
-    assert (
-        september_json["general_activity"]["total_steps"]
-        == 9000
-    )
+    assert august_json["general_activity"]["total_steps"] == 8000
 
-    assert all(
-        day["date"].startswith("2026-08")
-        for day in august_json["days"]
-    )
+    assert september_json["general_activity"]["total_steps"] == 9000
 
-    assert all(
-        day["date"].startswith("2026-09")
-        for day in september_json["days"]
-    )
+    assert all(day["date"].startswith("2026-08") for day in august_json["days"])
+
+    assert all(day["date"].startswith("2026-09") for day in september_json["days"])

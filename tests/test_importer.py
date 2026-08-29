@@ -124,7 +124,7 @@ def test_open_export_ignores_cda_xml_files(
         {
             "apple_health_export/export.xml": "<HealthData />",
             "apple_health_export/eksport.xml": "<HealthData />",
-        }
+        },
     ],
 )
 def test_open_export_rejects_invalid_xml_file_count(
@@ -146,6 +146,7 @@ def test_open_export_rejects_invalid_xml_file_count(
     ):
         with importer.open_export():
             pass
+
 
 # =====================================================================
 # Verifies that a localized Apple Health export XML filename is accepted

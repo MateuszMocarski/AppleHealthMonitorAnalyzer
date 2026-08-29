@@ -1,7 +1,6 @@
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_period import ReportPeriod
 from apple_health.application.run_options import RunOptions
 from apple_health.config.config_loader import ConfigLoader
 from apple_health.importer import AppleHealthImporter

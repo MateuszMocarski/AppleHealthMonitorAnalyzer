@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class MonthlyReportResponse(BaseModel):
     year: int
     month: int
