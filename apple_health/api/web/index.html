@@ -103,6 +103,37 @@
             letter-spacing: 0.02em;
         }
 
+        .repo-link {
+            margin-left: auto;
+
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+
+            padding: 7px 10px;
+
+            border: 1px solid var(--border);
+            border-radius: 9px;
+
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text-secondary);
+
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+
+            transition:
+                background 150ms ease,
+                color 150ms ease,
+                border-color 150ms ease;
+        }
+
+        .repo-link:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+        }
+
         .brand-icon {
             width: 30px;
             height: 30px;
@@ -638,6 +669,16 @@
             line-height: 1.55;
         }
 
+        .guide-card-link {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .guide-card-link:hover {
+            text-decoration: underline;
+        }
+
         .guide-card-text code,
         .guide-flow code {
             color: var(--text);
@@ -820,6 +861,14 @@
                 padding-top: 38px;
             }
 
+            .brand {
+                flex-wrap: wrap;
+            }
+
+            .repo-link {
+                margin-left: 0;
+            }
+
             .panel {
                 padding: 20px;
             }
@@ -863,6 +912,15 @@
             <div class="brand">
                 <div class="brand-icon">♥</div>
                 Apple Health Monitor
+
+                <a
+                    class="repo-link"
+                    href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    View on GitHub ↗
+                </a>
             </div>
 
             <h1>
@@ -1166,6 +1224,27 @@
                                     The JSON files preserve missing values
                                     and coverage information for future
                                     viewers and integrations.
+                                </p>
+                            </div>
+
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    Source &amp; documentation
+                                </div>
+
+                                <p class="guide-card-text">
+                                    The project is open source. Visit the
+                                    <a
+                                        class="guide-card-link"
+                                        href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        GitHub repository ↗
+                                    </a>
+                                    for the source code, configuration
+                                    examples, project history, and future
+                                    documentation.
                                 </p>
                             </div>
                         </div>
