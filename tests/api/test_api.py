@@ -1258,3 +1258,21 @@ def test_report_generation_ignores_blank_source_overrides(
     assert response.json() == {
         "reports": [],
     }
+    
+# =====================================================================
+# Verifies that the web interface exposes optional source override
+# controls together with the Apple Watch NBSP default warning.
+# =====================================================================
+
+
+def test_web_interface_exposes_source_override_controls() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="apple-watch-source"' in html
+    assert 'id="apple-health-app-source"' in html
+    assert "Apple\\xa0Watch" in html
+    assert "NBSP / U+00A0" in html

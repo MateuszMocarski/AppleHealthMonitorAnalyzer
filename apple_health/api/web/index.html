@@ -335,6 +335,131 @@
             opacity: 1;
         }
 
+        .advanced-settings {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+
+            background: rgba(255, 255, 255, 0.018);
+        }
+
+        .advanced-settings summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+
+            padding: 16px 18px;
+
+            cursor: pointer;
+            user-select: none;
+
+            font-size: 14px;
+            font-weight: 650;
+
+            list-style: none;
+        }
+
+        .advanced-settings summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .advanced-settings summary::after {
+            content: "⌄";
+
+            color: var(--text-muted);
+            font-size: 18px;
+
+            transition: transform 150ms ease;
+        }
+
+        .advanced-settings[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .advanced-settings-content {
+            padding: 0 18px 18px;
+        }
+
+        .advanced-description {
+            margin: 0 0 16px;
+
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .source-warning {
+            margin-bottom: 18px;
+            padding: 11px 13px;
+
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .source-warning code,
+        .field-hint code {
+            color: var(--text);
+            font-family:
+                "SFMono-Regular",
+                Consolas,
+                "Liberation Mono",
+                monospace;
+        }
+
+        .source-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .source-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .field-label {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .text-input {
+            width: 100%;
+            height: 44px;
+            padding: 0 13px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 14px;
+
+            outline: none;
+        }
+
+        .text-input:focus {
+            border-color: rgba(255, 55, 95, 0.55);
+        }
+
+        .text-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .field-hint {
+            color: var(--text-muted);
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
         .generate-row {
             display: flex;
             justify-content: space-between;
@@ -501,6 +626,10 @@
                 grid-template-columns: 1fr;
                 gap: 14px;
             }
+
+            .source-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -597,6 +726,78 @@
                 ></div>
             </div>
 
+
+            <div class="section">
+                <details
+                    class="advanced-settings"
+                >
+                    <summary>
+                        Data source overrides
+                    </summary>
+
+                    <div class="advanced-settings-content">
+                        <p class="advanced-description">
+                            Optional. Change these values only when your
+                            Apple Health export uses different source names.
+                            Leave a field blank to use the configured default.
+                        </p>
+
+                        <div class="source-warning">
+                            The default Apple Watch source is
+                            <code>Apple\xa0Watch</code>.
+                            It contains a non-breaking space
+                            (<code>NBSP / U+00A0</code>) between
+                            <code>Apple</code> and <code>Watch</code>.
+                            A regular space is a different value.
+                        </div>
+
+                        <div class="source-grid">
+                            <label class="source-field">
+                                <span class="field-label">
+                                    Apple Watch source
+                                </span>
+
+                                <input
+                                    id="apple-watch-source"
+                                    class="text-input"
+                                    name="apple_watch_source"
+                                    type="text"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    placeholder="Default: Apple\xa0Watch"
+                                >
+
+                                <span class="field-hint">
+                                    Exact <code>sourceName</code> used for
+                                    Apple Watch records.
+                                </span>
+                            </label>
+
+                            <label class="source-field">
+                                <span class="field-label">
+                                    Apple Health app source
+                                </span>
+
+                                <input
+                                    id="apple-health-app-source"
+                                    class="text-input"
+                                    name="apple_health_app_source"
+                                    type="text"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    placeholder="Default: Zdrowie"
+                                >
+
+                                <span class="field-hint">
+                                    Exact <code>sourceName</code> used for
+                                    nutrition and Health app records.
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </details>
+            </div>
+
             <div class="generate-row">
                 <div class="privacy-note">
                     The uploaded archive is used only to generate the selected
@@ -648,6 +849,17 @@
 
         const monthChips =
             document.getElementById("month-chips");
+
+
+        const appleWatchSource =
+            document.getElementById(
+                "apple-watch-source",
+            );
+
+        const appleHealthAppSource =
+            document.getElementById(
+                "apple-health-app-source",
+            );
 
         const generateButton =
             document.getElementById("generate-button");
@@ -942,6 +1154,17 @@
                     [...selectedMonths]
                         .sort()
                         .join(","),
+                );
+
+
+                formData.append(
+                    "apple_watch_source",
+                    appleWatchSource.value,
+                );
+
+                formData.append(
+                    "apple_health_app_source",
+                    appleHealthAppSource.value,
                 );
 
                 generateButton.disabled = true;
