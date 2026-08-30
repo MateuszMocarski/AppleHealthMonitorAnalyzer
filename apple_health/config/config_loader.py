@@ -82,34 +82,43 @@ _MONTHLY_BONUS_KEYS = {
 
 class ConfigLoader:
     @staticmethod
-    def load(path: Path | None) -> AppConfig:
+    def load(
+        path: Path | None,
+        *,
+        apple_watch_source: str | None = None,
+        apple_health_app_source: str | None = None,
+    ) -> AppConfig:
         if path is None:
             config = AppConfig()
-            ConfigLoader._validate_config(config)
-            return config
+        else:
+            data = ConfigLoader._load_toml(path)
 
-        data = ConfigLoader._load_toml(path)
-
-        ConfigLoader._validate_keys(
-            data,
-            _TOP_LEVEL_KEYS,
-        )
-
-        app_kwargs: dict[str, Any] = {}
-
-        if "source" in data:
-            app_kwargs["source"] = ConfigLoader._build_source_config(
-                data["source"],
+            ConfigLoader._validate_keys(
+                data,
+                _TOP_LEVEL_KEYS,
             )
 
-        if "sleep" in data:
-            app_kwargs["sleep"] = ConfigLoader._build_sleep_config(
-                data["sleep"],
+            app_kwargs: dict[str, Any] = {}
+
+            if "source" in data:
+                app_kwargs["source"] = ConfigLoader._build_source_config(
+                    data["source"],
+                )
+
+            if "sleep" in data:
+                app_kwargs["sleep"] = ConfigLoader._build_sleep_config(
+                    data["sleep"],
+                )
+
+            config = AppConfig(
+                **app_kwargs,
             )
 
-        config = AppConfig(
-            **app_kwargs,
-        )
+        if apple_watch_source is not None:
+            config.source.apple_watch_source = apple_watch_source
+
+        if apple_health_app_source is not None:
+            config.source.apple_health_app_source = apple_health_app_source
 
         ConfigLoader._validate_config(config)
 

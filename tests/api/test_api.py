@@ -1168,3 +1168,93 @@ def test_report_generation_disables_response_caching(
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
+
+# =====================================================================
+# Verifies that optional source overrides submitted by the web client
+# are normalized and forwarded to multi-month report generation.
+# =====================================================================
+
+
+def test_report_generation_forwards_source_overrides(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        assert options.apple_watch_source == "Custom Watch"
+        assert options.apple_health_app_source == "Custom Health"
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "apple_watch_source": "  Custom Watch  ",
+            "apple_health_app_source": "  Custom Health  ",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }
+    
+# =====================================================================
+# Verifies that blank source fields are treated as absent overrides so
+# the configured defaults remain effective.
+# =====================================================================
+
+
+def test_report_generation_ignores_blank_source_overrides(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        assert options.apple_watch_source is None
+        assert options.apple_health_app_source is None
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "apple_watch_source": "   ",
+            "apple_health_app_source": "",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }

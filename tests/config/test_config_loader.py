@@ -653,3 +653,47 @@ def test_example_config_file_is_loadable(
     config = ConfigLoader.load(config_path)
 
     assert config is not None
+
+
+# =====================================================================
+# Verifies that runtime source overrides replace default SourceConfig
+# values when no TOML configuration is provided.
+# =====================================================================
+
+
+def test_runtime_source_overrides_replace_defaults() -> None:
+    config = ConfigLoader.load(
+        None,
+        apple_watch_source="Custom Watch",
+        apple_health_app_source="Custom Health",
+    )
+
+    assert config.source.apple_watch_source == "Custom Watch"
+    assert config.source.apple_health_app_source == "Custom Health"
+    
+
+# =====================================================================
+# Verifies that runtime source overrides take precedence over values
+# loaded from TOML while preserving non-overridden source settings.
+# =====================================================================
+
+
+def test_runtime_source_overrides_take_precedence_over_toml(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        """
+        [source]
+        apple_watch_source = "TOML Watch"
+        apple_health_app_source = "TOML Health"
+        """,
+    )
+
+    config = ConfigLoader.load(
+        config_path,
+        apple_watch_source="UI Watch",
+    )
+
+    assert config.source.apple_watch_source == "UI Watch"
+    assert config.source.apple_health_app_source == "TOML Health"

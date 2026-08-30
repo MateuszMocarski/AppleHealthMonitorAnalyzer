@@ -72,6 +72,8 @@ def generate_report(
     response: Response,
     archive: UploadFile = File(),
     periods: str = Form(),
+    apple_watch_source: str | None = Form(default=None),
+    apple_health_app_source: str | None = Form(default=None),
 ) -> MultiMonthReportResponse:
     response.headers["Cache-Control"] = "no-store"
     try:
@@ -107,6 +109,12 @@ def generate_report(
                 archive_path=Path(temporary_archive.name),
                 periods=parsed_periods,
                 config_path=None,
+                apple_watch_source=_normalize_optional_source(
+                    apple_watch_source,
+                ),
+                apple_health_app_source=_normalize_optional_source(
+                    apple_health_app_source,
+                ),
             )
 
             try:
@@ -169,3 +177,14 @@ def generate_report(
         )
     finally:
         archive.file.close()
+
+
+def _normalize_optional_source(
+    value: str | None,
+) -> str | None:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+
+    return normalized or None

@@ -62,6 +62,8 @@ class AppleHealthApplication:
     ) -> list[MonthlyReports]:
         config = ConfigLoader.load(
             options.config_path,
+            apple_watch_source=options.apple_watch_source,
+            apple_health_app_source=options.apple_health_app_source,
         )
 
         importer = AppleHealthImporter(
