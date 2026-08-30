@@ -274,6 +274,7 @@ def test_preserves_missing_energy_fields_as_none() -> None:
     assert metrics.active_energy == pytest.approx(650)
     assert metrics.basal_energy is None
 
+
 # =====================================================================
 # Verifies that Apple Watch metric types from an unexpected source are
 # ignored instead of being included in daily activity totals.
@@ -393,6 +394,7 @@ def test_preserves_missing_nutrition_fields_as_none() -> None:
     assert nutrition.calories_kcal is None
     assert nutrition.carbohydrates_g is None
     assert nutrition.fat_g is None
+
 
 # =====================================================================
 # Verifies that Apple Health nutrition and body-mass records

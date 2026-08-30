@@ -67,7 +67,7 @@ def _activity_metrics(
         average_carbohydrates_g=(200.0, 10),
         average_fat_g=(70.0, 10),
         average_calories_kcal=average_calories_kcal,
-        average_calories_balance_kcal=average_calories_balance_kcal
+        average_calories_balance_kcal=average_calories_balance_kcal,
     )
 
 
@@ -132,7 +132,7 @@ def test_daily_summary_calculates_tdee() -> None:
     )
 
     assert summary.tdee_kcal == 2600.0
-    
+
 
 # =====================================================================
 # Verifies that daily TDEE remains unavailable when either required
@@ -211,7 +211,7 @@ def test_daily_summary_calorie_balance_is_none_without_calories() -> None:
     )
 
     assert summary.calories_balance_kcal is None
-    
+
 
 # =====================================================================
 # Verifies that daily calorie balance remains unavailable when calorie
@@ -239,6 +239,7 @@ def test_daily_summary_calorie_balance_is_none_when_energy_is_incomplete(
     )
 
     assert summary.calories_balance_kcal is None
+
 
 # =====================================================================
 # Verifies that MonthlySummary exposes the final completed reporting

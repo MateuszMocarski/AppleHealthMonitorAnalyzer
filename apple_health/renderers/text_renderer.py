@@ -279,23 +279,22 @@ class TextRenderer:
         writer: _TextWriter,
         summary: DailySummary,
     ) -> None:
+        if summary.basal_energy_kcal is None and summary.active_energy_kcal is None:
+            writer.write("No energy expenditure data for that day")
+            writer.write("---------------------------------------")
+            return
+
         writer.write("Daily energy expenditure")
         writer.write("------------------------")
 
         if summary.basal_energy_kcal is not None:
-            writer.write(
-                f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal"
-            )
+            writer.write(f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal")
 
         if summary.active_energy_kcal is not None:
-            writer.write(
-                f"  Active energy:  {summary.active_energy_kcal:.0f} kcal"
-            )
+            writer.write(f"  Active energy:  {summary.active_energy_kcal:.0f} kcal")
 
         if summary.tdee_kcal is not None:
-            writer.write(
-                f"  TDEE:           {summary.tdee_kcal:.0f} kcal"
-            )
+            writer.write(f"  TDEE:           {summary.tdee_kcal:.0f} kcal")
 
     def _render_daily_nutrition_section(
         self,
@@ -323,9 +322,7 @@ class TextRenderer:
 
         if summary.calories_balance_kcal is not None:
             writer.write()
-            writer.write(
-                f"Calories balance: {summary.calories_balance_kcal:.0f} kcal"
-            )
+            writer.write(f"Calories balance: {summary.calories_balance_kcal:.0f} kcal")
 
     @staticmethod
     def _render_day_footer(writer: _TextWriter) -> None:
@@ -483,17 +480,13 @@ class TextRenderer:
             writer.write(f"  Protein:   {nutrition.protein_g:.0f} g")
 
         if nutrition.carbohydrates_g is not None:
-            writer.write(
-                f"  Carbs:     {nutrition.carbohydrates_g:.0f} g"
-            )
+            writer.write(f"  Carbs:     {nutrition.carbohydrates_g:.0f} g")
 
         if nutrition.fat_g is not None:
             writer.write(f"  Fat:       {nutrition.fat_g:.0f} g")
 
         if nutrition.calories_kcal is not None:
-            writer.write(
-                f"  Calories:  {nutrition.calories_kcal:.0f} kcal"
-            )
+            writer.write(f"  Calories:  {nutrition.calories_kcal:.0f} kcal")
 
     @staticmethod
     def _format_minutes(minutes: float) -> str:
@@ -547,7 +540,6 @@ class TextRenderer:
         for threshold, bonus in score.monthly_bonus.consistency_thresholds:
             writer.write(f"      < {threshold:g} std dev -> +{bonus:g}")
         writer.write()
-
 
     @staticmethod
     def _format_coverage(

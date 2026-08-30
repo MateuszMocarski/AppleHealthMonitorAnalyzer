@@ -60,9 +60,7 @@ class MetricsAnalyzer:
         average_step_length_cm = 100000 * total_distance / total_steps if total_steps else 0.0
 
         basal_energy_values = [
-            metrics.basal_energy
-            for metrics in monthly_metrics
-            if metrics.basal_energy is not None
+            metrics.basal_energy for metrics in monthly_metrics if metrics.basal_energy is not None
         ]
 
         active_energy_values = [
@@ -71,31 +69,20 @@ class MetricsAnalyzer:
             if metrics.active_energy is not None
         ]
 
-        average_basal_energy_kcal = self._average_with_count(
-            basal_energy_values
-        )
+        average_basal_energy_kcal = self._average_with_count(basal_energy_values)
 
-        average_active_energy_kcal = self._average_with_count(
-            active_energy_values
-        )
-        
+        average_active_energy_kcal = self._average_with_count(active_energy_values)
+
         tdee_values = [
             metrics.basal_energy + metrics.active_energy
             for metrics in monthly_metrics
-            if (
-                metrics.basal_energy is not None
-                and metrics.active_energy is not None
-            )
+            if (metrics.basal_energy is not None and metrics.active_energy is not None)
         ]
 
-        average_tdee_kcal = self._average_with_count(
-            tdee_values
-        )
-        
+        average_tdee_kcal = self._average_with_count(tdee_values)
+
         calorie_balance_values = [
-            metrics.nutrition.calories_kcal
-            - metrics.basal_energy
-            - metrics.active_energy
+            metrics.nutrition.calories_kcal - metrics.basal_energy - metrics.active_energy
             for metrics in monthly_metrics
             if (
                 metrics.nutrition is not None
@@ -105,44 +92,30 @@ class MetricsAnalyzer:
             )
         ]
 
-        average_calories_balance_kcal = self._average_with_count(
-            calorie_balance_values
-        )
+        average_calories_balance_kcal = self._average_with_count(calorie_balance_values)
 
         protein_values = [
             metrics.nutrition.protein_g
             for metrics in monthly_metrics
-            if (
-                metrics.nutrition is not None
-                and metrics.nutrition.protein_g is not None
-            )
+            if (metrics.nutrition is not None and metrics.nutrition.protein_g is not None)
         ]
 
         carbohydrate_values = [
             metrics.nutrition.carbohydrates_g
             for metrics in monthly_metrics
-            if (
-                metrics.nutrition is not None
-                and metrics.nutrition.carbohydrates_g is not None
-            )
+            if (metrics.nutrition is not None and metrics.nutrition.carbohydrates_g is not None)
         ]
 
         fat_values = [
             metrics.nutrition.fat_g
             for metrics in monthly_metrics
-            if (
-                metrics.nutrition is not None
-                and metrics.nutrition.fat_g is not None
-            )
+            if (metrics.nutrition is not None and metrics.nutrition.fat_g is not None)
         ]
 
         calorie_values = [
             metrics.nutrition.calories_kcal
             for metrics in monthly_metrics
-            if (
-                metrics.nutrition is not None
-                and metrics.nutrition.calories_kcal is not None
-            )
+            if (metrics.nutrition is not None and metrics.nutrition.calories_kcal is not None)
         ]
 
         average_protein_g = self._average_with_count(protein_values)

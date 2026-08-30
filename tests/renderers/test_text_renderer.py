@@ -434,7 +434,7 @@ def test_monthly_report_renders_independent_energy_coverage() -> None:
     assert "  Basal energy:   2200 kcal based on" not in output
     assert "  Active energy:" not in output
     assert "  TDEE:           3000 kcal based on 9 days" in output
-    
+
 
 # =====================================================================
 # Verifies that monthly nutrition averages are rendered independently
@@ -463,7 +463,6 @@ def test_monthly_report_renders_partial_nutrition_independently() -> None:
     assert "Average calories balance:" not in output
 
 
-
 # =====================================================================
 # Verifies that monthly calorie balance is rendered from its stored
 # value and contributing-day coverage rather than other averages.
@@ -480,8 +479,8 @@ def test_monthly_report_renders_calorie_balance_coverage() -> None:
     output = TextRenderer().render_month_summary(summary)
 
     assert "Average calories balance: 150 kcal based on 6 days" in output
-    
-    
+
+
 # =====================================================================
 # Verifies that partial daily energy renders only available components
 # and does not fabricate TDEE from incomplete data.
@@ -504,8 +503,8 @@ def test_daily_report_renders_partial_energy_independently() -> None:
     assert "  Basal energy:   1900 kcal" in output
     assert "  Active energy:" not in output
     assert "  TDEE:" not in output
-    
-    
+
+
 # =====================================================================
 # Verifies that partial daily nutrition renders each available nutrient
 # independently without treating missing values as zero.
@@ -533,7 +532,8 @@ def test_daily_report_renders_partial_nutrition_independently() -> None:
     assert "  Fat:       70 g" in output
     assert "  Calories:" not in output
     assert "Calories balance:" not in output
-    
+
+
 # =====================================================================
 # Verifies that monthly metric coverage is shown only when fewer days
 # contribute to the metric than the report contains.
@@ -557,17 +557,10 @@ def test_monthly_report_shows_coverage_only_for_incomplete_metrics() -> None:
     output = TextRenderer().render_month_summary(summary)
 
     assert "  Basal energy:   2200 kcal\n" in output
-    assert (
-        f"  Basal energy:   2200 kcal based on "
-        f"{summary.reporting_days} days"
-        not in output
-    )
-    assert (
-        f"  Active energy:  800 kcal based on "
-        f"{summary.reporting_days - 2} days"
-        in output
-    )
-    
+    assert f"  Basal energy:   2200 kcal based on " f"{summary.reporting_days} days" not in output
+    assert f"  Active energy:  800 kcal based on " f"{summary.reporting_days - 2} days" in output
+
+
 # =====================================================================
 # Verifies that incomplete metric coverage uses the singular day label
 # when exactly one day contributes to the monthly average.
@@ -584,3 +577,26 @@ def test_monthly_report_uses_singular_day_for_single_day_coverage() -> None:
     output = TextRenderer().render_month_summary(summary)
 
     assert "  Protein:  150 g based on 1 day" in output
+
+
+# =====================================================================
+# Verifies that a day without energy data is reported explicitly
+# instead of rendering an empty energy expenditure section.
+# =====================================================================
+
+
+def test_daily_report_reports_missing_energy_data() -> None:
+    summary = _monthly_summary(
+        days=[
+            _daily_summary(
+                basal_energy_kcal=None,
+                active_energy_kcal=None,
+            )
+        ]
+    )
+    summary.activity_metrics = None
+
+    output = TextRenderer().render_month(summary)
+
+    assert "No energy expenditure data for that day" in output
+    assert "Daily energy expenditure" not in output

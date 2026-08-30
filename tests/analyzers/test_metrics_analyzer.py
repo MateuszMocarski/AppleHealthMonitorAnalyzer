@@ -348,6 +348,7 @@ def test_weight_statistics_are_empty_when_no_measurements_exist() -> None:
     assert summary.max_weight is None
     assert summary.measurements == 0
 
+
 # =====================================================================
 # Verifies that missing nutrition data remains unavailable instead of
 # being represented as zero-valued monthly nutrition.
@@ -425,7 +426,8 @@ def test_summarize_month_averages_nutrition_only_across_available_days() -> None
     assert summary.average_protein_g == (160.0, 2)
     assert summary.average_carbohydrates_g == (210.0, 2)
     assert summary.average_fat_g == (75.0, 2)
-    
+
+
 # =====================================================================
 # Verifies that monthly calorie balance is averaged only across days
 # with available calorie intake data.
@@ -467,7 +469,8 @@ def test_summarize_month_calculates_calorie_balance_only_for_available_days() ->
     assert summary.average_tdee_kcal == (2400.0, 3)
     assert summary.average_calories_kcal == (2250.0, 2)
     assert summary.average_calories_balance_kcal == (150.0, 2)
-    
+
+
 # =====================================================================
 # Verifies that basal, active and TDEE averages use their own coverage,
 # with TDEE requiring both energy components on the same day.
@@ -502,7 +505,8 @@ def test_summarize_month_uses_independent_energy_coverage() -> None:
     assert summary.average_basal_energy_kcal == (1550.0, 2)
     assert summary.average_active_energy_kcal == (600.0, 2)
     assert summary.average_tdee_kcal == (2000.0, 1)
-    
+
+
 # =====================================================================
 # Verifies that each monthly nutrition average uses only days where that
 # specific nutrient is available.
@@ -546,7 +550,8 @@ def test_summarize_month_uses_independent_nutrition_coverage() -> None:
     assert summary.average_protein_g == (110.0, 2)
     assert summary.average_carbohydrates_g == (275.0, 2)
     assert summary.average_fat_g == (75.0, 2)
-    
+
+
 # =====================================================================
 # Verifies that monthly calorie balance uses only days where calories,
 # basal energy and active energy are all available together.

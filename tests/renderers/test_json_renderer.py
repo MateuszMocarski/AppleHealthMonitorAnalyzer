@@ -874,7 +874,8 @@ def test_render_month_summary_builds_calorie_balance() -> None:
 
     assert payload["average_calories_balance_kcal"] == -270.81
     assert payload["calories_balance_count_days"] == 6
-    
+
+
 # =====================================================================
 # Verifies that monthly energy metrics preserve a stable section shape
 # while each value keeps its own independent coverage.
@@ -902,7 +903,8 @@ def test_render_month_summary_supports_partial_energy_coverage() -> None:
         "average_tdee_kcal": 3000.0,
         "tdee_count_days": 9,
     }
-    
+
+
 # =====================================================================
 # Verifies that monthly nutrition preserves a stable section shape when
 # only selected nutrient averages are available.
@@ -934,7 +936,8 @@ def test_render_month_summary_supports_partial_nutrition_coverage() -> None:
         "average_calories_kcal": None,
         "calories_count_days": None,
     }
-    
+
+
 # =====================================================================
 # Verifies that partial daily energy keeps missing values as null and
 # does not fabricate TDEE from an incomplete energy pair.
@@ -957,7 +960,7 @@ def test_render_day_supports_partial_energy() -> None:
         "active_kcal": None,
         "tdee_kcal": None,
     }
-    
+
 
 # =====================================================================
 # Verifies that partial daily nutrition keeps unavailable nutrient
@@ -988,7 +991,8 @@ def test_render_day_supports_partial_nutrition() -> None:
     }
 
     assert day["calories_balance_kcal"] is None
-    
+
+
 # =====================================================================
 # Verifies that an empty daily nutrition object is represented as null
 # when no nutrient value is actually available.

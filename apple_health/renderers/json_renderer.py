@@ -316,17 +316,12 @@ class JsonRenderer:
                 count_key="calories_count_days",
             )
         )
-        
 
     def _build_average_calories_balance(
         self,
         metrics: ActivityMetricsSummary | None,
     ) -> dict[str, Any]:
-        average = (
-            metrics.average_calories_balance_kcal
-            if metrics is not None
-            else None
-        )
+        average = metrics.average_calories_balance_kcal if metrics is not None else None
 
         return self._build_average_fields(
             average,
@@ -472,10 +467,7 @@ class JsonRenderer:
         self,
         summary: DailySummary,
     ) -> dict[str, Any] | None:
-        if (
-            summary.basal_energy_kcal is None
-            and summary.active_energy_kcal is None
-        ):
+        if summary.basal_energy_kcal is None and summary.active_energy_kcal is None:
             return None
 
         return {

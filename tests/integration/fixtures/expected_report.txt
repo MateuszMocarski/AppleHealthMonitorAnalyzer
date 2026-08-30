@@ -215,8 +215,8 @@ No workouts.
 No weight measurement for that day
 ----------------------------------
 
-Daily energy expenditure
-------------------------
+No energy expenditure data for that day
+---------------------------------------
 
 No nutrition data for that day
 ------------------------------
