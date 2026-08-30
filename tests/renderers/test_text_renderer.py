@@ -414,8 +414,8 @@ def test_monthly_summary_renders_injected_sleep_configuration() -> None:
 
 
 # =====================================================================
-# Verifies that monthly energy averages are rendered independently with
-# their own contributing-day coverage.
+# Verifies that monthly energy averages are rendered independently and
+# coverage is shown only for metrics with incomplete contributing days.
 # =====================================================================
 
 
@@ -430,7 +430,8 @@ def test_monthly_report_renders_independent_energy_coverage() -> None:
 
     output = TextRenderer().render_month_summary(summary)
 
-    assert "  Basal energy:   2200 kcal based on 14 days" in output
+    assert "  Basal energy:   2200 kcal\n" in output
+    assert "  Basal energy:   2200 kcal based on" not in output
     assert "  Active energy:" not in output
     assert "  TDEE:           3000 kcal based on 9 days" in output
     
@@ -532,3 +533,54 @@ def test_daily_report_renders_partial_nutrition_independently() -> None:
     assert "  Fat:       70 g" in output
     assert "  Calories:" not in output
     assert "Calories balance:" not in output
+    
+# =====================================================================
+# Verifies that monthly metric coverage is shown only when fewer days
+# contribute to the metric than the report contains.
+# =====================================================================
+
+
+def test_monthly_report_shows_coverage_only_for_incomplete_metrics() -> None:
+    summary = _monthly_summary()
+    metrics = summary.activity_metrics
+    assert metrics is not None
+
+    metrics.average_basal_energy_kcal = (
+        2200.0,
+        summary.reporting_days,
+    )
+    metrics.average_active_energy_kcal = (
+        800.0,
+        summary.reporting_days - 2,
+    )
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "  Basal energy:   2200 kcal\n" in output
+    assert (
+        f"  Basal energy:   2200 kcal based on "
+        f"{summary.reporting_days} days"
+        not in output
+    )
+    assert (
+        f"  Active energy:  800 kcal based on "
+        f"{summary.reporting_days - 2} days"
+        in output
+    )
+    
+# =====================================================================
+# Verifies that incomplete metric coverage uses the singular day label
+# when exactly one day contributes to the monthly average.
+# =====================================================================
+
+
+def test_monthly_report_uses_singular_day_for_single_day_coverage() -> None:
+    summary = _monthly_summary()
+    metrics = summary.activity_metrics
+    assert metrics is not None
+
+    metrics.average_protein_g = (150.0, 1)
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "  Protein:  150 g based on 1 day" in output

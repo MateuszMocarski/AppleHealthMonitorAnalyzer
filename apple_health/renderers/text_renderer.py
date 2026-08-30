@@ -141,19 +141,22 @@ class TextRenderer:
         if metrics.average_basal_energy_kcal is not None:
             value, count_days = metrics.average_basal_energy_kcal
             writer.write(
-                f"  Basal energy:   {value:.0f} kcal based on {count_days} days"
+                f"  Basal energy:   {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         if metrics.average_active_energy_kcal is not None:
             value, count_days = metrics.average_active_energy_kcal
             writer.write(
-                f"  Active energy:  {value:.0f} kcal based on {count_days} days"
+                f"  Active energy:  {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         if metrics.average_tdee_kcal is not None:
             value, count_days = metrics.average_tdee_kcal
             writer.write(
-                f"  TDEE:           {value:.0f} kcal based on {count_days} days"
+                f"  TDEE:           {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         writer.write()
@@ -182,33 +185,37 @@ class TextRenderer:
         if metrics.average_protein_g is not None:
             value, count_days = metrics.average_protein_g
             writer.write(
-                f"  Protein:  {value:.0f} g based on {count_days} days"
+                f"  Protein:  {value:.0f} g"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         if metrics.average_carbohydrates_g is not None:
             value, count_days = metrics.average_carbohydrates_g
             writer.write(
-                f"  Carbs:    {value:.0f} g based on {count_days} days"
+                f"  Carbs:    {value:.0f} g"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         if metrics.average_fat_g is not None:
             value, count_days = metrics.average_fat_g
             writer.write(
-                f"  Fat:      {value:.0f} g based on {count_days} days"
+                f"  Fat:      {value:.0f} g"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         if metrics.average_calories_kcal is not None:
             value, count_days = metrics.average_calories_kcal
             writer.write(
-                f"  Calories: {value:.0f} kcal based on {count_days} days"
+                f"  Calories: {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
         if metrics.average_calories_balance_kcal is not None:
             value, count_days = metrics.average_calories_balance_kcal
             writer.write()
             writer.write(
-                f"Average calories balance: "
-                f"{value:.0f} kcal based on {count_days} days"
+                f"Average calories balance: {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
             )
 
     def _render_day(self, writer: _TextWriter, summary: DailySummary) -> None:
@@ -540,3 +547,15 @@ class TextRenderer:
         for threshold, bonus in score.monthly_bonus.consistency_thresholds:
             writer.write(f"      < {threshold:g} std dev -> +{bonus:g}")
         writer.write()
+
+
+    @staticmethod
+    def _format_coverage(
+        count_days: int,
+        reporting_days: int,
+    ) -> str:
+        if count_days == reporting_days:
+            return ""
+
+        unit = "day" if count_days == 1 else "days"
+        return f" based on {count_days} {unit}"
