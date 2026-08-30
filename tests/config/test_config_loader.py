@@ -670,7 +670,7 @@ def test_runtime_source_overrides_replace_defaults() -> None:
 
     assert config.source.apple_watch_source == "Custom Watch"
     assert config.source.apple_health_app_source == "Custom Health"
-    
+
 
 # =====================================================================
 # Verifies that runtime source overrides take precedence over values

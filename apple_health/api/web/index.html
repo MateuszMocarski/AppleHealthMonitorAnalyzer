@@ -460,6 +460,101 @@
             line-height: 1.45;
         }
 
+        .config-tools {
+            display: flex;
+            align-items: stretch;
+            gap: 10px;
+
+            margin-bottom: 18px;
+        }
+
+        .config-upload {
+            flex: 1 1 auto;
+        }
+
+        .config-example-button {
+            flex: 0 0 auto;
+            min-height: 48px;
+            padding: 0 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-secondary);
+
+            cursor: pointer;
+
+            font-size: 12px;
+            font-weight: 600;
+
+            transition:
+                background 150ms ease,
+                color 150ms ease;
+        }
+
+        .config-example-button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+        }
+
+        .config-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+
+            min-height: 48px;
+            padding: 0 14px;
+
+            border: 1px dashed var(--border-strong);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            cursor: pointer;
+
+            transition:
+                border-color 150ms ease,
+                background 150ms ease;
+        }
+
+        .config-upload-label:hover {
+            border-color: rgba(255, 55, 95, 0.48);
+            background: var(--accent-soft);
+        }
+
+        .config-upload-primary {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .config-upload-secondary {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        #config {
+            display: none;
+        }
+
+        .precedence-note {
+            margin: 0 0 18px;
+
+            color: var(--text-muted);
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .precedence-note code {
+            color: var(--text);
+            font-family:
+                "SFMono-Regular",
+                Consolas,
+                "Liberation Mono",
+                monospace;
+        }
+
         .generate-row {
             display: flex;
             justify-content: space-between;
@@ -630,6 +725,14 @@
             .source-grid {
                 grid-template-columns: 1fr;
             }
+
+            .config-tools {
+                flex-direction: column;
+            }
+
+            .config-example-button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -737,9 +840,57 @@
 
                     <div class="advanced-settings-content">
                         <p class="advanced-description">
-                            Optional. Change these values only when your
-                            Apple Health export uses different source names.
-                            Leave a field blank to use the configured default.
+                            Optional. Upload a custom configuration file or
+                            override source names for this report generation.
+                        </p>
+
+                        <div class="config-tools">
+                            <div class="config-upload">
+                                <label
+                                    class="config-upload-label"
+                                    for="config"
+                                >
+                                    <div>
+                                        <div class="config-upload-primary">
+                                            Optional config.toml
+                                        </div>
+
+                                        <div
+                                            class="config-upload-secondary"
+                                            id="config-file-name"
+                                        >
+                                            Choose config.toml
+                                        </div>
+                                    </div>
+
+                                    <span>＋</span>
+
+                                    <input
+                                        id="config"
+                                        type="file"
+                                        accept=".toml,application/toml,text/plain"
+                                    >
+                                </label>
+                            </div>
+
+                            <button
+                                class="config-example-button"
+                                id="download-example-config"
+                                type="button"
+                            >
+                                Download example config
+                            </button>
+                        </div>
+
+                        <p class="precedence-note">
+                            Configuration precedence:
+                            <code>UI overrides</code>
+                            &gt;
+                            <code>config.toml</code>
+                            &gt;
+                            <code>defaults</code>.
+                            Leave source fields blank to keep the value from
+                            config.toml or the built-in defaults.
                         </p>
 
                         <div class="source-warning">
@@ -851,6 +1002,22 @@
             document.getElementById("month-chips");
 
 
+        const configInput =
+            document.getElementById("config");
+
+        const configFileName =
+            document.getElementById(
+                "config-file-name",
+            );
+
+        const downloadExampleConfig =
+            document.getElementById(
+                "download-example-config",
+            );
+
+        const exampleConfigContent =
+            "# Complete example configuration.\n# All values below match the current application defaults.\n# You may remove any setting you do not want to override.\n\n[source]\napple_watch_source = \"Apple Watch\"\napple_health_app_source = \"Zdrowie\"\n\n[sleep]\nsession_gap_threshold_minutes = 30\n\n[sleep.score]\nlinear_penalties = false\n\n[sleep.score.bedtime]\ntarget = \"00:00\"\npenalty_interval_minutes = 15\npenalty_points = 5.0\n\n[sleep.score.duration]\ntarget_minutes = 480\ntolerance_minutes = 30\npenalty_interval_minutes = 15\npenalty_points = 5.0\noversleep_weight = 1.0\nundersleep_weight = 1.0\n\n[sleep.score.wake_up]\ntarget = \"08:00\"\nbedtime_weight = 1.0\nduration_weight = 2.0\npenalty_interval_minutes = 15\npenalty_points = 3.0\n\n[sleep.score.weights]\nbedtime = 1.0\nduration = 1.0\nwake_up = 1.0\n\n[sleep.score.monthly_bonus]\nenabled = true\nmax_points = 20\n\naverage_thresholds = [\n    [90, 15],\n    [80, 10],\n    [70, 5],\n]\n\nconsistency_thresholds = [\n    [3, 5],\n    [6, 4],\n    [9, 3],\n    [12, 2],\n    [15, 1],\n]\n";
+
         const appleWatchSource =
             document.getElementById(
                 "apple-watch-source",
@@ -884,6 +1051,29 @@
                     file
                         ? file.name
                         : "Choose export.zip";
+            },
+        );
+
+        configInput.addEventListener(
+            "change",
+            () => {
+                const file = configInput.files[0];
+
+                configFileName.textContent =
+                    file
+                        ? file.name
+                        : "Choose config.toml";
+            },
+        );
+
+        downloadExampleConfig.addEventListener(
+            "click",
+            () => {
+                downloadText(
+                    "config.example.toml",
+                    exampleConfigContent,
+                    "application/toml",
+                );
             },
         );
 
@@ -1156,6 +1346,16 @@
                         .join(","),
                 );
 
+
+                const configFile =
+                    configInput.files[0];
+
+                if (configFile) {
+                    formData.append(
+                        "config",
+                        configFile,
+                    );
+                }
 
                 formData.append(
                     "apple_watch_source",

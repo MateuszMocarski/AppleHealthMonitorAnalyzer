@@ -1169,6 +1169,7 @@ def test_report_generation_disables_response_caching(
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
 
+
 # =====================================================================
 # Verifies that optional source overrides submitted by the web client
 # are normalized and forwarded to multi-month report generation.
@@ -1213,7 +1214,8 @@ def test_report_generation_forwards_source_overrides(
     assert response.json() == {
         "reports": [],
     }
-    
+
+
 # =====================================================================
 # Verifies that blank source fields are treated as absent overrides so
 # the configured defaults remain effective.
@@ -1258,7 +1260,8 @@ def test_report_generation_ignores_blank_source_overrides(
     assert response.json() == {
         "reports": [],
     }
-    
+
+
 # =====================================================================
 # Verifies that the web interface exposes optional source override
 # controls together with the Apple Watch NBSP default warning.
@@ -1276,3 +1279,141 @@ def test_web_interface_exposes_source_override_controls() -> None:
     assert 'id="apple-health-app-source"' in html
     assert "Apple\\xa0Watch" in html
     assert "NBSP / U+00A0" in html
+
+
+# =====================================================================
+# Verifies that an uploaded TOML configuration is available during
+# report generation and removed after the request is completed.
+# =====================================================================
+
+
+def test_report_generation_forwards_uploaded_config(
+    monkeypatch,
+) -> None:
+    config_content = """
+[source]
+apple_health_app_source = "Custom Health"
+"""
+
+    captured_config_path: Path | None = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_config_path
+
+        captured_config_path = options.config_path
+
+        assert captured_config_path is not None
+        assert captured_config_path.exists()
+        assert (
+            captured_config_path.read_text(
+                encoding="utf-8",
+            )
+            == config_content
+        )
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                config_content.encode(),
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }
+
+    assert captured_config_path is not None
+    assert not captured_config_path.exists()
+
+
+# =====================================================================
+# Verifies that malformed uploaded TOML configuration is rejected as
+# invalid client input instead of causing an internal server error.
+# =====================================================================
+
+
+def test_report_generation_rejects_malformed_config() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[source",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Invalid TOML configuration" in response.json()["detail"]
+
+
+# =====================================================================
+# Verifies that uploaded configuration files exceeding the dedicated
+# size limit are rejected before configuration parsing.
+# =====================================================================
+
+
+def test_report_generation_rejects_oversized_config(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "apple_health.api.app.MAX_CONFIG_UPLOAD_SIZE",
+        10,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"12345678901",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "Uploaded configuration is too large.",
+    }
