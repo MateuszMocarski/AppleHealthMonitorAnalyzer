@@ -16,8 +16,8 @@ def _metrics(
     *,
     steps: int = 0,
     distance_km: float = 0.0,
-    active_energy: float | None = 0.0,
-    basal_energy: float | None = 0.0,
+    active_energy: float | None = None,
+    basal_energy: float | None = None,
     weight: float | None = None,
     nutrition: NutritionData | None = None,
 ) -> DailyMetrics:
@@ -50,10 +50,10 @@ def _metrics(
 
 def _nutrition(
     *,
-    calories_kcal: float = 0.0,
-    protein_g: float = 0.0,
-    carbohydrates_g: float = 0.0,
-    fat_g: float = 0.0,
+    calories_kcal: float | None = None,
+    protein_g: float | None = None,
+    carbohydrates_g: float | None = None,
+    fat_g: float | None = None,
 ) -> NutritionData:
     return NutritionData(
         calories_kcal=calories_kcal,
@@ -228,8 +228,9 @@ def test_summarize_month_calculates_energy_averages() -> None:
         reporting_days=2,
     )
 
-    assert summary.average_basal_energy_kcal == 1950.0
-    assert summary.average_active_energy_kcal == 700.0
+    assert summary.average_basal_energy_kcal == (1950.0, 2)
+    assert summary.average_active_energy_kcal == (700.0, 2)
+    assert summary.average_tdee_kcal == (2650.0, 2)
 
 
 # =====================================================================
@@ -379,7 +380,7 @@ def test_summarize_month_preserves_missing_nutrition() -> None:
     assert summary.average_protein_g is None
     assert summary.average_carbohydrates_g is None
     assert summary.average_fat_g is None
-    assert summary.average_calories_balance is None
+    assert summary.average_calories_balance_kcal is None
 
 
 # =====================================================================
@@ -420,10 +421,10 @@ def test_summarize_month_averages_nutrition_only_across_available_days() -> None
         reporting_days=3,
     )
 
-    assert summary.average_calories_kcal[0] == 2100.0
-    assert summary.average_protein_g[0] == 160.0
-    assert summary.average_carbohydrates_g[0] == 210.0
-    assert summary.average_fat_g[0] == 75.0
+    assert summary.average_calories_kcal == (2100.0, 2)
+    assert summary.average_protein_g == (160.0, 2)
+    assert summary.average_carbohydrates_g == (210.0, 2)
+    assert summary.average_fat_g == (75.0, 2)
     
 # =====================================================================
 # Verifies that monthly calorie balance is averaged only across days
@@ -463,6 +464,129 @@ def test_summarize_month_calculates_calorie_balance_only_for_available_days() ->
         reporting_days=3,
     )
 
-    assert summary.average_tdee_kcal == 2400.0
+    assert summary.average_tdee_kcal == (2400.0, 3)
     assert summary.average_calories_kcal == (2250.0, 2)
     assert summary.average_calories_balance_kcal == (150.0, 2)
+    
+# =====================================================================
+# Verifies that basal, active and TDEE averages use their own coverage,
+# with TDEE requiring both energy components on the same day.
+# =====================================================================
+
+
+def test_summarize_month_uses_independent_energy_coverage() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            basal_energy=1500,
+            active_energy=500,
+        ),
+        _metrics(
+            2,
+            basal_energy=1600,
+            active_energy=None,
+        ),
+        _metrics(
+            3,
+            basal_energy=None,
+            active_energy=700,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_basal_energy_kcal == (1550.0, 2)
+    assert summary.average_active_energy_kcal == (600.0, 2)
+    assert summary.average_tdee_kcal == (2000.0, 1)
+    
+# =====================================================================
+# Verifies that each monthly nutrition average uses only days where that
+# specific nutrient is available.
+# =====================================================================
+
+
+def test_summarize_month_uses_independent_nutrition_coverage() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+                protein_g=100,
+                fat_g=70,
+            ),
+        ),
+        _metrics(
+            2,
+            nutrition=_nutrition(
+                protein_g=120,
+                carbohydrates_g=250,
+            ),
+        ),
+        _metrics(
+            3,
+            nutrition=_nutrition(
+                calories_kcal=2400,
+                carbohydrates_g=300,
+                fat_g=80,
+            ),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_calories_kcal == (2200.0, 2)
+    assert summary.average_protein_g == (110.0, 2)
+    assert summary.average_carbohydrates_g == (275.0, 2)
+    assert summary.average_fat_g == (75.0, 2)
+    
+# =====================================================================
+# Verifies that monthly calorie balance uses only days where calories,
+# basal energy and active energy are all available together.
+# =====================================================================
+
+
+def test_summarize_month_uses_complete_daily_coverage_for_calorie_balance() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            basal_energy=1500,
+            active_energy=500,
+            nutrition=_nutrition(calories_kcal=2500),
+        ),
+        _metrics(
+            2,
+            basal_energy=2000,
+            active_energy=None,
+            nutrition=_nutrition(calories_kcal=2900),
+        ),
+        _metrics(
+            3,
+            basal_energy=1600,
+            active_energy=600,
+            nutrition=_nutrition(calories_kcal=None),
+        ),
+        _metrics(
+            4,
+            basal_energy=1400,
+            active_energy=400,
+            nutrition=_nutrition(calories_kcal=1800),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=4,
+    )
+
+    assert summary.average_calories_kcal == (2400.0, 3)
+    assert summary.average_tdee_kcal == (2000.0, 3)
+    assert summary.average_calories_balance_kcal == (250.0, 2)

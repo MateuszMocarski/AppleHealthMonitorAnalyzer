@@ -42,8 +42,9 @@ def _activity_metrics(
     *,
     start_weight: float | None = 80.0,
     end_weight: float | None = 79.0,
-    average_active_energy_kcal: float = 700.0,
-    average_basal_energy_kcal: float = 1900.0,
+    average_active_energy_kcal: tuple[float, int] | None = (700.0, 10),
+    average_basal_energy_kcal: tuple[float, int] | None = (1900.0, 10),
+    average_tdee_kcal: tuple[float, int] | None = (2600.0, 10),
     average_calories_kcal: tuple[float, int] | None = (2000.0, 10),
     average_calories_balance_kcal: tuple[float, int] | None = (-550.0, 10),
 ) -> ActivityMetricsSummary:
@@ -55,6 +56,7 @@ def _activity_metrics(
         average_step_length_cm=80.0,
         average_basal_energy_kcal=average_basal_energy_kcal,
         average_active_energy_kcal=average_active_energy_kcal,
+        average_tdee_kcal=average_tdee_kcal,
         average_weight=79.5,
         start_weight=start_weight,
         end_weight=end_weight,
@@ -283,18 +285,17 @@ def test_monthly_summary_data_through_is_none_without_reporting_days() -> None:
 
 
 # =====================================================================
-# Verifies that average monthly TDEE is calculated as the sum of
-# average active and basal energy expenditure.
+# Verifies that the activity metrics summary preserves monthly TDEE
+# together with the number of contributing days.
 # =====================================================================
 
 
-def test_activity_metrics_summary_calculates_average_tdee() -> None:
+def test_activity_metrics_summary_preserves_average_tdee() -> None:
     summary = _activity_metrics(
-        average_active_energy_kcal=700.0,
-        average_basal_energy_kcal=1900.0,
+        average_tdee_kcal=(2600.0, 10),
     )
 
-    assert summary.average_tdee_kcal == 2600.0
+    assert summary.average_tdee_kcal == (2600.0, 10)
 
 
 # =====================================================================
