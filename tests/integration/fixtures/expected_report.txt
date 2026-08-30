@@ -115,18 +115,16 @@ Body weight:
 
 Average energy expenditure
 --------------------------
-  Basal energy:   950 kcal
-  Active energy:  350 kcal
-  TDEE:           1300 kcal
+  Basal energy:   1900 kcal based on 1 day
+  Active energy:  700 kcal based on 1 day
+  TDEE:           2600 kcal based on 1 day
 
 Average nutrition
 -----------------
-  Protein:  150 g
-  Carbs:    0 g
-  Fat:      0 g
-  Calories: 2000 kcal
+  Protein:  150 g based on 1 day
+  Calories: 2000 kcal based on 1 day
 
-Average calories balance: 700 kcal
+Average calories balance: -600 kcal based on 1 day
 
 2026-08-01
 ==========
@@ -180,8 +178,6 @@ Daily energy expenditure
 Daily nutrition
 ---------------
   Protein:   150 g
-  Carbs:     0 g
-  Fat:       0 g
   Calories:  2000 kcal
 
 Calories balance: -600 kcal
@@ -221,9 +217,6 @@ No weight measurement for that day
 
 Daily energy expenditure
 ------------------------
-  Basal energy:   0 kcal
-  Active energy:  0 kcal
-  TDEE:           0 kcal
 
 No nutrition data for that day
 ------------------------------
