@@ -555,6 +555,122 @@
                 monospace;
         }
 
+        .guide {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+
+            background: rgba(255, 255, 255, 0.018);
+        }
+
+        .guide summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+
+            padding: 16px 18px;
+
+            cursor: pointer;
+            user-select: none;
+
+            font-size: 14px;
+            font-weight: 650;
+
+            list-style: none;
+        }
+
+        .guide summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .guide summary::after {
+            content: "⌄";
+
+            color: var(--text-muted);
+            font-size: 18px;
+
+            transition: transform 150ms ease;
+        }
+
+        .guide[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .guide-content {
+            padding: 0 18px 18px;
+        }
+
+        .guide-intro {
+            margin: 0 0 18px;
+
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .guide-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .guide-card {
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .guide-card-title {
+            margin-bottom: 7px;
+
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .guide-card-text {
+            margin: 0;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .guide-card-text code,
+        .guide-flow code {
+            color: var(--text);
+
+            font-family:
+                "SFMono-Regular",
+                Consolas,
+                "Liberation Mono",
+                monospace;
+        }
+
+        .guide-flow {
+            margin: 16px 0 0;
+            padding: 12px 14px;
+
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .guide-note {
+            margin: 14px 0 0;
+
+            color: var(--text-muted);
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
         .generate-row {
             display: flex;
             justify-content: space-between;
@@ -732,6 +848,10 @@
 
             .config-example-button {
                 width: 100%;
+            }
+
+            .guide-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -945,6 +1065,129 @@
                                 </span>
                             </label>
                         </div>
+                    </div>
+                </details>
+            </div>
+
+            <div class="section">
+                <details class="guide">
+                    <summary>
+                        How it works
+                    </summary>
+
+                    <div class="guide-content">
+                        <p class="guide-intro">
+                            The app reads your Apple Health export once,
+                            generates reports for the selected months, and
+                            forgets the uploaded files after the request is
+                            finished. Only the ZIP archive and reporting
+                            periods are required.
+                        </p>
+
+                        <div class="guide-grid">
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    1. Apple Health export
+                                </div>
+
+                                <p class="guide-card-text">
+                                    Upload the ZIP archive exported from
+                                    Apple Health. The archive is processed
+                                    temporarily and is not stored by the app.
+                                </p>
+                            </div>
+
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    2. Reporting periods
+                                </div>
+
+                                <p class="guide-card-text">
+                                    Choose one or more months. The ZIP is
+                                    parsed once, then a separate report set
+                                    is generated for every selected month.
+                                </p>
+                            </div>
+
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    3. Optional config.toml
+                                </div>
+
+                                <p class="guide-card-text">
+                                    Upload a TOML file when you want to
+                                    override application defaults such as
+                                    sleep scoring or data source names.
+                                    You can download a complete example file
+                                    from the advanced settings section.
+                                </p>
+                            </div>
+
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    4. Source overrides
+                                </div>
+
+                                <p class="guide-card-text">
+                                    These two fields override only the source
+                                    names used for this request. Leave them
+                                    blank to keep the value from
+                                    <code>config.toml</code> or the built-in
+                                    defaults.
+                                </p>
+                            </div>
+
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    Apple Watch source
+                                </div>
+
+                                <p class="guide-card-text">
+                                    The built-in default is
+                                    <code>Apple\xa0Watch</code>. The separator
+                                    is a non-breaking space
+                                    (<code>NBSP / U+00A0</code>), not a
+                                    regular space, so the exact
+                                    <code>sourceName</code> matters.
+                                </p>
+                            </div>
+
+                            <div class="guide-card">
+                                <div class="guide-card-title">
+                                    Generated files
+                                </div>
+
+                                <p class="guide-card-text">
+                                    Every selected month produces
+                                    <code>full.txt</code>,
+                                    <code>full.json</code>,
+                                    <code>summary.txt</code>, and
+                                    <code>summary.json</code>.
+                                    The JSON files preserve missing values
+                                    and coverage information for future
+                                    viewers and integrations.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guide-flow">
+                            Configuration precedence:
+                            <code>UI overrides</code>
+                            &gt;
+                            <code>config.toml</code>
+                            &gt;
+                            <code>built-in defaults</code>.
+                            The app starts with defaults, applies values from
+                            the uploaded TOML file, then applies non-empty
+                            source overrides from the UI.
+                        </div>
+
+                        <p class="guide-note">
+                            Missing data is kept as missing data rather than
+                            being treated as zero. Monthly averages are based
+                            only on days that actually contain the data needed
+                            for that metric.
+                        </p>
                     </div>
                 </details>
             </div>
