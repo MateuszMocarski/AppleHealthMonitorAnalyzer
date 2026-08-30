@@ -57,28 +57,6 @@ class MetricsAnalyzer:
 
         total_active_energy_kcal = sum(metrics.active_energy for metrics in monthly_metrics)
 
-        total_protein_g = sum(
-            metrics.nutrition.protein_g
-            for metrics in monthly_metrics
-            if metrics.nutrition is not None
-        )
-
-        total_carbohydrates_g = sum(
-            metrics.nutrition.carbohydrates_g
-            for metrics in monthly_metrics
-            if metrics.nutrition is not None
-        )
-
-        total_fat_g = sum(
-            metrics.nutrition.fat_g for metrics in monthly_metrics if metrics.nutrition is not None
-        )
-
-        total_calories_kcal = sum(
-            metrics.nutrition.calories_kcal
-            for metrics in monthly_metrics
-            if metrics.nutrition is not None
-        )
-
         average_daily_steps = total_steps / reporting_days if reporting_days else 0.0
 
         average_daily_distance = total_distance / reporting_days if reporting_days else 0.0
@@ -93,13 +71,81 @@ class MetricsAnalyzer:
 
         average_step_length_cm = 100000 * total_distance / total_steps if total_steps else 0.0
 
-        average_protein_g = total_protein_g / reporting_days if reporting_days else 0.0
+        nutrition_protein = [
+            metrics.nutrition.protein_g
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None and metrics.nutrition.protein_g is not None
+        ]
 
-        average_carbohydrates_g = total_carbohydrates_g / reporting_days if reporting_days else 0.0
+        if nutrition_protein:
+            nutrition_protein_days = len(nutrition_protein)
 
-        average_fat_g = total_fat_g / reporting_days if reporting_days else 0.0
+            average_protein_g = (
+                sum(
+                    protein_g
+                    for protein_g in nutrition_protein
+                )
+                / nutrition_protein_days
+            ), nutrition_protein_days
+        else:
+            average_protein_g = None
+            
+        nutrition_carbohydrates = [
+            metrics.nutrition.carbohydrates_g
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None and metrics.nutrition.carbohydrates_g is not None
+        ]
 
-        average_calories_kcal = total_calories_kcal / reporting_days if reporting_days else 0.0
+        if nutrition_carbohydrates:
+            nutrition_carbohydrates_days = len(nutrition_carbohydrates)
+
+            average_carbohydrates_g = (
+                sum(
+                    carbohydrates_g
+                    for carbohydrates_g in nutrition_carbohydrates
+                )
+                / nutrition_carbohydrates_days
+            ), nutrition_carbohydrates_days
+        else:
+            average_carbohydrates_g = None
+            
+        nutrition_fat = [
+            metrics.nutrition.fat_g
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None and metrics.nutrition.fat_g is not None
+        ]
+
+        if nutrition_fat:
+            nutrition_fat_days = len(nutrition_fat)
+
+            average_fat_g = (
+                sum(
+                    fat_g
+                    for fat_g in nutrition_fat
+                )
+                / nutrition_fat_days
+            ), nutrition_fat_days
+        else:
+            average_fat_g = None   
+            
+        nutrition_calories = [
+            metrics.nutrition.calories_kcal
+            for metrics in monthly_metrics
+            if metrics.nutrition is not None and metrics.nutrition.calories_kcal is not None
+        ]
+
+        if nutrition_calories:
+            nutrition_calories_days = len(nutrition_calories)
+
+            average_calories_kcal = (
+                sum(
+                    calories_kcal
+                    for calories_kcal in nutrition_calories
+                )
+                / nutrition_calories_days
+            ), nutrition_calories_days
+        else:
+            average_calories_kcal = None  
 
         weights = [
             metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None

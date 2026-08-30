@@ -110,10 +110,10 @@ class ActivityMetricsSummary:
     min_weight: float | None
     measurements: int
 
-    average_protein_g: float | None
-    average_carbohydrates_g: float | None
-    average_fat_g: float | None
-    average_calories_kcal: float | None
+    average_protein_g: tuple[float, int] | None
+    average_carbohydrates_g: tuple[float, int] | None
+    average_fat_g: tuple[float, int] | None
+    average_calories_kcal: tuple[float, int] | None
 
     @property
     def average_tdee_kcal(self) -> float | None:

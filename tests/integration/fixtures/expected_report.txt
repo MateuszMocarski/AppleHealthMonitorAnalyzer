@@ -121,12 +121,12 @@ Average energy expenditure
 
 Average nutrition
 -----------------
-  Protein:  75 g
+  Protein:  150 g
   Carbs:    0 g
   Fat:      0 g
-  Calories: 1000 kcal
+  Calories: 2000 kcal
 
-Average calories balance: -300 kcal
+Average calories balance: 700 kcal
 
 2026-08-01
 ==========

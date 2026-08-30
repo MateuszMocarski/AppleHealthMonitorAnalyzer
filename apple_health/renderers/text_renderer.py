@@ -144,10 +144,10 @@ class TextRenderer:
             return
         writer.write("Average nutrition")
         writer.write("-----------------")
-        writer.write(f"  Protein:  {metrics.average_protein_g:.0f} g")
-        writer.write(f"  Carbs:    {metrics.average_carbohydrates_g:.0f} g")
-        writer.write(f"  Fat:      {metrics.average_fat_g:.0f} g")
-        writer.write(f"  Calories: {metrics.average_calories_kcal:.0f} kcal")
+        writer.write(f"  Protein:  {metrics.average_protein_g[0]:.0f} g based on {metrics.average_protein_g[1]} days")
+        writer.write(f"  Carbs:    {metrics.average_carbohydrates_g[0]:.0f} g based on {metrics.average_carbohydrates_g[1]} days")
+        writer.write(f"  Fat:      {metrics.average_fat_g[0]:.0f} g based on {metrics.average_fat_g[1]} days")
+        writer.write(f"  Calories: {metrics.average_calories_kcal[0]:.0f} kcal based on {metrics.average_calories_kcal[1]} days")
         if metrics.average_calories_balance is not None:
             writer.write()
             writer.write(f"Average calories balance: {metrics.average_calories_balance:.0f} kcal")

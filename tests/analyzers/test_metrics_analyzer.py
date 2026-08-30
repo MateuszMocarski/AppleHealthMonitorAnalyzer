@@ -281,50 +281,6 @@ def test_average_step_length_is_zero_when_no_steps_exist() -> None:
 
 
 # =====================================================================
-# Verifies that nutrition values are summed from available daily
-# records and averaged across all completed reporting days.
-# =====================================================================
-
-
-def test_summarize_month_calculates_nutrition_averages() -> None:
-    analyzer = _analyzer(
-        _metrics(
-            1,
-            nutrition=_nutrition(
-                calories_kcal=2000,
-                protein_g=150,
-                carbohydrates_g=200,
-                fat_g=70,
-            ),
-        ),
-        _metrics(
-            2,
-            nutrition=_nutrition(
-                calories_kcal=2200,
-                protein_g=170,
-                carbohydrates_g=220,
-                fat_g=80,
-            ),
-        ),
-        _metrics(
-            3,
-            nutrition=None,
-        ),
-    )
-
-    summary = analyzer.summarize_month(
-        year=2026,
-        month=8,
-        reporting_days=3,
-    )
-
-    assert summary.average_calories_kcal == 1400.0
-    assert summary.average_protein_g == pytest.approx(320 / 3)
-    assert summary.average_carbohydrates_g == 140.0
-    assert summary.average_fat_g == 50.0
-
-
-# =====================================================================
 # Verifies that monthly body-weight statistics include average, first,
 # last, minimum, maximum and measurement count.
 # =====================================================================
@@ -390,3 +346,81 @@ def test_weight_statistics_are_empty_when_no_measurements_exist() -> None:
     assert summary.min_weight is None
     assert summary.max_weight is None
     assert summary.measurements == 0
+
+# =====================================================================
+# Verifies that missing nutrition data remains unavailable instead of
+# being represented as zero-valued monthly nutrition.
+# =====================================================================
+
+
+def test_summarize_month_preserves_missing_nutrition() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            active_energy=600,
+            basal_energy=1800,
+            nutrition=None,
+        ),
+        _metrics(
+            2,
+            active_energy=700,
+            basal_energy=1900,
+            nutrition=None,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=2,
+    )
+
+    assert summary.average_calories_kcal is None
+    assert summary.average_protein_g is None
+    assert summary.average_carbohydrates_g is None
+    assert summary.average_fat_g is None
+    assert summary.average_calories_balance is None
+
+
+# =====================================================================
+# Verifies that missing nutrition days are excluded from nutrition
+# averages instead of being treated as days with zero intake.
+# =====================================================================
+
+
+def test_summarize_month_averages_nutrition_only_across_available_days() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+                protein_g=150,
+                carbohydrates_g=200,
+                fat_g=70,
+            ),
+        ),
+        _metrics(
+            2,
+            nutrition=_nutrition(
+                calories_kcal=2200,
+                protein_g=170,
+                carbohydrates_g=220,
+                fat_g=80,
+            ),
+        ),
+        _metrics(
+            3,
+            nutrition=None,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_calories_kcal[0] == 2100.0
+    assert summary.average_protein_g[0] == 160.0
+    assert summary.average_carbohydrates_g[0] == 210.0
+    assert summary.average_fat_g[0] == 75.0

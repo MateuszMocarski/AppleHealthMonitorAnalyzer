@@ -281,17 +281,31 @@ class AppleHealthParser:
         record_type: str,
         value: str,
     ) -> None:
+        parsed_value = float(value)
+
         if record_type == "HKQuantityTypeIdentifierDietaryEnergyConsumed":
-            nutrition.calories_kcal += float(value)
+            nutrition.calories_kcal = self._add_optional_value(
+                nutrition.calories_kcal,
+                parsed_value,
+            )
 
         elif record_type == "HKQuantityTypeIdentifierDietaryProtein":
-            nutrition.protein_g += float(value)
+            nutrition.protein_g = self._add_optional_value(
+                nutrition.protein_g,
+                parsed_value,
+            )
 
         elif record_type == "HKQuantityTypeIdentifierDietaryCarbohydrates":
-            nutrition.carbohydrates_g += float(value)
+            nutrition.carbohydrates_g = self._add_optional_value(
+                nutrition.carbohydrates_g,
+                parsed_value,
+            )
 
         elif record_type == "HKQuantityTypeIdentifierDietaryFatTotal":
-            nutrition.fat_g += float(value)
+            nutrition.fat_g = self._add_optional_value(
+                nutrition.fat_g,
+                parsed_value,
+            )
 
     def _expected_source_for_record_type(
         self,
@@ -329,3 +343,13 @@ class AppleHealthParser:
                 distance = float(child.attrib["sum"])
 
         return active_energy, distance
+
+    @staticmethod
+    def _add_optional_value(
+        current_value: float | None,
+        value: float,
+    ) -> float:
+        if current_value is None:
+            return value
+
+        return current_value + value

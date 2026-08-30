@@ -65,7 +65,7 @@ class WeightMeasurement:
 
 @dataclass(slots=True)
 class NutritionData:
-    calories_kcal: float = 0.0
-    protein_g: float = 0.0
-    carbohydrates_g: float = 0.0
-    fat_g: float = 0.0
+    calories_kcal: float | None = None
+    protein_g: float | None = None
+    carbohydrates_g: float | None = None
+    fat_g: float | None = None

@@ -272,20 +272,48 @@ class JsonRenderer:
         if metrics is None:
             return None
 
-        if (
-            metrics.average_protein_g is None
-            and metrics.average_carbohydrates_g is None
-            and metrics.average_fat_g is None
-            and metrics.average_calories_kcal is None
-        ):
-            return None
+        if metrics.average_protein_g is not None:
+            average_protein = {
+                "average_protein_g" : self._round_number(metrics.average_protein_g[0]),
+                "protein_count_days" : metrics.average_protein_g[1]
+            }           
+        else:
+            average_protein = {
+                "average_protein_g" : None
+            }
+        
+        if metrics.average_carbohydrates_g is not None:
+            average_carbohydrates = {
+                "average_carbohydrates_g" : self._round_number(metrics.average_carbohydrates_g[0]),
+                "carbohydrates_count_days" : metrics.average_carbohydrates_g[1]
+            }           
+        else:
+            average_carbohydrates = {
+                "average_carbohydrates_g" : None
+            }
+            
+        if metrics.average_fat_g is not None:
+            average_fat = {
+                "average_fat_g" : self._round_number(metrics.average_fat_g[0]),
+                "fat_count_days" : metrics.average_fat_g[1]
+            }           
+        else:
+            average_fat = {
+                "average_fat_g" : None
+            }
+            
+        if metrics.average_calories_kcal is not None:
+            average_calories = {
+                "average_calories_kcal" : self._round_number(metrics.average_calories_kcal[0]),
+                "calories_count_days" : metrics.average_calories_kcal[1]
+            }           
+        else:
+            average_calories = {
+                "average_calories_kcal" : None
+            }
 
-        return {
-            "average_protein_g": self._round_number(metrics.average_protein_g),
-            "average_carbohydrates_g": self._round_number(metrics.average_carbohydrates_g),
-            "average_fat_g": self._round_number(metrics.average_fat_g),
-            "average_calories_kcal": self._round_number(metrics.average_calories_kcal),
-        }
+        return average_protein | average_carbohydrates | average_fat | average_calories
+        
 
     def _build_average_calories_balance(
         self,
