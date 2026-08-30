@@ -251,6 +251,30 @@ def test_aggregates_apple_watch_daily_metrics() -> None:
 
 
 # =====================================================================
+# Verifies that missing daily energy components remain unavailable
+# instead of being defaulted to zero during parsing.
+# =====================================================================
+
+
+def test_preserves_missing_energy_fields_as_none() -> None:
+    config = AppConfig()
+    source_config = config.source
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierActiveEnergyBurned",
+            source_name=source_config.apple_watch_source,
+            value="650",
+        ),
+    )
+
+    data = _parse_xml(xml, config=config)
+
+    metrics = data.daily_metrics[0]
+
+    assert metrics.active_energy == pytest.approx(650)
+    assert metrics.basal_energy is None
+
+# =====================================================================
 # Verifies that Apple Watch metric types from an unexpected source are
 # ignored instead of being included in daily activity totals.
 # =====================================================================
@@ -337,6 +361,38 @@ def test_aggregates_nutrition_records() -> None:
     assert nutrition.carbohydrates_g == pytest.approx(194)
     assert nutrition.fat_g == pytest.approx(73)
 
+
+# =====================================================================
+# Verifies that missing nutrition fields remain unavailable instead of
+# being defaulted to zero when other nutrition data exists for the day.
+# =====================================================================
+
+
+def test_preserves_missing_nutrition_fields_as_none() -> None:
+    config = AppConfig()
+    source_config = config.source
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryProtein",
+            source_name=source_config.apple_health_app_source,
+            value="100",
+        ),
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryProtein",
+            source_name=source_config.apple_health_app_source,
+            value="55",
+        ),
+    )
+
+    data = _parse_xml(xml, config=config)
+
+    nutrition = data.daily_metrics[0].nutrition
+
+    assert nutrition is not None
+    assert nutrition.protein_g == pytest.approx(155)
+    assert nutrition.calories_kcal is None
+    assert nutrition.carbohydrates_g is None
+    assert nutrition.fat_g is None
 
 # =====================================================================
 # Verifies that Apple Health nutrition and body-mass records
