@@ -125,32 +125,91 @@ class TextRenderer:
         summary: MonthlySummary,
     ) -> None:
         metrics = summary.activity_metrics
-        if (
-            metrics is None
-            or metrics.average_basal_energy_kcal is None
-            or metrics.average_active_energy_kcal is None
+        if metrics is None or all(
+            average is None
+            for average in (
+                metrics.average_basal_energy_kcal,
+                metrics.average_active_energy_kcal,
+                metrics.average_tdee_kcal,
+            )
         ):
             return
+
         writer.write("Average energy expenditure")
         writer.write("--------------------------")
-        writer.write(f"  Basal energy:   {metrics.average_basal_energy_kcal:.0f} kcal")
-        writer.write(f"  Active energy:  {metrics.average_active_energy_kcal:.0f} kcal")
-        writer.write(f"  TDEE:           {metrics.average_tdee_kcal:.0f} kcal")
+
+        if metrics.average_basal_energy_kcal is not None:
+            value, count_days = metrics.average_basal_energy_kcal
+            writer.write(
+                f"  Basal energy:   {value:.0f} kcal based on {count_days} days"
+            )
+
+        if metrics.average_active_energy_kcal is not None:
+            value, count_days = metrics.average_active_energy_kcal
+            writer.write(
+                f"  Active energy:  {value:.0f} kcal based on {count_days} days"
+            )
+
+        if metrics.average_tdee_kcal is not None:
+            value, count_days = metrics.average_tdee_kcal
+            writer.write(
+                f"  TDEE:           {value:.0f} kcal based on {count_days} days"
+            )
+
         writer.write()
 
-    def _render_monthly_nutrition(self, writer: _TextWriter, summary: MonthlySummary) -> None:
+    def _render_monthly_nutrition(
+        self,
+        writer: _TextWriter,
+        summary: MonthlySummary,
+    ) -> None:
         metrics = summary.activity_metrics
-        if metrics is None or metrics.average_calories_kcal is None:
+        if metrics is None or all(
+            average is None
+            for average in (
+                metrics.average_protein_g,
+                metrics.average_carbohydrates_g,
+                metrics.average_fat_g,
+                metrics.average_calories_kcal,
+                metrics.average_calories_balance_kcal,
+            )
+        ):
             return
+
         writer.write("Average nutrition")
         writer.write("-----------------")
-        writer.write(f"  Protein:  {metrics.average_protein_g[0]:.0f} g based on {metrics.average_protein_g[1]} days")
-        writer.write(f"  Carbs:    {metrics.average_carbohydrates_g[0]:.0f} g based on {metrics.average_carbohydrates_g[1]} days")
-        writer.write(f"  Fat:      {metrics.average_fat_g[0]:.0f} g based on {metrics.average_fat_g[1]} days")
-        writer.write(f"  Calories: {metrics.average_calories_kcal[0]:.0f} kcal based on {metrics.average_calories_kcal[1]} days")
-        if metrics.average_calories_balance is not None:
+
+        if metrics.average_protein_g is not None:
+            value, count_days = metrics.average_protein_g
+            writer.write(
+                f"  Protein:  {value:.0f} g based on {count_days} days"
+            )
+
+        if metrics.average_carbohydrates_g is not None:
+            value, count_days = metrics.average_carbohydrates_g
+            writer.write(
+                f"  Carbs:    {value:.0f} g based on {count_days} days"
+            )
+
+        if metrics.average_fat_g is not None:
+            value, count_days = metrics.average_fat_g
+            writer.write(
+                f"  Fat:      {value:.0f} g based on {count_days} days"
+            )
+
+        if metrics.average_calories_kcal is not None:
+            value, count_days = metrics.average_calories_kcal
+            writer.write(
+                f"  Calories: {value:.0f} kcal based on {count_days} days"
+            )
+
+        if metrics.average_calories_balance_kcal is not None:
+            value, count_days = metrics.average_calories_balance_kcal
             writer.write()
-            writer.write(f"Average calories balance: {metrics.average_calories_balance:.0f} kcal")
+            writer.write(
+                f"Average calories balance: "
+                f"{value:.0f} kcal based on {count_days} days"
+            )
 
     def _render_day(self, writer: _TextWriter, summary: DailySummary) -> None:
         self._render_day_header(writer, summary)
@@ -208,23 +267,58 @@ class TextRenderer:
         writer.write("-" * len(header))
         writer.write()
 
-    def _render_day_expenditures(self, writer: _TextWriter, summary: DailySummary) -> None:
+    def _render_day_expenditures(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
         writer.write("Daily energy expenditure")
         writer.write("------------------------")
-        writer.write(f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal")
-        writer.write(f"  Active energy:  {summary.active_energy_kcal:.0f} kcal")
-        writer.write(f"  TDEE:           {summary.tdee_kcal:.0f} kcal")
 
-    def _render_daily_nutrition_section(self, writer: _TextWriter, summary: DailySummary) -> None:
+        if summary.basal_energy_kcal is not None:
+            writer.write(
+                f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal"
+            )
+
+        if summary.active_energy_kcal is not None:
+            writer.write(
+                f"  Active energy:  {summary.active_energy_kcal:.0f} kcal"
+            )
+
+        if summary.tdee_kcal is not None:
+            writer.write(
+                f"  TDEE:           {summary.tdee_kcal:.0f} kcal"
+            )
+
+    def _render_daily_nutrition_section(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
         writer.write()
-        if summary.nutrition is None:
+
+        nutrition = summary.nutrition
+
+        if nutrition is None or all(
+            value is None
+            for value in (
+                nutrition.protein_g,
+                nutrition.carbohydrates_g,
+                nutrition.fat_g,
+                nutrition.calories_kcal,
+            )
+        ):
             writer.write("No nutrition data for that day")
             writer.write("------------------------------")
             return
+
         self._render_day_nutrition(writer, summary)
+
         if summary.calories_balance_kcal is not None:
             writer.write()
-            writer.write(f"Calories balance: {summary.calories_balance_kcal:.0f} kcal")
+            writer.write(
+                f"Calories balance: {summary.calories_balance_kcal:.0f} kcal"
+            )
 
     @staticmethod
     def _render_day_footer(writer: _TextWriter) -> None:
@@ -366,13 +460,33 @@ class TextRenderer:
             f"  Monthly score:     " f"{summary.monthly_sleep_score:.0f}/{monthly_score_max}"
         )
 
-    def _render_day_nutrition(self, writer: _TextWriter, summary: DailySummary) -> None:
+    def _render_day_nutrition(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
+        nutrition = summary.nutrition
+        if nutrition is None:
+            return
+
         writer.write("Daily nutrition")
         writer.write("---------------")
-        writer.write(f"  Protein:   {summary.nutrition.protein_g:.0f} g")
-        writer.write(f"  Carbs:     {summary.nutrition.carbohydrates_g:.0f} g")
-        writer.write(f"  Fat:       {summary.nutrition.fat_g:.0f} g")
-        writer.write(f"  Calories:  {summary.nutrition.calories_kcal:.0f} kcal")
+
+        if nutrition.protein_g is not None:
+            writer.write(f"  Protein:   {nutrition.protein_g:.0f} g")
+
+        if nutrition.carbohydrates_g is not None:
+            writer.write(
+                f"  Carbs:     {nutrition.carbohydrates_g:.0f} g"
+            )
+
+        if nutrition.fat_g is not None:
+            writer.write(f"  Fat:       {nutrition.fat_g:.0f} g")
+
+        if nutrition.calories_kcal is not None:
+            writer.write(
+                f"  Calories:  {nutrition.calories_kcal:.0f} kcal"
+            )
 
     @staticmethod
     def _format_minutes(minutes: float) -> str:

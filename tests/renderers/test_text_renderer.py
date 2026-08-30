@@ -29,8 +29,9 @@ def _activity_metrics(
         total_distance_km=47.89,
         average_daily_distance_km=3.42,
         average_step_length_cm=74.45,
-        average_basal_energy_kcal=2210.46,
-        average_active_energy_kcal=910.79,
+        average_basal_energy_kcal=(2210.46, 12),
+        average_active_energy_kcal=(910.79, 14),
+        average_tdee_kcal=(3121.24, 11),
         average_weight=112.35 if measurements else None,
         start_weight=113.2 if measurements else None,
         end_weight=111.7 if measurements else None,
@@ -38,9 +39,10 @@ def _activity_metrics(
         min_weight=111.4 if measurements else None,
         measurements=measurements,
         average_protein_g=(171.23, 10),
-        average_carbohydrates_g=(211.37, 10),
-        average_fat_g=(119.88, 10),
-        average_calories_kcal=(2850.43, 10),
+        average_carbohydrates_g=(211.37, 9),
+        average_fat_g=(119.88, 8),
+        average_calories_kcal=(2850.43, 7),
+        average_calories_balance_kcal=(-270.81, 6),
     )
 
 
@@ -68,6 +70,8 @@ def _daily_summary(
     *,
     activities: list[ActivitySummary] | None = None,
     weight: float | None = 79.5,
+    active_energy_kcal: float | None = 700.0,
+    basal_energy_kcal: float | None = 1900.0,
     nutrition: NutritionData | None = None,
     sleep_session: SleepSession | None = None,
     sleep_score: SleepScore | None = None,
@@ -81,8 +85,8 @@ def _daily_summary(
         ),
         total_steps=10000,
         total_distance_km=8.0,
-        active_energy_kcal=700.0,
-        basal_energy_kcal=1900.0,
+        active_energy_kcal=active_energy_kcal,
+        basal_energy_kcal=basal_energy_kcal,
         weight=weight,
         nutrition=nutrition,
         sleep_session=sleep_session,
@@ -315,6 +319,7 @@ def test_monthly_report_without_nutrition_omits_nutrition_section() -> None:
     summary.activity_metrics.average_carbohydrates_g = None
     summary.activity_metrics.average_fat_g = None
     summary.activity_metrics.average_calories_kcal = None
+    summary.activity_metrics.average_calories_balance_kcal = None
 
     output = TextRenderer().render_month_summary(summary)
 
@@ -335,6 +340,7 @@ def test_monthly_report_without_energy_omits_energy_section() -> None:
 
     summary.activity_metrics.average_basal_energy_kcal = None
     summary.activity_metrics.average_active_energy_kcal = None
+    summary.activity_metrics.average_tdee_kcal = None
 
     output = TextRenderer().render_month_summary(summary)
 
@@ -405,3 +411,124 @@ def test_monthly_summary_renders_injected_sleep_configuration() -> None:
     assert "Bedtime:  2" in output
     assert "Duration: 3" in output
     assert "Wake-up:  4" in output
+
+
+# =====================================================================
+# Verifies that monthly energy averages are rendered independently with
+# their own contributing-day coverage.
+# =====================================================================
+
+
+def test_monthly_report_renders_independent_energy_coverage() -> None:
+    summary = _monthly_summary()
+    metrics = summary.activity_metrics
+    assert metrics is not None
+
+    metrics.average_basal_energy_kcal = (2200.0, 14)
+    metrics.average_active_energy_kcal = None
+    metrics.average_tdee_kcal = (3000.0, 9)
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "  Basal energy:   2200 kcal based on 14 days" in output
+    assert "  Active energy:" not in output
+    assert "  TDEE:           3000 kcal based on 9 days" in output
+    
+
+# =====================================================================
+# Verifies that monthly nutrition averages are rendered independently
+# when only some nutrient values are available.
+# =====================================================================
+
+
+def test_monthly_report_renders_partial_nutrition_independently() -> None:
+    summary = _monthly_summary()
+    metrics = summary.activity_metrics
+    assert metrics is not None
+
+    metrics.average_protein_g = (150.0, 10)
+    metrics.average_carbohydrates_g = None
+    metrics.average_fat_g = (70.0, 8)
+    metrics.average_calories_kcal = None
+    metrics.average_calories_balance_kcal = None
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Average nutrition" in output
+    assert "  Protein:  150 g based on 10 days" in output
+    assert "  Carbs:" not in output
+    assert "  Fat:      70 g based on 8 days" in output
+    assert "  Calories:" not in output
+    assert "Average calories balance:" not in output
+
+
+
+# =====================================================================
+# Verifies that monthly calorie balance is rendered from its stored
+# value and contributing-day coverage rather than other averages.
+# =====================================================================
+
+
+def test_monthly_report_renders_calorie_balance_coverage() -> None:
+    summary = _monthly_summary()
+    metrics = summary.activity_metrics
+    assert metrics is not None
+
+    metrics.average_calories_balance_kcal = (150.0, 6)
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "Average calories balance: 150 kcal based on 6 days" in output
+    
+    
+# =====================================================================
+# Verifies that partial daily energy renders only available components
+# and does not fabricate TDEE from incomplete data.
+# =====================================================================
+
+
+def test_daily_report_renders_partial_energy_independently() -> None:
+    summary = _monthly_summary(
+        days=[
+            _daily_summary(
+                basal_energy_kcal=1900.0,
+                active_energy_kcal=None,
+            )
+        ]
+    )
+    summary.activity_metrics = None
+
+    output = TextRenderer().render_month(summary)
+
+    assert "  Basal energy:   1900 kcal" in output
+    assert "  Active energy:" not in output
+    assert "  TDEE:" not in output
+    
+    
+# =====================================================================
+# Verifies that partial daily nutrition renders each available nutrient
+# independently without treating missing values as zero.
+# =====================================================================
+
+
+def test_daily_report_renders_partial_nutrition_independently() -> None:
+    summary = _monthly_summary(
+        days=[
+            _daily_summary(
+                nutrition=NutritionData(
+                    protein_g=150.0,
+                    fat_g=70.0,
+                ),
+            )
+        ]
+    )
+    summary.activity_metrics = None
+
+    output = TextRenderer().render_month(summary)
+
+    assert "Daily nutrition" in output
+    assert "  Protein:   150 g" in output
+    assert "  Carbs:" not in output
+    assert "  Fat:       70 g" in output
+    assert "  Calories:" not in output
+    assert "Calories balance:" not in output
