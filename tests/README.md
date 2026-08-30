@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **298 test cases**.
+The suite currently contains **334 collected test cases**.
 
 ## Test structure
 
@@ -10,27 +10,29 @@ The suite currently contains **298 test cases**.
 | --- | ---: |
 | `SleepAnalyzer` | 40 |
 | `ActivityAnalyzer` | 7 |
-| `MetricsAnalyzer` | 11 |
+| `MetricsAnalyzer` | 16 |
 | `HealthAnalyzer` | 10 |
-| FastAPI | 29 |
-| `AppleHealthParser` | 25 |
+| FastAPI | 35 |
+| `AppleHealthParser` | 27 |
 | CLI | 5 |
-| `AppleHealthApplication` | 3 |
+| `AppleHealthApplication` | 4 |
 | `ReportPeriod` | 10 |
 | `RunOptions` | 1 |
 | `RunOptionsResolver` | 9 |
 | `RunProfile` | 1 |
 | `RunProfileLoader` | 8 |
 | `AppConfig` | 1 |
-| `ConfigLoader` | 32 |
+| `ConfigLoader` | 34 |
 | `SleepConfig` | 3 |
 | Sleep Score configuration | 32 |
-| Report models | 17 |
-| `TextRenderer` | 13 |
-| `JsonRenderer` | 22 |
+| Report models | 23 |
+| `TextRenderer` | 21 |
+| `JsonRenderer` | 28 |
 | `AppleHealthImporter` | 8 |
 | Integration tests | 11 |
-| **Total** | **298** |
+| **Total** | **334** |
+
+Counts are based on `pytest --collect-only -q`, so parameterized cases are counted individually.
 
 ## Analyzers
 
@@ -84,7 +86,7 @@ The suite verifies:
 
 ### MetricsAnalyzer
 
-`tests/analyzers/test_metrics_analyzer.py` contains **11 test cases**.
+`tests/analyzers/test_metrics_analyzer.py` contains **16 collected test cases**.
 
 The suite verifies:
 
@@ -94,11 +96,18 @@ The suite verifies:
 - monthly step and distance totals
 - daily step and distance averages
 - basal and active energy averages
+- TDEE averaging only across days where both basal and active energy exist
+- independent basal, active, and TDEE contributing-day coverage
 - average step length
 - zero-step handling
-- nutrition aggregation and averaging
+- preservation of completely missing nutrition
+- nutrition averaging only across days where each specific nutrient exists
+- independent calorie, protein, carbohydrate, and fat coverage
+- calorie balance calculated from complete daily intersections of calories, basal energy, and active energy
 - body-weight statistics
 - behavior when no weight measurements are available
+
+These tests explicitly protect the rule that derived monthly values are calculated from complete daily inputs rather than by combining independently averaged metrics with different denominators.
 
 ### HealthAnalyzer
 
@@ -121,7 +130,7 @@ The suite verifies:
 
 ## AppleHealthParser
 
-`tests/test_parser.py` contains **25 test cases** using synthetic Apple Health XML.
+`tests/test_parser.py` contains **27 collected test cases** using synthetic Apple Health XML.
 
 The suite verifies:
 
@@ -133,9 +142,11 @@ The suite verifies:
 - walking/running distance parsing
 - cycling distance parsing
 - aggregation of Apple Watch daily metrics
+- preservation of missing active/basal energy as `None`
 - rejection of Apple Watch metrics from incorrect sources
 - ignoring unsupported daily metric types
 - nutrition aggregation
+- preservation of missing individual nutrients as `None`
 - rejection of Apple Health metrics from incorrect sources
 - preference for user-entered body-weight measurements
 - selection of the latest weight measurement when entry types are equivalent
@@ -147,6 +158,7 @@ The suite verifies:
 - injected custom Apple Health application source selection
 - rejection of XML documents whose root element is not Apple Health `HealthData`
 
+The parser regression tests protect `missing != zero`: an existing nutrition object does not imply that every nutrient is available, and a missing energy record does not become a measured zero.
 
 ## CLI
 
@@ -164,7 +176,7 @@ The CLI tests focus on the command-line adapter boundary. Application execution,
 
 ## FastAPI
 
-`tests/api/test_api.py` contains **29 test cases** covering the HTTP boundary and browser-facing report-generation behavior.
+`tests/api/test_api.py` contains **35 collected test cases** covering the HTTP boundary and browser-facing report-generation behavior.
 
 The suite verifies:
 
@@ -172,10 +184,9 @@ The suite verifies:
 - availability of the browser favicon
 - successful report generation through the real application pipeline
 - multi-month requests and four report variants per month
-- strict period validation, whitespace handling, and duplicate rejection
-- the maximum requested-period limit
+- strict period validation, whitespace handling, duplicate rejection, and the maximum requested-period limit
 - missing uploads
-- chunked upload handling and the compressed upload-size limit
+- chunked archive upload handling and the compressed upload-size limit
 - malformed, empty, and otherwise invalid ZIP archives
 - missing and multiple eligible Apple Health export XML entries
 - malformed XML and non-Apple-Health XML roots
@@ -186,6 +197,13 @@ The suite verifies:
 - preservation of unexpected server exceptions as server errors
 - prevention of internal exception messages and local filesystem paths leaking into 500 responses
 - `Cache-Control: no-store` on responses containing generated health reports
+- forwarding explicit Apple Watch and Apple Health source overrides
+- normalization of blank/whitespace source fields to “no override”
+- presence of source-override controls and NBSP guidance in the browser UI
+- optional `config.toml` upload and forwarding through `config_path`
+- deletion of the temporary uploaded configuration after request completion
+- malformed TOML mapping to HTTP 422
+- the dedicated uploaded-config size limit and HTTP 413 behavior
 
 API tests intentionally exercise both synthetic real-pipeline requests and isolated error/orchestration cases. This keeps the HTTP contract explicit without duplicating analyzer and renderer business-rule coverage.
 
@@ -195,7 +213,7 @@ Application-layer tests cover both the original single-month CLI execution contr
 
 ### AppleHealthApplication
 
-`tests/application/test_application.py` contains **3 test cases**.
+`tests/application/test_application.py` contains **4 collected test cases**.
 
 The suite verifies:
 
@@ -204,6 +222,9 @@ The suite verifies:
 - generation of all four report variants for multiple months
 - exactly one parser invocation for a multi-month generation call
 - preservation of requested period order
+- forwarding runtime source overrides from `MultiMonthRunOptions` to `ConfigLoader`
+
+The multi-month application tests therefore protect both parse-once behavior and the configuration bridge used by the web/API adapter.
 
 ### ReportPeriod
 
@@ -258,7 +279,7 @@ The test verifies:
 
 ### ConfigLoader
 
-`tests/config/test_config_loader.py` contains **32 test cases** covering TOML configuration loading.
+`tests/config/test_config_loader.py` contains **34 collected test cases** covering TOML configuration loading and runtime source overrides.
 
 The suite verifies:
 
@@ -279,8 +300,10 @@ The suite verifies:
 - final configuration validation
 - preservation of defaults for omitted nested values
 - compatibility of all committed example application configuration TOML files
+- runtime source overrides replacing built-in defaults
+- runtime source overrides taking precedence over TOML while preserving non-overridden TOML values
 
-The loader tests treat configuration loading as a public boundary: valid TOML must produce a validated `AppConfig`, while invalid configuration must fail with `ConfigurationError`.
+The loader tests treat configuration loading as a public boundary: valid inputs must produce a validated `AppConfig`, invalid configuration must fail with `ConfigurationError`, and precedence must remain `runtime source overrides > TOML > defaults`.
 
 ### SleepConfig
 
@@ -321,31 +344,32 @@ Each validation test creates its own `SleepScoreConfig` instance, so invalid tes
 
 ## Report models
 
-`tests/test_report_models.py` contains **17 test cases** covering calculated properties exposed by report models.
+`tests/test_report_models.py` contains **23 collected test cases** covering business-relevant properties and incomplete-data semantics exposed by report models.
 
 The suite verifies:
 
 - daily average step length
 - zero-step behavior
-- daily TDEE
+- daily TDEE with complete energy data
+- unavailable daily TDEE when basal or active energy is missing
 - daily calorie balance
-- missing nutrition behavior
+- unavailable calorie balance without nutrition, calories, or complete energy data
 - monthly `data_through`
 - zero-reporting-day behavior
-- average monthly TDEE
+- preservation of analyzer-calculated monthly TDEE with contributing-day coverage
 - body-weight change
 - incomplete body-weight change data
-- average monthly calorie balance
+- preservation of analyzer-calculated monthly calorie balance with contributing-day coverage
 - sleep efficiency
 - sleep reporting dates before noon and from noon onward
 - monthly Sleep Score composition
 - preservation of the analyzer-calculated daily `total_score` value
 
-Simple dataclass field storage is intentionally not tested; the suite focuses on derived behavior and business-relevant properties.
+Simple dataclass field storage remains intentionally under-tested; the suite focuses on derived behavior, incomplete-data boundaries, and business-relevant properties.
 
 ## TextRenderer
 
-`tests/renderers/test_text_renderer.py` contains **13 test cases** covering the renderer's public textual output contract.
+`tests/renderers/test_text_renderer.py` contains **21 collected test cases** covering the renderer's public textual output contract.
 
 The suite verifies:
 
@@ -353,6 +377,7 @@ The suite verifies:
 - inclusion of daily reports in a full monthly report
 - omission of the monthly body-weight section when no measurements exist
 - explicit messaging when daily nutrition data is missing
+- explicit messaging when daily energy data is missing
 - distinction between activity without workouts and complete absence of activity
 - rendering of the disabled monthly Sleep Score bonus state
 - use of the configured monthly bonus maximum in the displayed monthly Sleep Score maximum
@@ -362,12 +387,18 @@ The suite verifies:
 - omission of monthly energy expenditure when energy data is unavailable
 - omission of monthly general activity when step and distance data are unavailable
 - rendering of the effective injected Sleep configuration in monthly summaries
+- independent rendering of partially available energy averages
+- independent rendering of partially available nutrition averages
+- rendering monthly calorie balance from its stored value and its own coverage
+- partial daily energy and nutrition without fabricated zero values
+- conditional `based on X day(s)` coverage labels only when contributing days are fewer than reporting days
+- singular `day` wording for one-day coverage
 
 The renderer tests intentionally avoid testing private writer helpers individually. They verify user-visible behavior through the public `render_month()` and `render_month_summary()` methods.
 
 ### Partial monthly reports
 
-Monthly reports are designed to remain renderable when individual data categories are unavailable. The report header is always produced, while optional sections are rendered only when their underlying data exists.
+Monthly reports are designed to remain renderable when individual data categories or individual metrics are unavailable. The report header is always produced, while optional sections are rendered only when their underlying data exists.
 
 The regression suite explicitly protects partial-report behavior for:
 
@@ -378,13 +409,14 @@ The regression suite explicitly protects partial-report behavior for:
 - missing energy expenditure data
 - missing general activity data
 - missing body-weight measurements
+- mixed energy coverage where basal, active, and TDEE do not share the same contributing days
+- mixed nutrition coverage where individual nutrients are independently available
 
-This allows a valid monthly report to be produced from incomplete Apple Health datasets without representing missing information as real zero-valued measurements.
-
+Missing values are never rendered as measured zero values. When a monthly metric uses fewer than all reporting days, text output shows its contributing-day coverage; full coverage intentionally omits the redundant suffix.
 
 ## JsonRenderer
 
-`tests/renderers/test_json_renderer.py` contains **22 test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
+`tests/renderers/test_json_renderer.py` contains **28 collected test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
 
 The monthly contract tests verify:
 
@@ -397,13 +429,13 @@ The monthly contract tests verify:
 - stable workout identifiers derived from enum names
 - explicit workout averaging basis (`daily` or `workout`)
 - body-weight statistics
-- energy expenditure
-- nutrition
-- calorie balance as a separate top-level API concept
+- energy expenditure values with independent `*_count_days` coverage fields
+- nutrition values with independent `*_count_days` coverage fields
+- calorie balance as a separate top-level API concept with its own coverage
 - normalized two-decimal numeric precision
 - `null` for unavailable optional sections
 - `[]` for empty workout collections
-- partial metric availability
+- stable section shape when only some energy or nutrition metrics are available
 - reports with zero completed reporting days
 - injected configuration for the maximum monthly Sleep Score
 - exposure of the effective injected Sleep configuration, including API-friendly threshold objects
@@ -414,16 +446,17 @@ The daily contract tests verify:
 - daily general activity
 - daily workout details without monthly averaging fields
 - daily body weight
-- daily energy expenditure and TDEE
-- daily nutrition with calorie balance kept as a separate concept
+- partial and complete daily energy expenditure
+- TDEE remaining `null` when daily energy is incomplete
+- partial and complete daily nutrition
+- calorie balance kept as a separate concept and remaining `null` without all required daily inputs
+- empty `NutritionData` represented as `null`
 - full ISO sleep timestamps with timezone offsets
 - daily sleep-stage details
 - daily Sleep Score components and total
 - preservation of `null` and empty collections in partial daily reports
 
-The JSON tests deserialize renderer output with `json.loads()` and validate the resulting data structure rather than whitespace or indentation. This treats JSON as a stable external data contract while allowing harmless formatting changes.
-
-The renderer intentionally does not serialize internal dataclasses directly. Its explicit builder methods define a controlled API-friendly representation with stable field names, measurement units encoded in keys, technical enum identifiers, and predictable handling of missing data.
+The JSON tests deserialize renderer output with `json.loads()` and validate the resulting data structure rather than whitespace or indentation. Internal `(average, contributing_days)` tuples are deliberately flattened into stable value/count fields instead of leaking as JSON arrays.
 
 ## AppleHealthImporter
 
@@ -474,7 +507,7 @@ MonthlySummary
          Final JSON report
 ```
 
-The end-to-end integration suite exercises both the text- and JSON-rendering pipelines. It also protects the P4 multi-month invariant that one archive is parsed once and then reused to generate independent monthly outputs. `JsonRenderer` is additionally covered by dedicated contract tests at the renderer layer.
+The end-to-end integration suite exercises both the text- and JSON-rendering pipelines. It also protects the multi-month invariant that one archive is parsed once and then reused to generate independent monthly outputs. `JsonRenderer` is additionally covered by dedicated contract tests at the renderer layer.
 
 The integration suite verifies:
 
@@ -482,7 +515,7 @@ The integration suite verifies:
 - propagation of one shared `AppConfig` through parser, analyzer, and renderer layers
 - preservation of expected values across importing, parsing, analysis, and aggregation
 - generation of a monthly-summary-only text report without daily sections
-- exact deterministic text output through a golden-report comparison
+- exact deterministic text output through a golden-report comparison, including incomplete-data and coverage semantics
 - generation of a valid full JSON report containing monthly summary data and detailed daily reports
 - generation of a valid JSON monthly summary without the `days` collection
 - loading the committed example TOML configuration
@@ -510,6 +543,7 @@ This protects the final report contract from accidental changes such as:
 - changed ordering
 - unexpected formatting changes
 - changed whitespace or line breaks
+- accidental reintroduction of missing-as-zero behavior or incorrect coverage text
 
 When a report-format change is intentional, the generated diff should be reviewed before updating the golden fixture.
 
