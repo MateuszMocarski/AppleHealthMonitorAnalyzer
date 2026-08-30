@@ -27,8 +27,9 @@ def _activity_metrics(
     total_distance_km: float | None = 47.891234,
     average_daily_distance_km: float | None = 3.4208024286,
     average_step_length_cm: float | None = 74.453287,
-    average_basal_energy_kcal: float | None = 2210.456,
-    average_active_energy_kcal: float | None = 910.788,
+    average_basal_energy_kcal: tuple[float, int] | None = (2210.456, 12),
+    average_active_energy_kcal: tuple[float, int] | None = (910.788, 14),
+    average_tdee_kcal: tuple[float, int] | None = (3121.244, 11),
     average_weight: float | None = 112.3456,
     start_weight: float | None = 113.2,
     end_weight: float | None = 111.7,
@@ -36,9 +37,10 @@ def _activity_metrics(
     min_weight: float | None = 111.4,
     measurements: int = 11,
     average_protein_g: tuple[float, int] | None = (171.234, 10),
-    average_carbohydrates_g: tuple[float, int] | None = (211.37, 10),
-    average_fat_g: tuple[float, int] | None = (119.876, 10),
-    average_calories_kcal: tuple[float, int] | None = (2850.432, 10),
+    average_carbohydrates_g: tuple[float, int] | None = (211.37, 9),
+    average_fat_g: tuple[float, int] | None = (119.876, 8),
+    average_calories_kcal: tuple[float, int] | None = (2850.432, 7),
+    average_calories_balance_kcal: tuple[float, int] | None = (-270.812, 6),
 ) -> ActivityMetricsSummary:
     return ActivityMetricsSummary(
         total_steps=total_steps,
@@ -48,6 +50,7 @@ def _activity_metrics(
         average_step_length_cm=average_step_length_cm,
         average_basal_energy_kcal=average_basal_energy_kcal,
         average_active_energy_kcal=average_active_energy_kcal,
+        average_tdee_kcal=average_tdee_kcal,
         average_weight=average_weight,
         start_weight=start_weight,
         end_weight=end_weight,
@@ -58,6 +61,7 @@ def _activity_metrics(
         average_carbohydrates_g=average_carbohydrates_g,
         average_fat_g=average_fat_g,
         average_calories_kcal=average_calories_kcal,
+        average_calories_balance_kcal=average_calories_balance_kcal,
     )
 
 
@@ -107,8 +111,8 @@ def _daily_summary(
     activities: list[ActivitySummary] | None = None,
     total_steps: int = 10_000,
     total_distance_km: float = 8.0,
-    active_energy_kcal: float = 700.0,
-    basal_energy_kcal: float = 1900.0,
+    active_energy_kcal: float | None = 700.0,
+    basal_energy_kcal: float | None = 1900.0,
     weight: float | None = 79.5,
     nutrition: NutritionData | None = None,
     sleep_session: SleepSession | None = None,
@@ -193,6 +197,7 @@ def test_render_month_summary_exposes_expected_contract() -> None:
         "energy_expenditure",
         "nutrition",
         "average_calories_balance_kcal",
+        "calories_balance_count_days",
     }
 
     assert payload["schema_version"] == "1.0"
@@ -353,8 +358,11 @@ def test_render_month_summary_builds_energy_expenditure() -> None:
 
     assert payload["energy_expenditure"] == {
         "average_basal_kcal": 2210.46,
+        "basal_count_days": 12,
         "average_active_kcal": 910.79,
+        "active_count_days": 14,
         "average_tdee_kcal": 3121.24,
+        "tdee_count_days": 11,
     }
 
 
@@ -369,9 +377,13 @@ def test_render_month_summary_builds_nutrition() -> None:
 
     assert payload["nutrition"] == {
         "average_protein_g": 171.23,
+        "protein_count_days": 10,
         "average_carbohydrates_g": 211.37,
+        "carbohydrates_count_days": 9,
         "average_fat_g": 119.88,
+        "fat_count_days": 8,
         "average_calories_kcal": 2850.43,
+        "calories_count_days": 7,
     }
 
 
@@ -396,6 +408,8 @@ def test_render_month_summary_preserves_partial_report_contract() -> None:
     assert payload["body_weight"] is None
     assert payload["energy_expenditure"] is None
     assert payload["nutrition"] is None
+    assert payload["average_calories_balance_kcal"] is None
+    assert payload["calories_balance_count_days"] is None
 
 
 # =====================================================================
@@ -416,6 +430,7 @@ def test_render_month_summary_supports_partially_available_metrics() -> None:
         average_carbohydrates_g=None,
         average_fat_g=None,
         average_calories_kcal=None,
+        average_calories_balance_kcal=None,
     )
 
     payload = _render_payload(
@@ -734,10 +749,12 @@ def test_render_day_preserves_partial_report_contract() -> None:
         _daily_summary(
             activities=[],
             weight=None,
+            active_energy_kcal=None,
+            basal_energy_kcal=None,
             nutrition=None,
             sleep_session=None,
             sleep_score=None,
-        ),
+        )
     ]
 
     payload = json.loads(JsonRenderer().render_month(summary))
@@ -747,6 +764,9 @@ def test_render_day_preserves_partial_report_contract() -> None:
     assert day["sleep"] is None
     assert day["workouts"] == []
     assert day["body_weight"] is None
+    assert day["nutrition"] is None
+    assert day["calories_balance_kcal"] is None
+    assert day["energy_expenditure"] is None
     assert day["nutrition"] is None
     assert day["calories_balance_kcal"] is None
 
@@ -841,3 +861,148 @@ def test_render_month_summary_builds_sleep_configuration() -> None:
         "threshold": 3,
         "bonus": 5,
     }
+
+
+# =====================================================================
+# Verifies that monthly calorie balance preserves its independently
+# calculated value together with its own contributing-day coverage.
+# =====================================================================
+
+
+def test_render_month_summary_builds_calorie_balance() -> None:
+    payload = _render_payload(_monthly_summary())
+
+    assert payload["average_calories_balance_kcal"] == -270.81
+    assert payload["calories_balance_count_days"] == 6
+    
+# =====================================================================
+# Verifies that monthly energy metrics preserve a stable section shape
+# while each value keeps its own independent coverage.
+# =====================================================================
+
+
+def test_render_month_summary_supports_partial_energy_coverage() -> None:
+    metrics = _activity_metrics(
+        average_basal_energy_kcal=(2200.0, 14),
+        average_active_energy_kcal=None,
+        average_tdee_kcal=(3000.0, 9),
+    )
+
+    payload = _render_payload(
+        _monthly_summary(
+            activity_metrics=metrics,
+        )
+    )
+
+    assert payload["energy_expenditure"] == {
+        "average_basal_kcal": 2200.0,
+        "basal_count_days": 14,
+        "average_active_kcal": None,
+        "active_count_days": None,
+        "average_tdee_kcal": 3000.0,
+        "tdee_count_days": 9,
+    }
+    
+# =====================================================================
+# Verifies that monthly nutrition preserves a stable section shape when
+# only selected nutrient averages are available.
+# =====================================================================
+
+
+def test_render_month_summary_supports_partial_nutrition_coverage() -> None:
+    metrics = _activity_metrics(
+        average_protein_g=(150.0, 10),
+        average_carbohydrates_g=None,
+        average_fat_g=(70.0, 8),
+        average_calories_kcal=None,
+        average_calories_balance_kcal=None,
+    )
+
+    payload = _render_payload(
+        _monthly_summary(
+            activity_metrics=metrics,
+        )
+    )
+
+    assert payload["nutrition"] == {
+        "average_protein_g": 150.0,
+        "protein_count_days": 10,
+        "average_carbohydrates_g": None,
+        "carbohydrates_count_days": None,
+        "average_fat_g": 70.0,
+        "fat_count_days": 8,
+        "average_calories_kcal": None,
+        "calories_count_days": None,
+    }
+    
+# =====================================================================
+# Verifies that partial daily energy keeps missing values as null and
+# does not fabricate TDEE from an incomplete energy pair.
+# =====================================================================
+
+
+def test_render_day_supports_partial_energy() -> None:
+    summary = _monthly_summary()
+    summary.days = [
+        _daily_summary(
+            basal_energy_kcal=1900.0,
+            active_energy_kcal=None,
+        ),
+    ]
+
+    payload = json.loads(JsonRenderer().render_month(summary))
+
+    assert payload["days"][0]["energy_expenditure"] == {
+        "basal_kcal": 1900.0,
+        "active_kcal": None,
+        "tdee_kcal": None,
+    }
+    
+
+# =====================================================================
+# Verifies that partial daily nutrition keeps unavailable nutrient
+# values as null without treating them as zero.
+# =====================================================================
+
+
+def test_render_day_supports_partial_nutrition() -> None:
+    summary = _monthly_summary()
+    summary.days = [
+        _daily_summary(
+            nutrition=NutritionData(
+                protein_g=150.0,
+                fat_g=70.0,
+            ),
+        ),
+    ]
+
+    payload = json.loads(JsonRenderer().render_month(summary))
+
+    day = payload["days"][0]
+
+    assert day["nutrition"] == {
+        "protein_g": 150.0,
+        "carbohydrates_g": None,
+        "fat_g": 70.0,
+        "calories_kcal": None,
+    }
+
+    assert day["calories_balance_kcal"] is None
+    
+# =====================================================================
+# Verifies that an empty daily nutrition object is represented as null
+# when no nutrient value is actually available.
+# =====================================================================
+
+
+def test_render_day_uses_null_for_empty_nutrition() -> None:
+    summary = _monthly_summary()
+    summary.days = [
+        _daily_summary(
+            nutrition=NutritionData(),
+        ),
+    ]
+
+    payload = json.loads(JsonRenderer().render_month(summary))
+
+    assert payload["days"][0]["nutrition"] is None

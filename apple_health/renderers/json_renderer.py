@@ -65,9 +65,7 @@ class JsonRenderer:
             "body_weight": self._build_body_weight(summary.activity_metrics),
             "energy_expenditure": self._build_energy_expenditure(summary.activity_metrics),
             "nutrition": self._build_nutrition(summary.activity_metrics),
-            "average_calories_balance_kcal": self._build_average_calories_balance(
-                summary.activity_metrics
-            ),
+            **self._build_average_calories_balance(summary.activity_metrics),
         }
 
     @staticmethod
@@ -253,75 +251,108 @@ class JsonRenderer:
         self,
         metrics: ActivityMetricsSummary | None,
     ) -> dict[str, Any] | None:
-        if metrics is None:
+        if metrics is None or all(
+            average is None
+            for average in (
+                metrics.average_basal_energy_kcal,
+                metrics.average_active_energy_kcal,
+                metrics.average_tdee_kcal,
+            )
+        ):
             return None
 
-        if metrics.average_basal_energy_kcal is None and metrics.average_active_energy_kcal is None:
-            return None
-
-        return {
-            "average_basal_kcal": self._round_number(metrics.average_basal_energy_kcal),
-            "average_active_kcal": self._round_number(metrics.average_active_energy_kcal),
-            "average_tdee_kcal": self._round_number(metrics.average_tdee_kcal),
-        }
+        return (
+            self._build_average_fields(
+                metrics.average_basal_energy_kcal,
+                value_key="average_basal_kcal",
+                count_key="basal_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_active_energy_kcal,
+                value_key="average_active_kcal",
+                count_key="active_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_tdee_kcal,
+                value_key="average_tdee_kcal",
+                count_key="tdee_count_days",
+            )
+        )
 
     def _build_nutrition(
         self,
         metrics: ActivityMetricsSummary | None,
     ) -> dict[str, Any] | None:
-        if metrics is None:
+        if metrics is None or all(
+            average is None
+            for average in (
+                metrics.average_protein_g,
+                metrics.average_carbohydrates_g,
+                metrics.average_fat_g,
+                metrics.average_calories_kcal,
+            )
+        ):
             return None
 
-        if metrics.average_protein_g is not None:
-            average_protein = {
-                "average_protein_g" : self._round_number(metrics.average_protein_g[0]),
-                "protein_count_days" : metrics.average_protein_g[1]
-            }           
-        else:
-            average_protein = {
-                "average_protein_g" : None
-            }
-        
-        if metrics.average_carbohydrates_g is not None:
-            average_carbohydrates = {
-                "average_carbohydrates_g" : self._round_number(metrics.average_carbohydrates_g[0]),
-                "carbohydrates_count_days" : metrics.average_carbohydrates_g[1]
-            }           
-        else:
-            average_carbohydrates = {
-                "average_carbohydrates_g" : None
-            }
-            
-        if metrics.average_fat_g is not None:
-            average_fat = {
-                "average_fat_g" : self._round_number(metrics.average_fat_g[0]),
-                "fat_count_days" : metrics.average_fat_g[1]
-            }           
-        else:
-            average_fat = {
-                "average_fat_g" : None
-            }
-            
-        if metrics.average_calories_kcal is not None:
-            average_calories = {
-                "average_calories_kcal" : self._round_number(metrics.average_calories_kcal[0]),
-                "calories_count_days" : metrics.average_calories_kcal[1]
-            }           
-        else:
-            average_calories = {
-                "average_calories_kcal" : None
-            }
-
-        return average_protein | average_carbohydrates | average_fat | average_calories
+        return (
+            self._build_average_fields(
+                metrics.average_protein_g,
+                value_key="average_protein_g",
+                count_key="protein_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_carbohydrates_g,
+                value_key="average_carbohydrates_g",
+                count_key="carbohydrates_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_fat_g,
+                value_key="average_fat_g",
+                count_key="fat_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_calories_kcal,
+                value_key="average_calories_kcal",
+                count_key="calories_count_days",
+            )
+        )
         
 
     def _build_average_calories_balance(
         self,
-        metrics: ActivityMetricsSummary,
-    ) -> float | None:
-        if metrics is None:
-            return None
-        return self._round_number(metrics.average_calories_balance)
+        metrics: ActivityMetricsSummary | None,
+    ) -> dict[str, Any]:
+        average = (
+            metrics.average_calories_balance_kcal
+            if metrics is not None
+            else None
+        )
+
+        return self._build_average_fields(
+            average,
+            value_key="average_calories_balance_kcal",
+            count_key="calories_balance_count_days",
+        )
+
+    def _build_average_fields(
+        self,
+        average: tuple[float, int] | None,
+        *,
+        value_key: str,
+        count_key: str,
+    ) -> dict[str, Any]:
+        if average is None:
+            return {
+                value_key: None,
+                count_key: None,
+            }
+
+        value, count_days = average
+
+        return {
+            value_key: self._round_number(value),
+            count_key: count_days,
+        }
 
     @staticmethod
     def _round_number(
@@ -440,7 +471,13 @@ class JsonRenderer:
     def _build_daily_energy_expenditure(
         self,
         summary: DailySummary,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
+        if (
+            summary.basal_energy_kcal is None
+            and summary.active_energy_kcal is None
+        ):
+            return None
+
         return {
             "basal_kcal": self._round_number(summary.basal_energy_kcal),
             "active_kcal": self._round_number(summary.active_energy_kcal),
@@ -453,7 +490,15 @@ class JsonRenderer:
     ) -> dict[str, Any] | None:
         nutrition = summary.nutrition
 
-        if nutrition is None:
+        if nutrition is None or all(
+            value is None
+            for value in (
+                nutrition.protein_g,
+                nutrition.carbohydrates_g,
+                nutrition.fat_g,
+                nutrition.calories_kcal,
+            )
+        ):
             return None
 
         return {
