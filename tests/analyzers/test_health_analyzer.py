@@ -20,8 +20,8 @@ def _daily_metrics(
     *,
     steps: int = 0,
     distance_km: float = 0.0,
-    active_energy: float = 0.0,
-    basal_energy: float = 0.0,
+    active_energy: float | None = 0.0,
+    basal_energy: float | None = 0.0,
     weight: float | None = None,
     nutrition: NutritionData | None = None,
 ) -> DailyMetrics:

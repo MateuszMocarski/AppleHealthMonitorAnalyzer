@@ -53,99 +53,102 @@ class MetricsAnalyzer:
 
         total_distance = sum(metrics.distance_km for metrics in monthly_metrics)
 
-        total_basal_energy_kcal = sum(metrics.basal_energy for metrics in monthly_metrics)
-
-        total_active_energy_kcal = sum(metrics.active_energy for metrics in monthly_metrics)
-
         average_daily_steps = total_steps / reporting_days if reporting_days else 0.0
 
         average_daily_distance = total_distance / reporting_days if reporting_days else 0.0
 
-        average_basal_energy_kcal = (
-            total_basal_energy_kcal / reporting_days if reporting_days else 0.0
-        )
-
-        average_active_energy_kcal = (
-            total_active_energy_kcal / reporting_days if reporting_days else 0.0
-        )
-
         average_step_length_cm = 100000 * total_distance / total_steps if total_steps else 0.0
 
-        nutrition_protein = [
+        basal_energy_values = [
+            metrics.basal_energy
+            for metrics in monthly_metrics
+            if metrics.basal_energy is not None
+        ]
+
+        active_energy_values = [
+            metrics.active_energy
+            for metrics in monthly_metrics
+            if metrics.active_energy is not None
+        ]
+
+        average_basal_energy_kcal = self._average_with_count(
+            basal_energy_values
+        )
+
+        average_active_energy_kcal = self._average_with_count(
+            active_energy_values
+        )
+        
+        tdee_values = [
+            metrics.basal_energy + metrics.active_energy
+            for metrics in monthly_metrics
+            if (
+                metrics.basal_energy is not None
+                and metrics.active_energy is not None
+            )
+        ]
+
+        average_tdee_kcal = self._average_with_count(
+            tdee_values
+        )
+        
+        calorie_balance_values = [
+            metrics.nutrition.calories_kcal
+            - metrics.basal_energy
+            - metrics.active_energy
+            for metrics in monthly_metrics
+            if (
+                metrics.nutrition is not None
+                and metrics.nutrition.calories_kcal is not None
+                and metrics.basal_energy is not None
+                and metrics.active_energy is not None
+            )
+        ]
+
+        average_calories_balance_kcal = self._average_with_count(
+            calorie_balance_values
+        )
+
+        protein_values = [
             metrics.nutrition.protein_g
             for metrics in monthly_metrics
-            if metrics.nutrition is not None and metrics.nutrition.protein_g is not None
+            if (
+                metrics.nutrition is not None
+                and metrics.nutrition.protein_g is not None
+            )
         ]
 
-        if nutrition_protein:
-            nutrition_protein_days = len(nutrition_protein)
-
-            average_protein_g = (
-                sum(
-                    protein_g
-                    for protein_g in nutrition_protein
-                )
-                / nutrition_protein_days
-            ), nutrition_protein_days
-        else:
-            average_protein_g = None
-            
-        nutrition_carbohydrates = [
+        carbohydrate_values = [
             metrics.nutrition.carbohydrates_g
             for metrics in monthly_metrics
-            if metrics.nutrition is not None and metrics.nutrition.carbohydrates_g is not None
+            if (
+                metrics.nutrition is not None
+                and metrics.nutrition.carbohydrates_g is not None
+            )
         ]
 
-        if nutrition_carbohydrates:
-            nutrition_carbohydrates_days = len(nutrition_carbohydrates)
-
-            average_carbohydrates_g = (
-                sum(
-                    carbohydrates_g
-                    for carbohydrates_g in nutrition_carbohydrates
-                )
-                / nutrition_carbohydrates_days
-            ), nutrition_carbohydrates_days
-        else:
-            average_carbohydrates_g = None
-            
-        nutrition_fat = [
+        fat_values = [
             metrics.nutrition.fat_g
             for metrics in monthly_metrics
-            if metrics.nutrition is not None and metrics.nutrition.fat_g is not None
+            if (
+                metrics.nutrition is not None
+                and metrics.nutrition.fat_g is not None
+            )
         ]
 
-        if nutrition_fat:
-            nutrition_fat_days = len(nutrition_fat)
-
-            average_fat_g = (
-                sum(
-                    fat_g
-                    for fat_g in nutrition_fat
-                )
-                / nutrition_fat_days
-            ), nutrition_fat_days
-        else:
-            average_fat_g = None   
-            
-        nutrition_calories = [
+        calorie_values = [
             metrics.nutrition.calories_kcal
             for metrics in monthly_metrics
-            if metrics.nutrition is not None and metrics.nutrition.calories_kcal is not None
+            if (
+                metrics.nutrition is not None
+                and metrics.nutrition.calories_kcal is not None
+            )
         ]
 
-        if nutrition_calories:
-            nutrition_calories_days = len(nutrition_calories)
-
-            average_calories_kcal = (
-                sum(
-                    calories_kcal
-                    for calories_kcal in nutrition_calories
-                )
-                / nutrition_calories_days
-            ), nutrition_calories_days
-        else:
-            average_calories_kcal = None  
+        average_protein_g = self._average_with_count(protein_values)
+        average_carbohydrates_g = self._average_with_count(carbohydrate_values)
+        average_fat_g = self._average_with_count(fat_values)
+        average_calories_kcal = self._average_with_count(calorie_values)
 
         weights = [
             metrics.weight.value for metrics in monthly_metrics if metrics.weight is not None
@@ -173,6 +176,7 @@ class MetricsAnalyzer:
             average_daily_distance_km=average_daily_distance,
             average_step_length_cm=average_step_length_cm,
             average_basal_energy_kcal=average_basal_energy_kcal,
+            average_tdee_kcal=average_tdee_kcal,
             average_active_energy_kcal=average_active_energy_kcal,
             average_weight=average_weight,
             start_weight=start_weight,
@@ -184,4 +188,14 @@ class MetricsAnalyzer:
             average_carbohydrates_g=average_carbohydrates_g,
             average_fat_g=average_fat_g,
             average_calories_kcal=average_calories_kcal,
+            average_calories_balance_kcal=average_calories_balance_kcal,
         )
+
+    @staticmethod
+    def _average_with_count(
+        values: list[float],
+    ) -> tuple[float, int] | None:
+        if not values:
+            return None
+
+        return sum(values) / len(values), len(values)

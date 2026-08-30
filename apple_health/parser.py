@@ -200,10 +200,16 @@ class AppleHealthParser:
             metrics.distance_km += float(value)
 
         elif record_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
-            metrics.active_energy += float(value)
+            metrics.active_energy = self._add_optional_value(
+                metrics.active_energy,
+                float(value),
+            )
 
         elif record_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
-            metrics.basal_energy += float(value)
+            metrics.basal_energy = self._add_optional_value(
+                metrics.basal_energy,
+                float(value),
+            )
 
     def _parse_sleep_record(
         self,

@@ -44,7 +44,8 @@ def _activity_metrics(
     end_weight: float | None = 79.0,
     average_active_energy_kcal: float = 700.0,
     average_basal_energy_kcal: float = 1900.0,
-    average_calories_kcal: float = 2000.0,
+    average_calories_kcal: tuple[float, int] | None = (2000.0, 10),
+    average_calories_balance_kcal: tuple[float, int] | None = (-550.0, 10),
 ) -> ActivityMetricsSummary:
     return ActivityMetricsSummary(
         total_steps=10000,
@@ -60,10 +61,11 @@ def _activity_metrics(
         max_weight=80.0,
         min_weight=79.0,
         measurements=2,
-        average_protein_g=150.0,
-        average_carbohydrates_g=200.0,
-        average_fat_g=70.0,
+        average_protein_g=(150.0, 10),
+        average_carbohydrates_g=(200.0, 10),
+        average_fat_g=(70.0, 10),
         average_calories_kcal=average_calories_kcal,
+        average_calories_balance_kcal=average_calories_balance_kcal
     )
 
 
@@ -267,19 +269,17 @@ def test_activity_metrics_summary_weight_change_is_none_when_incomplete(
 
 
 # =====================================================================
-# Verifies that average monthly calorie balance is calculated as
-# average calorie intake minus average total daily energy expenditure.
+# Verifies that the activity metrics summary preserves the monthly
+# calorie balance together with the number of contributing days.
 # =====================================================================
 
 
-def test_activity_metrics_summary_calculates_average_calorie_balance() -> None:
+def test_activity_metrics_summary_preserves_average_calorie_balance() -> None:
     summary = _activity_metrics(
-        average_active_energy_kcal=700.0,
-        average_basal_energy_kcal=1900.0,
-        average_calories_kcal=2050.0,
+        average_calories_balance_kcal=(-550.0, 10),
     )
 
-    assert summary.average_calories_balance == -550.0
+    assert summary.average_calories_balance_kcal == (-550.0, 10)
 
 
 # =====================================================================

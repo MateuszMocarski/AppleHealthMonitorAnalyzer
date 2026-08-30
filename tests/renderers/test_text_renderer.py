@@ -37,10 +37,10 @@ def _activity_metrics(
         max_weight=114.0 if measurements else None,
         min_weight=111.4 if measurements else None,
         measurements=measurements,
-        average_protein_g=171.23,
-        average_carbohydrates_g=211.37,
-        average_fat_g=119.88,
-        average_calories_kcal=2850.43,
+        average_protein_g=(171.23, 10),
+        average_carbohydrates_g=(211.37, 10),
+        average_fat_g=(119.88, 10),
+        average_calories_kcal=(2850.43, 10),
     )
 
 

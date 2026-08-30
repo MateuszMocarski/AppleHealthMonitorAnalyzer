@@ -35,10 +35,10 @@ def _activity_metrics(
     max_weight: float | None = 114.0,
     min_weight: float | None = 111.4,
     measurements: int = 11,
-    average_protein_g: float | None = 171.234,
-    average_carbohydrates_g: float | None = 211.37,
-    average_fat_g: float | None = 119.876,
-    average_calories_kcal: float | None = 2850.432,
+    average_protein_g: tuple[float, int] | None = (171.234, 10),
+    average_carbohydrates_g: tuple[float, int] | None = (211.37, 10),
+    average_fat_g: tuple[float, int] | None = (119.876, 10),
+    average_calories_kcal: tuple[float, int] | None = (2850.432, 10),
 ) -> ActivityMetricsSummary:
     return ActivityMetricsSummary(
         total_steps=total_steps,

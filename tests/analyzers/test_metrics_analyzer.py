@@ -16,8 +16,8 @@ def _metrics(
     *,
     steps: int = 0,
     distance_km: float = 0.0,
-    active_energy: float = 0.0,
-    basal_energy: float = 0.0,
+    active_energy: float | None = 0.0,
+    basal_energy: float | None = 0.0,
     weight: float | None = None,
     nutrition: NutritionData | None = None,
 ) -> DailyMetrics:
@@ -424,3 +424,45 @@ def test_summarize_month_averages_nutrition_only_across_available_days() -> None
     assert summary.average_protein_g[0] == 160.0
     assert summary.average_carbohydrates_g[0] == 210.0
     assert summary.average_fat_g[0] == 75.0
+    
+# =====================================================================
+# Verifies that monthly calorie balance is averaged only across days
+# with available calorie intake data.
+# =====================================================================
+
+
+def test_summarize_month_calculates_calorie_balance_only_for_available_days() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            active_energy=500,
+            basal_energy=1500,
+            nutrition=_nutrition(
+                calories_kcal=2500,
+            ),
+        ),
+        _metrics(
+            2,
+            active_energy=1000,
+            basal_energy=2000,
+            nutrition=None,
+        ),
+        _metrics(
+            3,
+            active_energy=600,
+            basal_energy=1600,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+            ),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_tdee_kcal == 2400.0
+    assert summary.average_calories_kcal == (2250.0, 2)
+    assert summary.average_calories_balance_kcal == (150.0, 2)

@@ -99,10 +99,6 @@ class ActivityMetricsSummary:
 
     average_step_length_cm: float | None
 
-    average_basal_energy_kcal: float | None
-
-    average_active_energy_kcal: float | None
-
     average_weight: float | None
     start_weight: float | None
     end_weight: float | None
@@ -110,16 +106,16 @@ class ActivityMetricsSummary:
     min_weight: float | None
     measurements: int
 
+    average_basal_energy_kcal: tuple[float, int] | None
+    average_active_energy_kcal: tuple[float, int] | None
+    average_tdee_kcal: tuple[float, int] | None
+
     average_protein_g: tuple[float, int] | None
     average_carbohydrates_g: tuple[float, int] | None
     average_fat_g: tuple[float, int] | None
     average_calories_kcal: tuple[float, int] | None
 
-    @property
-    def average_tdee_kcal(self) -> float | None:
-        if self.average_active_energy_kcal is None or self.average_basal_energy_kcal is None:
-            return None
-        return self.average_active_energy_kcal + self.average_basal_energy_kcal
+    average_calories_balance_kcal: tuple[float, int] | None
 
     @property
     def weight_change(self) -> float | None:
@@ -127,12 +123,6 @@ class ActivityMetricsSummary:
             return None
 
         return self.end_weight - self.start_weight
-
-    @property
-    def average_calories_balance(self) -> float | None:
-        if self.average_calories_kcal is None or self.average_tdee_kcal is None:
-            return
-        return self.average_calories_kcal - self.average_tdee_kcal
 
 
 @dataclass(slots=True)
