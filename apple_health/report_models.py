@@ -32,8 +32,8 @@ class DailySummary:
     total_steps: int
     total_distance_km: float
 
-    active_energy_kcal: float
-    basal_energy_kcal: float
+    active_energy_kcal: float | None
+    basal_energy_kcal: float | None
 
     weight: float | None = None
 
@@ -51,15 +51,22 @@ class DailySummary:
         return self.total_distance_km * 100000 / self.total_steps
 
     @property
-    def tdee_kcal(self) -> float:
+    def tdee_kcal(self) -> float | None:
+        if self.active_energy_kcal is None or self.basal_energy_kcal is None:
+            return None
+
         return self.active_energy_kcal + self.basal_energy_kcal
 
     @property
     def calories_balance_kcal(self) -> float | None:
-        if self.nutrition is None:
+        if self.nutrition is None or self.nutrition.calories_kcal is None:
             return None
 
-        return self.nutrition.calories_kcal - self.tdee_kcal
+        tdee_kcal = self.tdee_kcal
+        if tdee_kcal is None:
+            return None
+
+        return self.nutrition.calories_kcal - tdee_kcal
 
 
 @dataclass(slots=True)

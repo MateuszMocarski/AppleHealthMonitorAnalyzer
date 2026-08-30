@@ -21,8 +21,8 @@ def _daily_summary(
     *,
     steps: int = 10000,
     distance_km: float = 8.0,
-    active_energy_kcal: float = 700.0,
-    basal_energy_kcal: float = 1900.0,
+    active_energy_kcal: float | None = 700.0,
+    basal_energy_kcal: float | None = 1900.0,
     nutrition: NutritionData | None = None,
 ) -> DailySummary:
     return DailySummary(
@@ -130,6 +130,32 @@ def test_daily_summary_calculates_tdee() -> None:
     )
 
     assert summary.tdee_kcal == 2600.0
+    
+
+# =====================================================================
+# Verifies that daily TDEE remains unavailable when either required
+# energy component is missing.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    ("active_energy_kcal", "basal_energy_kcal"),
+    [
+        (None, 1900.0),
+        (700.0, None),
+        (None, None),
+    ],
+)
+def test_daily_summary_tdee_is_none_when_energy_is_incomplete(
+    active_energy_kcal: float | None,
+    basal_energy_kcal: float | None,
+) -> None:
+    summary = _daily_summary(
+        active_energy_kcal=active_energy_kcal,
+        basal_energy_kcal=basal_energy_kcal,
+    )
+
+    assert summary.tdee_kcal is None
 
 
 # =====================================================================
@@ -168,6 +194,49 @@ def test_daily_summary_calorie_balance_is_none_without_nutrition() -> None:
 
     assert summary.calories_balance_kcal is None
 
+
+# =====================================================================
+# Verifies that daily calorie balance remains unavailable when the
+# nutrition section exists but the calorie value is missing.
+# =====================================================================
+
+
+def test_daily_summary_calorie_balance_is_none_without_calories() -> None:
+    summary = _daily_summary(
+        nutrition=NutritionData(
+            protein_g=150.0,
+        ),
+    )
+
+    assert summary.calories_balance_kcal is None
+    
+
+# =====================================================================
+# Verifies that daily calorie balance remains unavailable when calorie
+# intake exists but TDEE cannot be calculated from complete energy data.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    ("active_energy_kcal", "basal_energy_kcal"),
+    [
+        (None, 1900.0),
+        (700.0, None),
+    ],
+)
+def test_daily_summary_calorie_balance_is_none_when_energy_is_incomplete(
+    active_energy_kcal: float | None,
+    basal_energy_kcal: float | None,
+) -> None:
+    summary = _daily_summary(
+        active_energy_kcal=active_energy_kcal,
+        basal_energy_kcal=basal_energy_kcal,
+        nutrition=NutritionData(
+            calories_kcal=2000.0,
+        ),
+    )
+
+    assert summary.calories_balance_kcal is None
 
 # =====================================================================
 # Verifies that MonthlySummary exposes the final completed reporting

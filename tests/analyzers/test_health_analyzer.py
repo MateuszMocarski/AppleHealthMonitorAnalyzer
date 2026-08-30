@@ -20,8 +20,8 @@ def _daily_metrics(
     *,
     steps: int = 0,
     distance_km: float = 0.0,
-    active_energy: float | None = 0.0,
-    basal_energy: float | None = 0.0,
+    active_energy: float | None = None,
+    basal_energy: float | None = None,
     weight: float | None = None,
     nutrition: NutritionData | None = None,
 ) -> DailyMetrics:
@@ -173,8 +173,8 @@ def test_summarize_day_uses_defaults_when_metrics_are_missing() -> None:
 
     assert summary.total_steps == 0
     assert summary.total_distance_km == 0.0
-    assert summary.active_energy_kcal == 0.0
-    assert summary.basal_energy_kcal == 0.0
+    assert summary.active_energy_kcal is None
+    assert summary.basal_energy_kcal is None
     assert summary.weight is None
     assert summary.nutrition is None
 

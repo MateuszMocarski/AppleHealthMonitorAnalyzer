@@ -29,8 +29,8 @@ class HealthAnalyzer:
 
         metrics = self.metrics_analyzer.metrics_for_day(day)
 
-        active_energy_kcal = metrics.active_energy if metrics else 0.0
-        basal_energy_kcal = metrics.basal_energy if metrics else 0.0
+        active_energy_kcal = metrics.active_energy if metrics else None
+        basal_energy_kcal = metrics.basal_energy if metrics else None
 
         weight = (
             metrics.weight.value if metrics is not None and metrics.weight is not None else None
