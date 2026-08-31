@@ -16,6 +16,15 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["apple_health*"]
 
+[tool.setuptools.package-data]
+"apple_health.api" = [
+    "web/*.html",
+    "web/*.svg",
+]
+"apple_health.config" = [
+    "examples/*.toml",
+]
+
 [tool.black]
 line-length = 100
 target-version = ["py310"]
