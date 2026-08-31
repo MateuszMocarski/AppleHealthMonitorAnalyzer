@@ -72,6 +72,19 @@ def favicon() -> FileResponse:
         media_type="image/svg+xml",
     )
 
+@app.get(
+    "/config.example.toml",
+    include_in_schema=False,
+)
+def example_config() -> FileResponse:
+    return FileResponse(
+        Path(__file__).parent.parent
+        / "config"
+        / "examples"
+        / "config.example.toml",
+        media_type="application/toml",
+        filename="config.example.toml",
+    )
 
 @app.get("/health")
 def health() -> dict[str, str]:

@@ -508,6 +508,10 @@
             min-height: 48px;
             padding: 0 14px;
 
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
             border: 1px solid var(--border);
             border-radius: var(--radius-small);
 
@@ -516,6 +520,7 @@
 
             cursor: pointer;
 
+            text-decoration: none;
             font-size: 12px;
             font-weight: 600;
 
@@ -1050,14 +1055,12 @@
                                     >
                                 </label>
                             </div>
-
-                            <button
-                                class="config-example-button"
-                                id="download-example-config"
-                                type="button"
-                            >
-                                Download example config
-                            </button>
+                                <a
+                                    class="config-example-button"
+                                    href="/config.example.toml"
+                                >
+                                    Download example config
+                                </a>
                         </div>
 
                         <p class="precedence-note">
@@ -1332,14 +1335,6 @@
                 "config-file-name",
             );
 
-        const downloadExampleConfig =
-            document.getElementById(
-                "download-example-config",
-            );
-
-        const exampleConfigContent =
-            "# Complete example configuration.\n# All values below match the current application defaults.\n# You may remove any setting you do not want to override.\n\n[source]\napple_watch_source = \"Apple Watch\"\napple_health_app_source = \"Zdrowie\"\n\n[sleep]\nsession_gap_threshold_minutes = 30\n\n[sleep.score]\nlinear_penalties = false\n\n[sleep.score.bedtime]\ntarget = \"00:00\"\npenalty_interval_minutes = 15\npenalty_points = 5.0\n\n[sleep.score.duration]\ntarget_minutes = 480\ntolerance_minutes = 30\npenalty_interval_minutes = 15\npenalty_points = 5.0\noversleep_weight = 1.0\nundersleep_weight = 1.0\n\n[sleep.score.wake_up]\ntarget = \"08:00\"\nbedtime_weight = 1.0\nduration_weight = 2.0\npenalty_interval_minutes = 15\npenalty_points = 3.0\n\n[sleep.score.weights]\nbedtime = 1.0\nduration = 1.0\nwake_up = 1.0\n\n[sleep.score.monthly_bonus]\nenabled = true\nmax_points = 20\n\naverage_thresholds = [\n    [90, 15],\n    [80, 10],\n    [70, 5],\n]\n\nconsistency_thresholds = [\n    [3, 5],\n    [6, 4],\n    [9, 3],\n    [12, 2],\n    [15, 1],\n]\n";
-
         const appleWatchSource =
             document.getElementById(
                 "apple-watch-source",
@@ -1385,17 +1380,6 @@
                     file
                         ? file.name
                         : "Choose config.toml";
-            },
-        );
-
-        downloadExampleConfig.addEventListener(
-            "click",
-            () => {
-                downloadText(
-                    "config.example.toml",
-                    exampleConfigContent,
-                    "application/toml",
-                );
             },
         );
 

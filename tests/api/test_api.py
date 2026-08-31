@@ -1418,3 +1418,30 @@ def test_report_generation_rejects_oversized_config(
     assert response.json() == {
         "detail": "Uploaded configuration is too large.",
     }
+
+
+# =====================================================================
+# Verifies that the downloadable example configuration is served from
+# the repository's canonical config.example.toml file.
+# =====================================================================
+
+
+def test_example_config_download_returns_canonical_file() -> None:
+    example_config_path = (
+        Path(__file__).parents[2]
+        / "apple_health"
+        / "config"
+        / "examples"
+        / "config.example.toml"
+    )
+
+    response = client.get(
+        "/config.example.toml",
+    )
+
+    assert response.status_code == 200
+    assert response.content == example_config_path.read_bytes()
+    assert (
+        'filename="config.example.toml"'
+        in response.headers["content-disposition"]
+    )
