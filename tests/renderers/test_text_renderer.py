@@ -57,6 +57,7 @@ def _sleep_summary() -> SleepMonthlySummary:
         average_core_minutes=301.46,
         average_deep_minutes=52.35,
         average_rem_minutes=84.96,
+        average_unspecified_minutes=0.0,
         average_bedtime_score=88.46,
         average_duration_score=92.35,
         average_wake_up_score=84.57,

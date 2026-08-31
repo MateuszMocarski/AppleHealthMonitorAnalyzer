@@ -30,7 +30,7 @@ class SleepAnalyzer:
             (
                 record
                 for record in self.sleep_records
-                if record.source_name == self.config.source.apple_watch_source
+                if self.config.source.matches_apple_watch_source(record.source_name)
             ),
             key=lambda record: record.start,
         )
@@ -81,7 +81,12 @@ class SleepAnalyzer:
             SleepStage.AWAKE,
         )
 
-        time_asleep_minutes = core_minutes + deep_minutes + rem_minutes
+        unspecified_minutes = self._sum_stage_minutes(
+            records,
+            SleepStage.UNSPECIFIED,
+        )
+
+        time_asleep_minutes = core_minutes + deep_minutes + rem_minutes + unspecified_minutes
 
         bedtime = records[0].start
         wake_up = records[-1].end
@@ -95,6 +100,7 @@ class SleepAnalyzer:
             core_minutes=core_minutes,
             deep_minutes=deep_minutes,
             rem_minutes=rem_minutes,
+            unspecified_minutes=unspecified_minutes,
             awake_minutes=awake_minutes,
         )
 
@@ -129,6 +135,8 @@ class SleepAnalyzer:
 
         rem = [session.rem_minutes for session in sessions]
 
+        unspecified = [session.unspecified_minutes for session in sessions]
+
         sleep_scores = [self.score_session(session) for session in sessions]
 
         average_bedtime_score = self._average([score.bedtime_score for score in sleep_scores])
@@ -153,6 +161,7 @@ class SleepAnalyzer:
             average_core_minutes=self._average(core),
             average_deep_minutes=self._average(deep),
             average_rem_minutes=self._average(rem),
+            average_unspecified_minutes=self._average(unspecified),
             average_bedtime_score=average_bedtime_score,
             average_duration_score=average_duration_score,
             average_wake_up_score=average_wake_up_score,

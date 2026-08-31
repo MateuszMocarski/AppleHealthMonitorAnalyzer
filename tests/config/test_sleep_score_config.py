@@ -465,3 +465,53 @@ def test_combined_monthly_bonus_cannot_exceed_configured_maximum() -> None:
         match="Maximum configured monthly sleep bonuses exceed",
     ):
         config.validate()
+
+
+# =====================================================================
+# Verifies that negative wake-up component weights are rejected because
+# they cannot represent a valid weighted maximum score.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "attribute_path",
+    [
+        "wake_up.bedtime_weight",
+        "wake_up.duration_weight",
+    ],
+)
+def test_negative_wake_up_component_weight_is_rejected(
+    attribute_path: str,
+) -> None:
+    config = SleepScoreConfig()
+
+    _set_config_value(
+        config,
+        attribute_path,
+        -1.0,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Wake-up score component weights cannot be negative",
+    ):
+        config.validate()
+
+
+# =====================================================================
+# Verifies that at least one wake-up component weight must be positive
+# so the weighted maximum score cannot divide by zero.
+# =====================================================================
+
+
+def test_all_zero_wake_up_component_weights_are_rejected() -> None:
+    config = SleepScoreConfig()
+
+    config.wake_up.bedtime_weight = 0.0
+    config.wake_up.duration_weight = 0.0
+
+    with pytest.raises(
+        ValueError,
+        match="At least one wake-up score component weight",
+    ):
+        config.validate()

@@ -137,9 +137,18 @@ class AppleHealthParser:
         if record_source is None:
             return
 
-        source_name = element.attrib.get("sourceName", "")
+        source_name = element.attrib.get(
+            "sourceName",
+            "",
+        )
 
-        if source_name != record_source:
+        if record_type in APPLE_WATCH_DAILY_METRIC_TYPES:
+            if not self.config.source.matches_apple_watch_source(
+                source_name,
+            ):
+                return
+
+        elif source_name != record_source:
             return
 
         recorded_at = datetime.strptime(

@@ -76,6 +76,7 @@ def _sleep_summary() -> SleepMonthlySummary:
         average_core_minutes=301.456789,
         average_deep_minutes=52.345678,
         average_rem_minutes=84.962965,
+        average_unspecified_minutes=0.0,
         average_bedtime_score=88.4567,
         average_duration_score=92.3456,
         average_wake_up_score=84.5678,
@@ -268,6 +269,7 @@ def test_render_month_summary_builds_sleep_section() -> None:
         "core_minutes": 301.46,
         "deep_minutes": 52.35,
         "rem_minutes": 84.96,
+        "unspecified_minutes": 0.0,
     }
 
     assert sleep["score"] == {
@@ -659,6 +661,7 @@ def test_render_day_builds_sleep_session() -> None:
         core_minutes=280.123,
         deep_minutes=50.456,
         rem_minutes=89.544,
+        unspecified_minutes=0.0,
         awake_minutes=30.333,
     )
 
@@ -711,6 +714,7 @@ def test_render_day_builds_sleep_score() -> None:
         core_minutes=300,
         deep_minutes=60,
         rem_minutes=120,
+        unspecified_minutes=0.0,
         awake_minutes=0,
     )
 

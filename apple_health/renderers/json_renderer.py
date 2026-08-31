@@ -121,6 +121,7 @@ class JsonRenderer:
                 "core_minutes": self._round_number(summary.average_core_minutes),
                 "deep_minutes": self._round_number(summary.average_deep_minutes),
                 "rem_minutes": self._round_number(summary.average_rem_minutes),
+                "unspecified_minutes": self._round_number(summary.average_unspecified_minutes),
             },
             "score": {
                 "average_bedtime": self._round_number(summary.average_bedtime_score),
@@ -436,6 +437,7 @@ class JsonRenderer:
                 "core_minutes": self._round_number(sleep.core_minutes),
                 "deep_minutes": self._round_number(sleep.deep_minutes),
                 "rem_minutes": self._round_number(sleep.rem_minutes),
+                "unspecified_minutes": self._round_number(sleep.unspecified_minutes),
             },
         }
 

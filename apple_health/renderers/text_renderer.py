@@ -436,6 +436,10 @@ class TextRenderer:
         writer.write(f"  Core:               {self._format_minutes(summary.average_core_minutes)}")
         writer.write(f"  Deep:               {self._format_minutes(summary.average_deep_minutes)}")
         writer.write(f"  REM:                {self._format_minutes(summary.average_rem_minutes)}")
+        if summary.average_unspecified_minutes > 0:
+            writer.write(
+                f"  Unspecified:        {self._format_minutes(summary.average_unspecified_minutes)}"
+            )
 
     def _render_sleep_score(self, writer: _TextWriter, sleep_score: SleepScore) -> None:
         header = "Sleep score"

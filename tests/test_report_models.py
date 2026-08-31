@@ -82,6 +82,7 @@ def _sleep_summary() -> SleepMonthlySummary:
         average_core_minutes=300.0,
         average_deep_minutes=60.0,
         average_rem_minutes=120.0,
+        average_unspecified_minutes=0.0,
         average_bedtime_score=100.0,
         average_duration_score=100.0,
         average_wake_up_score=100.0,
@@ -383,6 +384,7 @@ def test_sleep_session_calculates_sleep_efficiency() -> None:
         core_minutes=300.0,
         deep_minutes=60.0,
         rem_minutes=90.0,
+        unspecified_minutes=0.0,
         awake_minutes=30.0,
     )
 
@@ -414,6 +416,7 @@ def test_sleep_session_before_noon_uses_same_reporting_date() -> None:
         core_minutes=0.0,
         deep_minutes=0.0,
         rem_minutes=0.0,
+        unspecified_minutes=0.0,
         awake_minutes=0.0,
     )
 
@@ -449,6 +452,7 @@ def test_sleep_session_at_noon_uses_next_reporting_date() -> None:
         core_minutes=0.0,
         deep_minutes=0.0,
         rem_minutes=0.0,
+        unspecified_minutes=0.0,
         awake_minutes=0.0,
     )
 
@@ -521,3 +525,35 @@ def test_total_calories_balance_is_none_when_average_is_missing() -> None:
     )
 
     assert summary.total_calories_balance_kcal is None
+
+
+# =====================================================================
+# Verifies that zero-duration sleep sessions expose zero efficiency
+# instead of raising a division-by-zero error.
+# =====================================================================
+
+
+def test_zero_duration_sleep_session_has_zero_efficiency() -> None:
+    bedtime = datetime(
+        2026,
+        8,
+        1,
+        0,
+        0,
+        tzinfo=timezone.utc,
+    )
+
+    session = SleepSession(
+        bedtime=bedtime,
+        wake_up=bedtime,
+        records=[],
+        time_in_bed_minutes=0.0,
+        time_asleep_minutes=0.0,
+        core_minutes=0.0,
+        deep_minutes=0.0,
+        rem_minutes=0.0,
+        unspecified_minutes=0.0,
+        awake_minutes=0.0,
+    )
+
+    assert session.sleep_efficiency_percent == 0.0

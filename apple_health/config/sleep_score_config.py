@@ -76,6 +76,7 @@ class SleepScoreConfig:
 
     def validate(self) -> None:
         self._validate_score_weights()
+        self._validate_wake_up_weights()
         self._validate_penalty_intervals()
         self._validate_penalty_points()
         self._validate_duration()
@@ -97,6 +98,20 @@ class SleepScoreConfig:
         if sum(score_weights) == 0:
             raise ValueError(
                 "At least one sleep score component weight " "must be greater than zero."
+            )
+
+    def _validate_wake_up_weights(self) -> None:
+        wake_up_weights = (
+            self.wake_up.bedtime_weight,
+            self.wake_up.duration_weight,
+        )
+
+        if any(weight < 0 for weight in wake_up_weights):
+            raise ValueError("Wake-up score component weights cannot be negative.")
+
+        if sum(wake_up_weights) == 0:
+            raise ValueError(
+                "At least one wake-up score component weight " "must be greater than zero."
             )
 
     def _validate_penalty_intervals(self) -> None:

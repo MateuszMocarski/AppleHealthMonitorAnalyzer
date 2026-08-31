@@ -741,3 +741,29 @@ def test_configured_source_names_require_exact_match() -> None:
     )
 
     assert data.daily_metrics == []
+
+
+# =====================================================================
+# Verifies that the built-in Apple Watch source matches Apple's standard
+# device-specific sourceName representation.
+# =====================================================================
+
+
+def test_default_apple_watch_source_matches_device_name() -> None:
+    config = AppConfig()
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name="Apple\xa0Watch (Dupsko)",
+            value="5000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert len(data.daily_metrics) == 1
+    assert data.daily_metrics[0].steps == 5000

@@ -159,10 +159,14 @@ class SleepSession:
     core_minutes: float
     deep_minutes: float
     rem_minutes: float
+    unspecified_minutes: float
     awake_minutes: float
 
     @property
     def sleep_efficiency_percent(self) -> float:
+        if self.time_in_bed_minutes <= 0:
+            return 0.0
+
         return self.time_asleep_minutes / self.time_in_bed_minutes * 100
 
     @property
@@ -187,6 +191,7 @@ class SleepMonthlySummary:
     average_core_minutes: float
     average_deep_minutes: float
     average_rem_minutes: float
+    average_unspecified_minutes: float
 
     average_bedtime_score: float
     average_duration_score: float
