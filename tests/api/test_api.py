@@ -11,6 +11,7 @@ from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
+from apple_health.exceptions import ExportXmlTooLargeError, HealthDataParseError, InvalidArchiveError
 
 client = TestClient(app)
 
@@ -775,7 +776,7 @@ def test_report_generation_deletes_temporary_archive_after_failure(
 
         assert temporary_archive_path.exists()
 
-        raise BadZipFile("invalid archive")
+        raise InvalidArchiveError
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -991,7 +992,7 @@ def test_report_generation_maps_invalid_health_root_to_stable_error(
         self,
         options,
     ):
-        raise ValueError("Expected Apple HealthData root element.")
+        raise HealthDataParseError("Invalid Apple Health export XML.")
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1109,7 +1110,7 @@ def test_report_generation_rejects_oversized_export_xml(
         self,
         options,
     ):
-        raise RuntimeError("Apple Health export XML is too large.")
+        raise ExportXmlTooLargeError
 
     monkeypatch.setattr(
         AppleHealthApplication,

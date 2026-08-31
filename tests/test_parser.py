@@ -10,6 +10,7 @@ from apple_health.constants import (
     WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
 )
 from apple_health.enums import SleepStage, WorkoutType
+from apple_health.exceptions import HealthDataParseError
 from apple_health.parser import AppleHealthParser
 
 # =======
@@ -711,8 +712,8 @@ def test_parser_rejects_non_health_data_root() -> None:
     )
 
     with pytest.raises(
-        ValueError,
-        match="Expected Apple HealthData root element.",
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
     ):
         parser.parse()
 
@@ -795,3 +796,29 @@ def test_preserves_missing_activity_metrics_on_non_activity_day() -> None:
 
     assert metrics.steps is None
     assert metrics.distance_km is None
+
+
+# =====================================================================
+# Verifies that malformed XML is translated into the dedicated parser
+# exception instead of leaking the ElementTree implementation error.
+# =====================================================================
+
+
+def test_parser_rejects_malformed_xml() -> None:
+    xml_stream = BytesIO(
+        b"""
+<HealthData>
+    <Record>
+</HealthData>
+"""
+    )
+
+    parser = AppleHealthParser(
+        xml_stream=xml_stream,
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        parser.parse()

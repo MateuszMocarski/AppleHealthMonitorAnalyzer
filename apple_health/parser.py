@@ -16,6 +16,7 @@ from apple_health.constants import (
     WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
 )
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
+from apple_health.exceptions import HealthDataParseError
 from apple_health.models import (
     AppleHealthData,
     DailyMetrics,
@@ -36,38 +37,42 @@ class AppleHealthParser:
         daily_metrics: dict[date, DailyMetrics] = {}
         sleep_records: list[SleepRecord] = []
 
-        root_checked = False
+        try:
+            root_checked = False
 
-        for event, element in ET.iterparse(
-            self.xml_stream,
-            events=("start", "end"),
-        ):
-            if event == "start":
-                if not root_checked:
-                    root_checked = True
+            for event, element in ET.iterparse(
+                self.xml_stream,
+                events=("start", "end"),
+            ):
+                if event == "start":
+                    if not root_checked:
+                        root_checked = True
 
-                    if element.tag != "HealthData":
-                        raise ValueError("Expected Apple HealthData root element.")
+                        if element.tag != "HealthData":
+                            raise HealthDataParseError("Invalid Apple Health export XML.")
 
-                continue
+                    continue
 
-            if element.tag == "Workout":
-                workouts.append(self._parse_workout(element))
-                element.clear()
+                if element.tag == "Workout":
+                    workouts.append(self._parse_workout(element))
+                    element.clear()
 
-            elif element.tag == "Record":
-                record_type = element.attrib.get("type")
+                elif element.tag == "Record":
+                    record_type = element.attrib.get("type")
 
-                if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
-                    sleep_records.append(self._parse_sleep_record(element))
+                    if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
+                        sleep_records.append(self._parse_sleep_record(element))
 
-                else:
-                    self._parse_daily_metrics(
-                        element,
-                        daily_metrics,
-                    )
+                    else:
+                        self._parse_daily_metrics(
+                            element,
+                            daily_metrics,
+                        )
 
-                element.clear()
+                    element.clear()
+
+        except ET.ParseError as exc:
+            raise HealthDataParseError("Invalid Apple Health export XML.") from exc
 
         return AppleHealthData(
             workouts=workouts,

@@ -1,8 +1,6 @@
 from contextlib import ExitStack
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from xml.etree.ElementTree import ParseError
-from zipfile import BadZipFile
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -15,6 +13,13 @@ from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.exceptions import ConfigurationError
+from apple_health.exceptions import (
+    ExportXmlNotFoundError,
+    ExportXmlTooLargeError,
+    HealthDataParseError,
+    InvalidArchiveError,
+    MultipleExportXmlError,
+)
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 MAX_CONFIG_UPLOAD_SIZE = 1024 * 1024  # 1 MB
@@ -172,46 +177,31 @@ def generate_report(
                     status_code=422,
                     detail=str(exc),
                 ) from exc
-            except BadZipFile as exc:
+            except InvalidArchiveError as exc:
                 raise HTTPException(
                     status_code=422,
                     detail="Invalid Apple Health export archive.",
                 ) from exc
-            except ParseError as exc:
+            except ExportXmlNotFoundError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Apple Health export XML not found in archive.",
+                ) from exc
+            except MultipleExportXmlError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=("Archive contains multiple Apple Health " "export XML files."),
+                ) from exc
+            except ExportXmlTooLargeError as exc:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Apple Health export XML is too large.",
+                ) from exc
+            except HealthDataParseError as exc:
                 raise HTTPException(
                     status_code=422,
                     detail="Invalid Apple Health export XML.",
                 ) from exc
-            except ValueError as exc:
-                if str(exc) == "Expected Apple HealthData root element.":
-                    raise HTTPException(
-                        status_code=422,
-                        detail="Invalid Apple Health export XML.",
-                    ) from exc
-
-                raise
-            except RuntimeError as exc:
-                message = str(exc)
-
-                if message == "Apple Health export XML is too large.":
-                    raise HTTPException(
-                        status_code=413,
-                        detail="Apple Health export XML is too large.",
-                    ) from exc
-
-                if message == "Expected exactly one export XML, found 0.":
-                    raise HTTPException(
-                        status_code=422,
-                        detail="Apple Health export XML not found in archive.",
-                    ) from exc
-
-                if message.startswith("Expected exactly one export XML, found "):
-                    raise HTTPException(
-                        status_code=422,
-                        detail=("Archive contains multiple Apple Health " "export XML files."),
-                    ) from exc
-
-                raise
 
         return MultiMonthReportResponse(
             reports=[
