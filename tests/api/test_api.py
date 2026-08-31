@@ -2,7 +2,7 @@ import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from zipfile import BadZipFile, ZipFile
+from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
@@ -11,7 +11,11 @@ from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
-from apple_health.exceptions import ExportXmlTooLargeError, HealthDataParseError, InvalidArchiveError
+from apple_health.exceptions import (
+    ExportXmlTooLargeError,
+    HealthDataParseError,
+    InvalidArchiveError,
+)
 
 client = TestClient(app)
 
@@ -1428,11 +1432,7 @@ def test_report_generation_rejects_oversized_config(
 
 def test_example_config_download_returns_canonical_file() -> None:
     example_config_path = (
-        Path(__file__).parents[2]
-        / "apple_health"
-        / "config"
-        / "examples"
-        / "config.example.toml"
+        Path(__file__).parents[2] / "apple_health" / "config" / "examples" / "config.example.toml"
     )
 
     response = client.get(
@@ -1441,7 +1441,4 @@ def test_example_config_download_returns_canonical_file() -> None:
 
     assert response.status_code == 200
     assert response.content == example_config_path.read_bytes()
-    assert (
-        'filename="config.example.toml"'
-        in response.headers["content-disposition"]
-    )
+    assert 'filename="config.example.toml"' in response.headers["content-disposition"]

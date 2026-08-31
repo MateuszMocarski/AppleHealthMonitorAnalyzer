@@ -1,6 +1,5 @@
-from contextlib import ExitStack
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -25,6 +24,10 @@ MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 MAX_CONFIG_UPLOAD_SIZE = 1024 * 1024  # 1 MB
 UPLOAD_CHUNK_SIZE = 1024 * 1024
 MAX_REPORT_PERIODS = 120
+
+API_DIRECTORY = Path(__file__).parent
+WEB_DIRECTORY = API_DIRECTORY / "web"
+EXAMPLE_CONFIG_PATH = API_DIRECTORY.parent / "config" / "examples" / "config.example.toml"
 
 app = FastAPI(
     title="Apple Health Monitor Analyzer",
@@ -55,10 +58,66 @@ def _copy_upload_to_file(
         destination.write(chunk)
 
 
+def _copy_upload_to_path(
+    upload: UploadFile,
+    destination_path: Path,
+    *,
+    max_size: int,
+    too_large_detail: str,
+) -> None:
+    with destination_path.open("wb") as destination:
+        _copy_upload_to_file(
+            upload,
+            destination,
+            max_size=max_size,
+            too_large_detail=too_large_detail,
+        )
+
+
+def _parse_periods(periods: str) -> tuple[ReportPeriod, ...]:
+    try:
+        parsed_periods = tuple(
+            ReportPeriod.from_string(
+                period.strip(),
+            )
+            for period in periods.split(",")
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid reporting period.",
+        ) from exc
+
+    if len(parsed_periods) > MAX_REPORT_PERIODS:
+        raise HTTPException(
+            status_code=422,
+            detail="Too many reporting periods requested.",
+        )
+
+    if len(parsed_periods) != len(set(parsed_periods)):
+        raise HTTPException(
+            status_code=422,
+            detail="Duplicate reporting periods are not allowed.",
+        )
+
+    return parsed_periods
+
+
+def _normalize_optional_source(
+    value: str | None,
+) -> str | None:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+
+    return normalized or None
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(
-        Path(__file__).parent / "web" / "index.html",
+        WEB_DIRECTORY / "index.html",
     )
 
 
@@ -68,9 +127,10 @@ def index() -> FileResponse:
 )
 def favicon() -> FileResponse:
     return FileResponse(
-        Path(__file__).parent / "web" / "favicon.svg",
+        WEB_DIRECTORY / "favicon.svg",
         media_type="image/svg+xml",
     )
+
 
 @app.get(
     "/config.example.toml",
@@ -78,13 +138,11 @@ def favicon() -> FileResponse:
 )
 def example_config() -> FileResponse:
     return FileResponse(
-        Path(__file__).parent.parent
-        / "config"
-        / "examples"
-        / "config.example.toml",
+        EXAMPLE_CONFIG_PATH,
         media_type="application/toml",
         filename="config.example.toml",
     )
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -106,71 +164,33 @@ def generate_report(
     response.headers["Cache-Control"] = "no-store"
 
     try:
-        try:
-            parsed_periods = tuple(
-                ReportPeriod.from_string(
-                    period.strip(),
-                )
-                for period in periods.split(",")
-            )
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid reporting period.",
-            ) from exc
+        parsed_periods = _parse_periods(periods)
 
-        if len(parsed_periods) > MAX_REPORT_PERIODS:
-            raise HTTPException(
-                status_code=422,
-                detail="Too many reporting periods requested.",
-            )
+        with TemporaryDirectory() as temporary_directory:
+            temporary_directory_path = Path(temporary_directory)
+            archive_path = temporary_directory_path / "export.zip"
 
-        if len(parsed_periods) != len(set(parsed_periods)):
-            raise HTTPException(
-                status_code=422,
-                detail="Duplicate reporting periods are not allowed.",
-            )
-
-        with ExitStack() as temporary_files:
-            temporary_archive = temporary_files.enter_context(
-                NamedTemporaryFile(
-                    suffix=".zip",
-                )
-            )
-
-            _copy_upload_to_file(
+            _copy_upload_to_path(
                 archive,
-                temporary_archive,
+                archive_path,
                 max_size=MAX_UPLOAD_SIZE,
                 too_large_detail="Uploaded archive is too large.",
             )
-            temporary_archive.flush()
 
-            config_path = None
+            config_path: Path | None = None
 
             if config is not None:
-                temporary_config = temporary_files.enter_context(
-                    NamedTemporaryFile(
-                        suffix=".toml",
-                    )
-                )
+                config_path = temporary_directory_path / "config.toml"
 
-                _copy_upload_to_file(
+                _copy_upload_to_path(
                     config,
-                    temporary_config,
+                    config_path,
                     max_size=MAX_CONFIG_UPLOAD_SIZE,
                     too_large_detail="Uploaded configuration is too large.",
                 )
-                temporary_config.flush()
-
-                config_path = Path(
-                    temporary_config.name,
-                )
 
             options = MultiMonthRunOptions(
-                archive_path=Path(
-                    temporary_archive.name,
-                ),
+                archive_path=archive_path,
                 periods=parsed_periods,
                 config_path=config_path,
                 apple_watch_source=_normalize_optional_source(
@@ -235,14 +255,3 @@ def generate_report(
 
         if config is not None:
             config.file.close()
-
-
-def _normalize_optional_source(
-    value: str | None,
-) -> str | None:
-    if value is None:
-        return None
-
-    normalized = value.strip()
-
-    return normalized or None
