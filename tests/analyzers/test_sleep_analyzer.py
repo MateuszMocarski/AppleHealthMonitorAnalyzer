@@ -1216,3 +1216,25 @@ def test_uses_configured_sleep_session_gap_threshold() -> None:
     )
 
     assert len(analyzer.sleep_sessions) == 1
+
+
+# =====================================================================
+# Verifies that sleep source filtering requires an exact configured
+# sourceName instead of accepting a longer source containing that value.
+# =====================================================================
+
+
+def test_sleep_source_requires_exact_match() -> None:
+    config = AppConfig()
+    config.source.apple_watch_source = "Custom Watch"
+
+    analyzer = _analyzer(
+        _sleep_record(
+            _datetime(10, 23),
+            _datetime(11, 6),
+            source_name="Custom Watch Device",
+        ),
+        config=config,
+    )
+
+    assert analyzer.sleep_sessions == []

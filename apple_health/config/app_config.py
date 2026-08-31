@@ -10,4 +10,5 @@ class AppConfig:
     sleep: SleepConfig = field(default_factory=SleepConfig)
 
     def validate(self) -> None:
+        self.source.validate()
         self.sleep.validate()

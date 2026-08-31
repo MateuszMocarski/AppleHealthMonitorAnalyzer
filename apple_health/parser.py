@@ -139,7 +139,7 @@ class AppleHealthParser:
 
         source_name = element.attrib.get("sourceName", "")
 
-        if record_source not in source_name:
+        if source_name != record_source:
             return
 
         recorded_at = datetime.strptime(

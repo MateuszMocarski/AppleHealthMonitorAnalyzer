@@ -30,7 +30,7 @@ class SleepAnalyzer:
             (
                 record
                 for record in self.sleep_records
-                if self.config.source.apple_watch_source in record.source_name
+                if record.source_name == self.config.source.apple_watch_source
             ),
             key=lambda record: record.start,
         )

@@ -697,3 +697,59 @@ def test_runtime_source_overrides_take_precedence_over_toml(
 
     assert config.source.apple_watch_source == "UI Watch"
     assert config.source.apple_health_app_source == "TOML Health"
+
+
+# =====================================================================
+# Verifies that blank source names from TOML are rejected because source
+# matching requires a non-empty exact sourceName value.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    ("field_name", "error_message"),
+    [
+        (
+            "apple_watch_source",
+            "Apple Watch source cannot be empty.",
+        ),
+        (
+            "apple_health_app_source",
+            "Apple Health app source cannot be empty.",
+        ),
+    ],
+)
+def test_blank_source_config_is_rejected(
+    tmp_path: Path,
+    field_name: str,
+    error_message: str,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        f"""
+        [source]
+        {field_name} = "   "
+        """,
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match=error_message,
+    ):
+        ConfigLoader.load(config_path)
+
+
+# =====================================================================
+# Verifies that blank runtime source overrides are rejected even when
+# ConfigLoader is used directly outside the HTTP adapter.
+# =====================================================================
+
+
+def test_blank_runtime_source_override_is_rejected() -> None:
+    with pytest.raises(
+        ConfigurationError,
+        match="Apple Watch source cannot be empty.",
+    ):
+        ConfigLoader.load(
+            None,
+            apple_watch_source="   ",
+        )

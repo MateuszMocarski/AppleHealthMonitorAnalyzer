@@ -715,3 +715,29 @@ def test_parser_rejects_non_health_data_root() -> None:
         match="Expected Apple HealthData root element.",
     ):
         parser.parse()
+
+
+# =====================================================================
+# Verifies that configured source names are matched exactly instead of
+# accepting records whose sourceName merely contains the configured value.
+# =====================================================================
+
+
+def test_configured_source_names_require_exact_match() -> None:
+    config = AppConfig()
+    config.source.apple_watch_source = "Custom Watch"
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name="Custom Watch Device",
+            value="5000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert data.daily_metrics == []
