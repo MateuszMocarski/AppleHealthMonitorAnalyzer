@@ -461,3 +461,137 @@ def test_health_analyzer_propagates_sleep_config() -> None:
     assert summary.sleep_score is not None
 
     assert summary.sleep_score.bedtime_score == pytest.approx(100.0 - expected_penalty)
+
+
+# =====================================================================
+# Verifies that completely empty imported health data can be analyzed
+# without failing and produces a monthly report with no reporting days.
+# =====================================================================
+
+
+def test_summarize_month_supports_empty_health_data() -> None:
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[],
+        )
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+    )
+
+    assert analyzer.last_data_day is None
+
+    assert summary.reporting_days == 0
+    assert summary.days == []
+
+    assert summary.activity_metrics is None
+    assert summary.activities == []
+    assert summary.sleep_summary is None
+
+
+# =====================================================================
+# Verifies that workout-only datasets determine the reporting boundary
+# even when no DailyMetrics records are available.
+# =====================================================================
+
+
+def test_workout_only_data_determines_reporting_period() -> None:
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[],
+            workouts=[
+                _workout(
+                    14,
+                    duration_minutes=45,
+                    active_energy_kcal=300,
+                ),
+                _workout(
+                    15,
+                    duration_minutes=60,
+                    active_energy_kcal=400,
+                ),
+            ],
+        )
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+    )
+
+    assert analyzer.last_data_day == date(
+        2026,
+        8,
+        15,
+    )
+
+    assert summary.reporting_days == 14
+
+    assert summary.activity_metrics is None
+
+    assert len(summary.activities) == 1
+    assert summary.activities[0].sessions == 1
+    assert summary.activities[0].duration_minutes == 45
+
+
+# =====================================================================
+# Verifies that sleep-only datasets use reconstructed sleep reporting
+# dates to determine the monthly reporting boundary.
+# =====================================================================
+
+
+def test_sleep_only_data_determines_reporting_period() -> None:
+    first_start = datetime(
+        2026,
+        8,
+        13,
+        23,
+        0,
+        tzinfo=timezone.utc,
+    )
+
+    second_start = datetime(
+        2026,
+        8,
+        14,
+        23,
+        0,
+        tzinfo=timezone.utc,
+    )
+
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[],
+            sleep_records=[
+                _sleep_record(
+                    first_start,
+                    first_start + timedelta(hours=8),
+                ),
+                _sleep_record(
+                    second_start,
+                    second_start + timedelta(hours=8),
+                ),
+            ],
+        )
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+    )
+
+    assert analyzer.last_data_day == date(
+        2026,
+        8,
+        15,
+    )
+
+    assert summary.reporting_days == 14
+
+    assert summary.activity_metrics is None
+    assert summary.activities == []
+
+    assert summary.sleep_summary is not None
+    assert summary.sleep_summary.total_sessions == 1

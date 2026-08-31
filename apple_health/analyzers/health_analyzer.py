@@ -21,7 +21,7 @@ class HealthAnalyzer:
 
         self.sleep_analyzer = SleepAnalyzer(health_data, config=self.config)
 
-        self.last_data_day = max(metrics.date for metrics in health_data.daily_metrics)
+        self.last_data_day = self._find_last_data_day()
 
     def summarize_day(self, day: date) -> DailySummary:
 
@@ -98,6 +98,9 @@ class HealthAnalyzer:
         year: int,
         month: int,
     ) -> int:
+        if self.last_data_day is None:
+            return 0
+
         last_complete_day = self.last_data_day - timedelta(days=1)
 
         if (year, month) < (
@@ -120,3 +123,17 @@ class HealthAnalyzer:
         month: int,
     ) -> list[date]:
         return [date(year, month, day) for day in range(1, self._reporting_days(year, month) + 1)]
+
+    def _find_last_data_day(
+        self,
+    ) -> date | None:
+        data_days = [metrics.date for metrics in self.metrics_analyzer.daily_metrics]
+
+        data_days.extend(workout.start.date() for workout in self.activity_analyzer.workouts)
+
+        data_days.extend(session.reporting_date for session in self.sleep_analyzer.sleep_sessions)
+
+        return max(
+            data_days,
+            default=None,
+        )
