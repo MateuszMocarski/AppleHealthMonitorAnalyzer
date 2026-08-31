@@ -490,3 +490,34 @@ def test_sleep_score_preserves_total_score() -> None:
     )
 
     assert score.total_score == 81.5
+
+
+# =====================================================================
+# Verifies that total monthly calorie balance is derived together with
+# the reporting-day coverage used by the average calorie balance.
+# =====================================================================
+
+
+def test_total_calories_balance() -> None:
+    summary = _activity_metrics(
+        average_calories_balance_kcal=(-550.0, 10),
+    )
+
+    assert summary.total_calories_balance_kcal == (
+        -5500.0,
+        10,
+    )
+
+
+# =====================================================================
+# Verifies that total monthly calorie balance remains unavailable when
+# no daily calorie-balance observations are available.
+# =====================================================================
+
+
+def test_total_calories_balance_is_none_when_average_is_missing() -> None:
+    summary = _activity_metrics(
+        average_calories_balance_kcal=None,
+    )
+
+    assert summary.total_calories_balance_kcal is None

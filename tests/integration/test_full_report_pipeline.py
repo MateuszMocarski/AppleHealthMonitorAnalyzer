@@ -499,7 +499,8 @@ def test_full_pipeline_renders_json_month_summary(
     assert "body_weight" in payload
     assert "energy_expenditure" in payload
     assert "nutrition" in payload
-    assert "average_calories_balance_kcal" in payload
+    assert payload["calories_balance"] is not None
+    assert payload["calories_balance"]["total_calories_balance_kcal"] is not None
 
     assert "days" not in payload
 

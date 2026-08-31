@@ -211,11 +211,16 @@ class TextRenderer:
             )
 
         if metrics.average_calories_balance_kcal is not None:
-            value, count_days = metrics.average_calories_balance_kcal
+            value_average, count_days_average = metrics.average_calories_balance_kcal
+            value_total, count_days_total = metrics.total_calories_balance_kcal
             writer.write()
             writer.write(
-                f"Average calories balance: {value:.0f} kcal"
-                f"{self._format_coverage(count_days, summary.reporting_days)}"
+                f"Average calories balance: {value_average:.0f} kcal"
+                f"{self._format_coverage(count_days_average, summary.reporting_days)}"
+            )
+            writer.write(
+                f"Total calories balance:   {value_total:.0f} kcal"
+                f"{self._format_coverage(count_days_total, summary.reporting_days)}"
             )
 
     def _render_day(self, writer: _TextWriter, summary: DailySummary) -> None:

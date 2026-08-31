@@ -131,6 +131,20 @@ class ActivityMetricsSummary:
 
         return self.end_weight - self.start_weight
 
+    @property
+    def total_calories_balance_kcal(
+        self,
+    ) -> tuple[float, int] | None:
+        if self.average_calories_balance_kcal is None:
+            return None
+
+        average, count_days = self.average_calories_balance_kcal
+
+        return (
+            average * count_days,
+            count_days,
+        )
+
 
 @dataclass(slots=True)
 class SleepSession:

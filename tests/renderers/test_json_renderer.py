@@ -196,8 +196,7 @@ def test_render_month_summary_exposes_expected_contract() -> None:
         "body_weight",
         "energy_expenditure",
         "nutrition",
-        "average_calories_balance_kcal",
-        "calories_balance_count_days",
+        "calories_balance",
     }
 
     assert payload["schema_version"] == "1.0"
@@ -408,8 +407,11 @@ def test_render_month_summary_preserves_partial_report_contract() -> None:
     assert payload["body_weight"] is None
     assert payload["energy_expenditure"] is None
     assert payload["nutrition"] is None
-    assert payload["average_calories_balance_kcal"] is None
-    assert payload["calories_balance_count_days"] is None
+    assert payload["calories_balance"] == {
+        "average_calories_balance_kcal": None,
+        "total_calories_balance_kcal": None,
+        "calories_balance_count_days": None,
+    }
 
 
 # =====================================================================
@@ -864,16 +866,19 @@ def test_render_month_summary_builds_sleep_configuration() -> None:
 
 
 # =====================================================================
-# Verifies that monthly calorie balance preserves its independently
-# calculated value together with its own contributing-day coverage.
+# Verifies that monthly calorie balance exposes average and total values
+# together with their shared contributing-day coverage.
 # =====================================================================
 
 
 def test_render_month_summary_builds_calorie_balance() -> None:
     payload = _render_payload(_monthly_summary())
 
-    assert payload["average_calories_balance_kcal"] == -270.81
-    assert payload["calories_balance_count_days"] == 6
+    assert payload["calories_balance"] == {
+        "average_calories_balance_kcal": -270.81,
+        "total_calories_balance_kcal": -1624.87,
+        "calories_balance_count_days": 6,
+    }
 
 
 # =====================================================================

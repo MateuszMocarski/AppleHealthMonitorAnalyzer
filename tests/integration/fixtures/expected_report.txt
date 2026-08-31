@@ -125,6 +125,7 @@ Average nutrition
   Calories: 2000 kcal based on 1 day
 
 Average calories balance: -600 kcal based on 1 day
+Total calories balance:   -600 kcal based on 1 day
 
 2026-08-01
 ==========
