@@ -29,8 +29,8 @@ class DailySummary:
     total_duration_minutes: float
     total_active_energy_kcal: float
 
-    total_steps: int
-    total_distance_km: float
+    total_steps: int | None
+    total_distance_km: float | None
 
     active_energy_kcal: float | None
     basal_energy_kcal: float | None
@@ -44,7 +44,12 @@ class DailySummary:
     sleep_score: SleepScore | None = None
 
     @property
-    def average_step_length_cm(self) -> float:
+    def average_step_length_cm(
+        self,
+    ) -> float | None:
+        if self.total_steps is None or self.total_distance_km is None:
+            return None
+
         if self.total_steps == 0:
             return 0.0
 
@@ -97,14 +102,12 @@ class MonthlySummary:
 @dataclass(slots=True)
 class ActivityMetricsSummary:
     total_steps: int | None
-
-    average_daily_steps: float | None
+    average_daily_steps: tuple[float, int] | None
 
     total_distance_km: float | None
+    average_daily_distance_km: tuple[float, int] | None
 
-    average_daily_distance_km: float | None
-
-    average_step_length_cm: float | None
+    average_step_length_cm: tuple[float, int] | None
 
     average_weight: float | None
     start_weight: float | None

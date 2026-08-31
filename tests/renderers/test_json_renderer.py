@@ -23,10 +23,22 @@ from apple_health.report_models import (
 def _activity_metrics(
     *,
     total_steps: int | None = 64_321,
-    average_daily_steps: float | None = 4594.3571428571,
+    average_daily_steps: tuple[float, int]
+    | None = (
+        4594.3571428571,
+        14,
+    ),
     total_distance_km: float | None = 47.891234,
-    average_daily_distance_km: float | None = 3.4208024286,
-    average_step_length_cm: float | None = 74.453287,
+    average_daily_distance_km: tuple[float, int]
+    | None = (
+        3.4208024286,
+        14,
+    ),
+    average_step_length_cm: tuple[float, int]
+    | None = (
+        74.453287,
+        14,
+    ),
     average_basal_energy_kcal: tuple[float, int] | None = (2210.456, 12),
     average_active_energy_kcal: tuple[float, int] | None = (910.788, 14),
     average_tdee_kcal: tuple[float, int] | None = (3121.244, 11),
@@ -222,14 +234,6 @@ def test_render_month_summary_builds_general_activity() -> None:
 
     general_activity = payload["general_activity"]
 
-    assert general_activity == {
-        "total_steps": 64_321,
-        "average_daily_steps": 4594.36,
-        "total_distance_km": 47.89,
-        "average_daily_distance_km": 3.42,
-        "average_step_length_cm": 74.45,
-    }
-
     assert isinstance(
         general_activity["total_steps"],
         int,
@@ -239,6 +243,17 @@ def test_render_month_summary_builds_general_activity() -> None:
         general_activity["total_distance_km"],
         float,
     )
+
+    assert payload["general_activity"] == {
+        "total_steps": 64_321,
+        "average_daily_steps": 4594.36,
+        "steps_count_days": 14,
+        "total_distance_km": 47.89,
+        "average_daily_distance_km": 3.42,
+        "distance_count_days": 14,
+        "average_step_length_cm": 74.45,
+        "step_length_count_days": 14,
+    }
 
 
 # =====================================================================
@@ -1019,3 +1034,57 @@ def test_render_day_uses_null_for_empty_nutrition() -> None:
     payload = json.loads(JsonRenderer().render_month(summary))
 
     assert payload["days"][0]["nutrition"] is None
+
+
+# =====================================================================
+# Verifies that monthly general activity exposes independent coverage
+# for steps, distance and their shared step-length intersection.
+# =====================================================================
+
+
+def test_render_month_summary_preserves_activity_coverage() -> None:
+    metrics = _activity_metrics(
+        total_steps=12000,
+        average_daily_steps=(6000.0, 2),
+        total_distance_km=10.0,
+        average_daily_distance_km=(5.0, 2),
+        average_step_length_cm=(80.0, 1),
+    )
+
+    payload = _render_payload(
+        _monthly_summary(
+            activity_metrics=metrics,
+            reporting_days=4,
+        )
+    )
+
+    assert payload["general_activity"] == {
+        "total_steps": 12000,
+        "average_daily_steps": 6000.0,
+        "steps_count_days": 2,
+        "total_distance_km": 10.0,
+        "average_daily_distance_km": 5.0,
+        "distance_count_days": 2,
+        "average_step_length_cm": 80.0,
+        "step_length_count_days": 1,
+    }
+
+
+# =====================================================================
+# Verifies that a day without step or walking-distance measurements
+# exposes no general-activity section instead of fabricated zeros.
+# =====================================================================
+
+
+def test_render_day_uses_null_for_missing_general_activity() -> None:
+    summary = _monthly_summary()
+    summary.days = [
+        _daily_summary(
+            total_steps=None,
+            total_distance_km=None,
+        )
+    ]
+
+    payload = json.loads(JsonRenderer().render_month(summary))
+
+    assert payload["days"][0]["general_activity"] is None

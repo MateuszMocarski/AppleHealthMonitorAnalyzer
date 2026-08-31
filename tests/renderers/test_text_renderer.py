@@ -25,10 +25,10 @@ def _activity_metrics(
 ) -> ActivityMetricsSummary:
     return ActivityMetricsSummary(
         total_steps=64_321,
-        average_daily_steps=4594.36,
+        average_daily_steps=(4594.36, 14),
         total_distance_km=47.89,
-        average_daily_distance_km=3.42,
-        average_step_length_cm=74.45,
+        average_daily_distance_km=(3.42, 14),
+        average_step_length_cm=(74.45, 14),
         average_basal_energy_kcal=(2210.46, 12),
         average_active_energy_kcal=(910.79, 14),
         average_tdee_kcal=(3121.24, 11),
@@ -76,6 +76,8 @@ def _daily_summary(
     nutrition: NutritionData | None = None,
     sleep_session: SleepSession | None = None,
     sleep_score: SleepScore | None = None,
+    total_steps: int | None = 10000,
+    total_distance_km: float | None = 8.0,
 ) -> DailySummary:
     return DailySummary(
         date=date(2026, 8, 1),
@@ -84,8 +86,8 @@ def _daily_summary(
         total_active_energy_kcal=sum(
             activity.active_energy_kcal for activity in (activities or [])
         ),
-        total_steps=10000,
-        total_distance_km=8.0,
+        total_steps=total_steps,
+        total_distance_km=total_distance_km,
         active_energy_kcal=active_energy_kcal,
         basal_energy_kcal=basal_energy_kcal,
         weight=weight,
@@ -601,3 +603,39 @@ def test_daily_report_reports_missing_energy_data() -> None:
 
     assert "No energy expenditure data for that day" in output
     assert "Daily energy expenditure" not in output
+
+
+# =====================================================================
+# Verifies that monthly activity metrics expose their independent
+# contributing-day coverage without mixing step and distance data.
+# =====================================================================
+
+
+def test_monthly_report_renders_activity_coverage() -> None:
+    summary = _monthly_summary()
+    metrics = summary.activity_metrics
+    assert metrics is not None
+
+    metrics.total_steps = 12000
+    metrics.average_daily_steps = (6000.0, 2)
+
+    metrics.total_distance_km = 10.0
+    metrics.average_daily_distance_km = (
+        5.0,
+        2,
+    )
+
+    metrics.average_step_length_cm = (
+        80.0,
+        1,
+    )
+
+    summary.reporting_days = 4
+
+    output = TextRenderer().render_month_summary(summary)
+
+    assert "  Average daily: 6000 based on 2 days" in output
+
+    assert "  Average daily:       " "5.00 km based on 2 days" in output
+
+    assert "  Average step length: " "80.00 cm based on 1 day" in output

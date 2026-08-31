@@ -322,7 +322,10 @@ def test_full_pipeline_preserves_report_values(
 
     assert summary.activity_metrics.total_distance_km == pytest.approx(6.4)
 
-    assert summary.activity_metrics.average_daily_steps == 8500.0
+    assert summary.activity_metrics.average_daily_steps == (
+        8500.0,
+        2,
+    )
 
     assert len(summary.activities) == 1
 

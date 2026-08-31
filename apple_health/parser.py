@@ -203,10 +203,15 @@ class AppleHealthParser:
         value: str,
     ) -> None:
         if record_type == "HKQuantityTypeIdentifierStepCount":
-            metrics.steps += int(value)
+            step_count = int(value)
+
+            metrics.steps = step_count if metrics.steps is None else metrics.steps + step_count
 
         elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
-            metrics.distance_km += float(value)
+            metrics.distance_km = self._add_optional_value(
+                metrics.distance_km,
+                float(value),
+            )
 
         elif record_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
             metrics.active_energy = self._add_optional_value(

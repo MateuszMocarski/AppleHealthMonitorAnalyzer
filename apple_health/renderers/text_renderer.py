@@ -71,16 +71,56 @@ class TextRenderer:
         summary: MonthlySummary,
     ) -> None:
         metrics = summary.activity_metrics
+
         if metrics is None or (metrics.total_steps is None and metrics.total_distance_km is None):
             return
-        self._render_general_activity(
-            writer,
-            total_steps=metrics.total_steps,
-            total_distance_km=metrics.total_distance_km,
-            average_step_length_cm=metrics.average_step_length_cm,
-            average_daily_steps=metrics.average_daily_steps,
-            average_daily_distance_km=metrics.average_daily_distance_km,
-        )
+
+        writer.write("General activity")
+        writer.write("----------------")
+
+        if metrics.total_steps is not None:
+            writer.write("Steps")
+            writer.write("-----")
+            writer.write(f"  Total:         {metrics.total_steps:,}")
+
+            if metrics.average_daily_steps is not None:
+                value, count_days = metrics.average_daily_steps
+
+                coverage = self._format_coverage(
+                    count_days,
+                    summary.reporting_days,
+                )
+
+                writer.write(f"  Average daily: {value:.0f}{coverage}")
+
+        if metrics.total_distance_km is not None:
+            if metrics.total_steps is not None:
+                writer.write()
+
+            writer.write("Walking/Running distance")
+            writer.write("------------------------")
+            writer.write(f"  Total:               " f"{metrics.total_distance_km:.2f} km")
+
+            if metrics.average_daily_distance_km is not None:
+                value, count_days = metrics.average_daily_distance_km
+
+                coverage = self._format_coverage(
+                    count_days,
+                    summary.reporting_days,
+                )
+
+                writer.write(f"  Average daily:       " f"{value:.2f} km{coverage}")
+
+            if metrics.average_step_length_cm is not None:
+                value, count_days = metrics.average_step_length_cm
+
+                coverage = self._format_coverage(
+                    count_days,
+                    summary.reporting_days,
+                )
+
+                writer.write(f"  Average step length: " f"{value:.2f} cm{coverage}")
+
         writer.write()
 
     def _render_monthly_sleep_section(self, writer: _TextWriter, summary: MonthlySummary) -> None:
@@ -243,21 +283,39 @@ class TextRenderer:
             self._render_sleep_score(writer, summary.sleep_score)
             writer.write()
 
-    def _render_daily_general_activity(self, writer: _TextWriter, summary: DailySummary) -> None:
+    def _render_daily_general_activity(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
+        if summary.total_steps is None and summary.total_distance_km is None:
+            header = "No general activity data for that day"
+
+            writer.write(header)
+            writer.write("-" * len(header))
+            writer.write()
+            return
+
         self._render_general_activity(
             writer,
             total_steps=summary.total_steps,
             total_distance_km=summary.total_distance_km,
-            average_step_length_cm=summary.average_step_length_cm,
+            average_step_length_cm=(summary.average_step_length_cm),
         )
+
         writer.write()
 
     def _render_daily_workouts(self, writer: _TextWriter, summary: DailySummary) -> None:
+        has_general_activity = (summary.total_steps is not None and summary.total_steps > 0) or (
+            summary.total_distance_km is not None and summary.total_distance_km > 0
+        )
+
         if not summary.activities:
-            if summary.total_steps > 0:
+            if has_general_activity:
                 writer.write("No workouts.")
             else:
                 writer.write("No activities.")
+
             writer.write()
             return
         writer.write("Workouts")
@@ -382,26 +440,28 @@ class TextRenderer:
     def _render_general_activity(
         self,
         writer: _TextWriter,
-        total_steps: int,
-        total_distance_km: float,
-        average_step_length_cm: float,
-        average_daily_steps: float | None = None,
-        average_daily_distance_km: float | None = None,
+        total_steps: int | None,
+        total_distance_km: float | None,
+        average_step_length_cm: float | None,
     ) -> None:
         writer.write("General activity")
         writer.write("----------------")
-        writer.write("Steps")
-        writer.write("-----")
-        writer.write(f"  Total:         {total_steps:,}")
-        if average_daily_steps is not None:
-            writer.write(f"  Average daily: {average_daily_steps:.0f}")
-        writer.write()
-        writer.write("Walking/Running distance")
-        writer.write("------------------------")
-        writer.write(f"  Total:               {total_distance_km:.2f} km")
-        if average_daily_distance_km is not None:
-            writer.write(f"  Average daily:       {average_daily_distance_km:.2f} km")
-        writer.write(f"  Average step length: {average_step_length_cm:.2f} cm")
+
+        if total_steps is not None:
+            writer.write("Steps")
+            writer.write("-----")
+            writer.write(f"  Total:         {total_steps:,}")
+
+        if total_distance_km is not None:
+            if total_steps is not None:
+                writer.write()
+
+            writer.write("Walking/Running distance")
+            writer.write("------------------------")
+            writer.write(f"  Total:               " f"{total_distance_km:.2f} km")
+
+            if average_step_length_cm is not None:
+                writer.write(f"  Average step length: " f"{average_step_length_cm:.2f} cm")
 
     def _render_daily_sleep(self, writer: _TextWriter, summary: DailySummary) -> None:
         if summary.sleep_session is None:

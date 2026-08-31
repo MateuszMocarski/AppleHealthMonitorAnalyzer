@@ -94,13 +94,29 @@ class JsonRenderer:
         if metrics.total_steps is None and metrics.total_distance_km is None:
             return None
 
-        return {
-            "total_steps": metrics.total_steps,
-            "average_daily_steps": self._round_number(metrics.average_daily_steps),
-            "total_distance_km": self._round_number(metrics.total_distance_km),
-            "average_daily_distance_km": self._round_number(metrics.average_daily_distance_km),
-            "average_step_length_cm": self._round_number(metrics.average_step_length_cm),
-        }
+        return (
+            {
+                "total_steps": metrics.total_steps,
+                "total_distance_km": self._round_number(
+                    metrics.total_distance_km,
+                ),
+            }
+            | self._build_average_fields(
+                metrics.average_daily_steps,
+                value_key="average_daily_steps",
+                count_key="steps_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_daily_distance_km,
+                value_key="average_daily_distance_km",
+                count_key="distance_count_days",
+            )
+            | self._build_average_fields(
+                metrics.average_step_length_cm,
+                value_key="average_step_length_cm",
+                count_key="step_length_count_days",
+            )
+        )
 
     def _build_sleep(
         self,
@@ -398,11 +414,18 @@ class JsonRenderer:
     def _build_daily_general_activity(
         self,
         summary: DailySummary,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
+        if summary.total_steps is None and summary.total_distance_km is None:
+            return None
+
         return {
             "steps": summary.total_steps,
-            "distance_km": self._round_number(summary.total_distance_km),
-            "step_length_cm": self._round_number(summary.average_step_length_cm),
+            "distance_km": self._round_number(
+                summary.total_distance_km,
+            ),
+            "step_length_cm": self._round_number(
+                summary.average_step_length_cm,
+            ),
         }
 
     def _build_daily_sleep(

@@ -13,8 +13,8 @@ Steps
 Walking/Running distance
 ------------------------
   Total:               6.40 km
-  Average daily:       3.20 km
-  Average step length: 37.65 cm
+  Average daily:       6.40 km based on 1 day
+  Average step length: 80.00 cm based on 1 day
 
 Sleep
 -----
@@ -205,11 +205,6 @@ General activity
 Steps
 -----
   Total:         9,000
-
-Walking/Running distance
-------------------------
-  Total:               0.00 km
-  Average step length: 0.00 cm
 
 No workouts.
 

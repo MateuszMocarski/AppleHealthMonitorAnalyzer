@@ -38,8 +38,9 @@ class HealthAnalyzer:
 
         nutrition = metrics.nutrition if metrics else None
 
-        total_steps = metrics.steps if metrics else 0
-        total_distance_km = metrics.distance_km if metrics else 0.0
+        total_steps = metrics.steps if metrics is not None else None
+
+        total_distance_km = metrics.distance_km if metrics is not None else None
 
         sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
 

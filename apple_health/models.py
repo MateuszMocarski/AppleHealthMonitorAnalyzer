@@ -40,8 +40,8 @@ class SleepRecord:
 @dataclass
 class DailyMetrics:
     date: date
-    steps: int = 0
-    distance_km: float = 0.0
+    steps: int | None = None
+    distance_km: float | None = None
 
     active_energy: float | None = None
     basal_energy: float | None = None

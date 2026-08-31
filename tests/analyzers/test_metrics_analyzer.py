@@ -14,8 +14,8 @@ from apple_health.models import (
 def _metrics(
     day: int,
     *,
-    steps: int = 0,
-    distance_km: float = 0.0,
+    steps: int | None = None,
+    distance_km: float | None = None,
     active_energy: float | None = None,
     basal_energy: float | None = None,
     weight: float | None = None,
@@ -198,8 +198,15 @@ def test_summarize_month_calculates_daily_activity_averages() -> None:
         reporting_days=3,
     )
 
-    assert summary.average_daily_steps == 5000.0
-    assert summary.average_daily_distance_km == 4.0
+    assert summary.average_daily_steps == (
+        7500.0,
+        2,
+    )
+
+    assert summary.average_daily_distance_km == (
+        6.0,
+        2,
+    )
 
 
 # =====================================================================
@@ -254,7 +261,10 @@ def test_summarize_month_calculates_average_step_length() -> None:
         reporting_days=1,
     )
 
-    assert summary.average_step_length_cm == 80.0
+    assert summary.average_step_length_cm == (
+        80.0,
+        1,
+    )
 
 
 # =====================================================================
@@ -278,7 +288,10 @@ def test_average_step_length_is_zero_when_no_steps_exist() -> None:
         reporting_days=1,
     )
 
-    assert summary.average_step_length_cm == 0.0
+    assert summary.average_step_length_cm == (
+        0.0,
+        1,
+    )
 
 
 # =====================================================================
@@ -595,3 +608,56 @@ def test_summarize_month_uses_complete_daily_coverage_for_calorie_balance() -> N
     assert summary.average_calories_kcal == (2400.0, 3)
     assert summary.average_tdee_kcal == (2000.0, 3)
     assert summary.average_calories_balance_kcal == (250.0, 2)
+
+
+# =====================================================================
+# Verifies that steps, distance and step length preserve independent
+# data coverage instead of treating missing activity records as zero.
+# =====================================================================
+
+
+def test_summarize_month_preserves_independent_activity_coverage() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            steps=5000,
+            distance_km=4.0,
+        ),
+        _metrics(
+            2,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+            ),
+        ),
+        _metrics(
+            3,
+            steps=7000,
+        ),
+        _metrics(
+            4,
+            distance_km=6.0,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=4,
+    )
+
+    assert summary.total_steps == 12000
+    assert summary.average_daily_steps == (
+        6000.0,
+        2,
+    )
+
+    assert summary.total_distance_km == 10.0
+    assert summary.average_daily_distance_km == (
+        5.0,
+        2,
+    )
+
+    assert summary.average_step_length_cm == (
+        80.0,
+        1,
+    )

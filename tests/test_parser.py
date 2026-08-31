@@ -767,3 +767,31 @@ def test_default_apple_watch_source_matches_device_name() -> None:
 
     assert len(data.daily_metrics) == 1
     assert data.daily_metrics[0].steps == 5000
+
+
+# =====================================================================
+# Verifies that days created from non-activity records preserve missing
+# step and walking-distance measurements instead of inventing zeros.
+# =====================================================================
+
+
+def test_preserves_missing_activity_metrics_on_non_activity_day() -> None:
+    config = AppConfig()
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryEnergyConsumed",
+            source_name=config.source.apple_health_app_source,
+            value="2000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    metrics = data.daily_metrics[0]
+
+    assert metrics.steps is None
+    assert metrics.distance_km is None

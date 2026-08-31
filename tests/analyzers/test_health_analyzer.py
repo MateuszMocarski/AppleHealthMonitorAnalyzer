@@ -171,8 +171,9 @@ def test_summarize_day_uses_defaults_when_metrics_are_missing() -> None:
 
     summary = analyzer.summarize_day(date(2026, 8, 1))
 
-    assert summary.total_steps == 0
-    assert summary.total_distance_km == 0.0
+    assert summary.total_steps is None
+    assert summary.total_distance_km is None
+    assert summary.average_step_length_cm is None
     assert summary.active_energy_kcal is None
     assert summary.basal_energy_kcal is None
     assert summary.weight is None

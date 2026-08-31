@@ -49,15 +49,41 @@ class MetricsAnalyzer:
         if not monthly_metrics:
             return None
 
-        total_steps = sum(metrics.steps for metrics in monthly_metrics)
+        step_values = [metrics.steps for metrics in monthly_metrics if metrics.steps is not None]
 
-        total_distance = sum(metrics.distance_km for metrics in monthly_metrics)
+        distance_values = [
+            metrics.distance_km for metrics in monthly_metrics if metrics.distance_km is not None
+        ]
 
-        average_daily_steps = total_steps / reporting_days if reporting_days else 0.0
+        total_steps = sum(step_values) if step_values else None
 
-        average_daily_distance = total_distance / reporting_days if reporting_days else 0.0
+        total_distance = sum(distance_values) if distance_values else None
 
-        average_step_length_cm = 100000 * total_distance / total_steps if total_steps else 0.0
+        average_daily_steps = self._average_with_count(
+            step_values,
+        )
+
+        average_daily_distance = self._average_with_count(
+            distance_values,
+        )
+
+        step_length_metrics = [
+            metrics
+            for metrics in monthly_metrics
+            if (metrics.steps is not None and metrics.distance_km is not None)
+        ]
+
+        if step_length_metrics:
+            step_length_steps = sum(metrics.steps for metrics in step_length_metrics)
+
+            step_length_distance = sum(metrics.distance_km for metrics in step_length_metrics)
+
+            average_step_length_cm = (
+                (100000 * step_length_distance / step_length_steps if step_length_steps else 0.0),
+                len(step_length_metrics),
+            )
+        else:
+            average_step_length_cm = None
 
         basal_energy_values = [
             metrics.basal_energy for metrics in monthly_metrics if metrics.basal_energy is not None
@@ -166,7 +192,7 @@ class MetricsAnalyzer:
 
     @staticmethod
     def _average_with_count(
-        values: list[float],
+        values: list[float | int],
     ) -> tuple[float, int] | None:
         if not values:
             return None
