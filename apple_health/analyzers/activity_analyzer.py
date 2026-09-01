@@ -98,5 +98,5 @@ class ActivityAnalyzer:
             active_energy_kcal=(
                 sum(active_energy_values) if len(active_energy_values) == len(workouts) else None
             ),
-            distance_km=sum(distances) if distances else None,
+            distance_km=(sum(distances) if len(distances) == len(workouts) else None),
         )
