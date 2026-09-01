@@ -193,11 +193,11 @@ Configuration keys are case-insensitive. After normalization, names must match d
 
 ### Supported Value Conversion
 
-The loader accepts normal TOML numeric values, simple numeric strings for numeric fields, strict TOML booleans, strings, `HH:MM` values for time fields, and arrays of two-item arrays for monthly bonus thresholds.
+The loader accepts normal finite TOML numeric values, simple numeric strings for numeric fields, strict TOML booleans, strings, `HH:MM` values for time fields, and arrays of two-item arrays for monthly bonus thresholds. Non-finite values such as `nan`, `inf`, and `-inf` are rejected before the final configuration object is returned.
 
 ### Errors
 
-Configuration failures are exposed through `ConfigurationError`, including missing files, malformed TOML, unreadable files, unknown fields, invalid types, invalid time values, malformed threshold arrays, and final validation failures.
+Configuration failures are exposed through `ConfigurationError`, including missing files, malformed TOML, unreadable files, unknown fields, invalid types, invalid/non-finite numeric values, invalid time values, malformed threshold arrays, and final validation failures.
 
 The web/API adapter maps configuration errors caused by an uploaded TOML file to HTTP 422 instead of exposing them as internal server failures.
 
@@ -254,7 +254,7 @@ apple_health/config/source_config.py
 | `apple_watch_source` | `"Apple Watch"` | Source used for Apple Watch activity and sleep records |
 | `apple_health_app_source` | `"Zdrowie"` | Source used for Apple Health application records such as nutrition and body weight |
 
-> **Important:** the default Apple Watch value contains a non-breaking space between `Apple` and `Watch`, matching the source name expected in the exported data. In escaped form the value is `Apple\xa0Watch`; `Apple Watch` with a normal space is a different string.
+> **Important:** the default Apple Watch value contains a non-breaking space between `Apple` and `Watch`. In escaped form the value is `Apple\xa0Watch`; `Apple Watch` with a normal space is a different string. The built-in default is also a special family matcher: it accepts the bare default and standard device-named values such as `Apple\xa0Watch (Mateusz)`. Any explicit Watch value supplied through TOML or a runtime/UI override is matched exactly.
 
 ### Consumers
 
@@ -276,9 +276,9 @@ config = ConfigLoader.load(
 )
 ```
 
-If an override is omitted, the corresponding TOML value remains effective. If TOML also omits it, the dataclass default remains effective.
+If an override is omitted, the corresponding TOML value remains effective. If TOML also omits it, the dataclass default remains effective. Explicit Watch overrides use exact matching; only the untouched built-in `Apple\xa0Watch` value enables the standard Apple Watch family matcher.
 
-The browser intentionally leaves both source fields blank by default and documents the Apple Watch NBSP requirement to avoid silently replacing the correct built-in source with a visually similar normal-space string.
+The browser intentionally leaves both source fields blank by default and documents both the family-matching behavior and the Apple Watch NBSP requirement to avoid silently replacing the built-in matcher with a visually similar normal-space string.
 
 ## `SleepConfig`
 
@@ -618,6 +618,10 @@ Configuration validation protects calculations from invalid or contradictory val
 
 - `session_gap_threshold_minutes >= 0`
 
+### Finite Numeric Values
+
+All floating-point Sleep Score values must be finite. `NaN`, positive infinity, and negative infinity are rejected before scoring. This includes penalty points, duration/wake-up weights, daily component weights, and both values in monthly bonus threshold pairs.
+
 ### Daily Score Weights
 
 `SleepScoreWeightsConfig` values must satisfy:
@@ -632,6 +636,10 @@ config.sleep.score.weights.bedtime = 0
 config.sleep.score.weights.duration = 0
 config.sleep.score.weights.wake_up = 0
 ```
+
+### Wake-up Component Weights
+
+`WakeUpScoreConfig.bedtime_weight` and `WakeUpScoreConfig.duration_weight` must both be non-negative, and at least one of them must be greater than zero. This prevents division by zero when calculating the maximum available Wake-up Score.
 
 ### Penalty Intervals
 
@@ -884,7 +892,7 @@ Configuration behavior is covered at several levels:
 - analyzer tests verify that injected values affect scoring and session reconstruction;
 - parser tests verify custom source injection and missing-data preservation;
 - renderer tests verify configuration-dependent presentation behavior;
-- `test_config_loader.py` contains **34 collected cases** covering TOML loading, type conversion, partial overrides, error handling, final validation, committed example files, runtime source overrides, and `runtime override > TOML > default` precedence;
+- `test_config_loader.py` contains **40 collected cases** covering TOML loading, type conversion, finite-number rejection, blank-source rejection, partial overrides, error handling, final validation, committed example files, runtime source overrides, and `runtime override > TOML > default` precedence;
 - application tests verify that `MultiMonthRunOptions` forwards runtime source overrides into `ConfigLoader`;
 - FastAPI tests verify source-field normalization, optional TOML upload, temporary-file cleanup, malformed-config HTTP 422 behavior, and the dedicated 1 MiB config-upload limit;
 - full pipeline tests verify that one shared effective configuration instance flows through parser, analyzer, and renderer layers;
@@ -896,7 +904,7 @@ Run the complete project test suite with:
 pytest
 ```
 
-The current repository collects **334 tests**.
+The current repository collects **386 tests**.
 
 Code quality checks:
 
@@ -906,6 +914,8 @@ black --check .
 ```
 
 ## Package Files
+
+The built wheel includes the TOML files under `apple_health/config/examples/` because the browser serves `config.example.toml` at runtime. This README is repository documentation and is not required by the runtime package.
 
 ```text
 apple_health/config/

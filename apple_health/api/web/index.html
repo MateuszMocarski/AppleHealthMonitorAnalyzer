@@ -1075,12 +1075,14 @@
                         </p>
 
                         <div class="source-warning">
-                            The default Apple Watch source is
+                            The built-in Apple Watch source is
                             <code>Apple\xa0Watch</code>.
                             It contains a non-breaking space
                             (<code>NBSP / U+00A0</code>) between
                             <code>Apple</code> and <code>Watch</code>.
-                            A regular space is a different value.
+                            The built-in value matches the standard Apple Watch
+                            source family; an explicit override is exact, and a
+                            regular space is a different value.
                         </div>
 
                         <div class="source-grid">
@@ -1100,8 +1102,8 @@
                                 >
 
                                 <span class="field-hint">
-                                    Exact <code>sourceName</code> used for
-                                    Apple Watch records.
+                                    Built-in default matches standard Apple Watch
+                                    device names. Explicit overrides are exact.
                                 </span>
                             </label>
 
@@ -1204,12 +1206,12 @@
                                 </div>
 
                                 <p class="guide-card-text">
-                                    The built-in default is
-                                    <code>Apple\xa0Watch</code>. The separator
-                                    is a non-breaking space
-                                    (<code>NBSP / U+00A0</code>), not a
-                                    regular space, so the exact
-                                    <code>sourceName</code> matters.
+                                    The built-in default
+                                    <code>Apple\xa0Watch</code> uses a
+                                    non-breaking space
+                                    (<code>NBSP / U+00A0</code>) and matches
+                                    standard device-named Apple Watch sources.
+                                    A value entered here is matched exactly.
                                 </p>
                             </div>
 

@@ -2,18 +2,18 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **334 collected test cases**.
+The suite currently contains **386 collected test cases**.
 
 ## Test structure
 
 | Area | Test cases |
 | --- | ---: |
-| `SleepAnalyzer` | 40 |
-| `ActivityAnalyzer` | 7 |
-| `MetricsAnalyzer` | 16 |
-| `HealthAnalyzer` | 10 |
-| FastAPI | 35 |
-| `AppleHealthParser` | 27 |
+| `SleepAnalyzer` | 45 |
+| `ActivityAnalyzer` | 9 |
+| `MetricsAnalyzer` | 17 |
+| `HealthAnalyzer` | 14 |
+| FastAPI | 40 |
+| `AppleHealthParser` | 36 |
 | CLI | 5 |
 | `AppleHealthApplication` | 4 |
 | `ReportPeriod` | 10 |
@@ -22,15 +22,16 @@ The suite currently contains **334 collected test cases**.
 | `RunProfile` | 1 |
 | `RunProfileLoader` | 8 |
 | `AppConfig` | 1 |
-| `ConfigLoader` | 34 |
+| `ConfigLoader` | 40 |
 | `SleepConfig` | 3 |
-| Sleep Score configuration | 32 |
-| Report models | 23 |
-| `TextRenderer` | 21 |
-| `JsonRenderer` | 28 |
-| `AppleHealthImporter` | 8 |
+| Sleep Score configuration | 39 |
+| Report models | 26 |
+| `TextRenderer` | 23 |
+| `JsonRenderer` | 32 |
+| `AppleHealthImporter` | 11 |
+| Packaging | 1 |
 | Integration tests | 11 |
-| **Total** | **334** |
+| **Total** | **386** |
 
 Counts are based on `pytest --collect-only -q`, so parameterized cases are counted individually.
 
@@ -38,7 +39,7 @@ Counts are based on `pytest --collect-only -q`, so parameterized cases are count
 
 ### SleepAnalyzer
 
-`tests/analyzers/test_sleep_analyzer.py` contains **40 test cases** covering the complete sleep-analysis and scoring flow.
+`tests/analyzers/test_sleep_analyzer.py` contains **45 test cases** covering the complete sleep-analysis and scoring flow.
 
 The suite verifies:
 
@@ -69,10 +70,13 @@ The suite verifies:
 - score lower boundaries
 - disabled monthly bonus behavior
 - dependency injection of the configured sleep-session gap threshold
+- exact matching for explicit Apple Watch sleep sources and family matching for the built-in default
+- safe zero-duration sleep efficiency
+- `AsleepUnspecified` contribution to total sleep time and monthly stage averages
 
 ### ActivityAnalyzer
 
-`tests/analyzers/test_activity_analyzer.py` contains **7 test cases**.
+`tests/analyzers/test_activity_analyzer.py` contains **9 test cases**.
 
 The suite verifies:
 
@@ -82,11 +86,13 @@ The suite verifies:
 - daily aggregation of workouts by activity type
 - separation of different workout types
 - preservation of `None` when activity distance is unavailable
+- preservation of `None` for aggregate distance when any contributing workout is missing distance
+- preservation of `None` for aggregate active energy when any contributing workout is missing energy
 - monthly aggregation limited by the completed reporting-day range
 
 ### MetricsAnalyzer
 
-`tests/analyzers/test_metrics_analyzer.py` contains **16 collected test cases**.
+`tests/analyzers/test_metrics_analyzer.py` contains **17 collected test cases**.
 
 The suite verifies:
 
@@ -104,6 +110,7 @@ The suite verifies:
 - nutrition averaging only across days where each specific nutrient exists
 - independent calorie, protein, carbohydrate, and fat coverage
 - calorie balance calculated from complete daily intersections of calories, basal energy, and active energy
+- independent step, distance, and step-length contributing-day coverage
 - body-weight statistics
 - behavior when no weight measurements are available
 
@@ -111,7 +118,7 @@ These tests explicitly protect the rule that derived monthly values are calculat
 
 ### HealthAnalyzer
 
-`tests/analyzers/test_health_analyzer.py` contains **10 test cases**.
+`tests/analyzers/test_health_analyzer.py` contains **14 test cases**.
 
 These tests focus on orchestration rather than repeating the business rules already covered by the specialized analyzers.
 
@@ -127,10 +134,13 @@ The suite verifies:
 - monthly summary generation when no sleep data is available
 - monthly summary generation when no activity metrics are available for the reporting period
 - propagation of injected `AppConfig` into `SleepAnalyzer`
+- empty `AppleHealthData` without reporting-boundary crashes
+- workout-only and sleep-only datasets determining the last available data day
+- preservation of missing workout active energy in daily totals
 
 ## AppleHealthParser
 
-`tests/test_parser.py` contains **27 collected test cases** using synthetic Apple Health XML.
+`tests/test_parser.py` contains **36 collected test cases** using synthetic Apple Health XML.
 
 The suite verifies:
 
@@ -156,9 +166,14 @@ The suite verifies:
 - sleep-record duration calculation from timestamps
 - injected custom Apple Watch source selection
 - injected custom Apple Health application source selection
+- exact matching for explicit source overrides and standard device-name family matching for the built-in Apple Watch source
+- preservation of missing steps/distance on days without those activity records
 - rejection of XML documents whose root element is not Apple Health `HealthData`
+- rejection of malformed XML syntax
+- rejection of invalid numeric values and missing required attributes in supported records
+- rejection of non-finite numeric values (`NaN` and positive/negative infinity)
 
-The parser regression tests protect `missing != zero`: an existing nutrition object does not imply that every nutrient is available, and a missing energy record does not become a measured zero.
+The parser regression tests protect `missing != zero` and the parser error contract: missing measurements remain unavailable, while malformed or semantically invalid supported XML is normalized to `HealthDataParseError` instead of leaking implementation exceptions.
 
 ## CLI
 
@@ -176,7 +191,7 @@ The CLI tests focus on the command-line adapter boundary. Application execution,
 
 ## FastAPI
 
-`tests/api/test_api.py` contains **35 collected test cases** covering the HTTP boundary and browser-facing report-generation behavior.
+`tests/api/test_api.py` contains **40 collected test cases** covering the HTTP boundary and browser-facing report-generation behavior.
 
 The suite verifies:
 
@@ -199,11 +214,14 @@ The suite verifies:
 - `Cache-Control: no-store` on responses containing generated health reports
 - forwarding explicit Apple Watch and Apple Health source overrides
 - normalization of blank/whitespace source fields to “no override”
-- presence of source-override controls and NBSP guidance in the browser UI
+- presence of source-override controls and built-in Apple Watch family/NBSP guidance in the browser UI
+- canonical `/config.example.toml` download backed by the packaged example file
 - optional `config.toml` upload and forwarding through `config_path`
 - deletion of the temporary uploaded configuration after request completion
-- malformed TOML mapping to HTTP 422
+- malformed and non-finite TOML mapping to HTTP 422
+- semantically invalid/non-finite Apple Health XML mapping to the stable invalid-XML HTTP 422 response
 - the dedicated uploaded-config size limit and HTTP 413 behavior
+- request-scoped temporary-directory cleanup while keeping files reopenable by path during application processing
 
 API tests intentionally exercise both synthetic real-pipeline requests and isolated error/orchestration cases. This keeps the HTTP contract explicit without duplicating analyzer and renderer business-rule coverage.
 
@@ -279,7 +297,7 @@ The test verifies:
 
 ### ConfigLoader
 
-`tests/config/test_config_loader.py` contains **34 collected test cases** covering TOML configuration loading and runtime source overrides.
+`tests/config/test_config_loader.py` contains **40 collected test cases** covering TOML configuration loading and runtime source overrides.
 
 The suite verifies:
 
@@ -302,6 +320,8 @@ The suite verifies:
 - compatibility of all committed example application configuration TOML files
 - runtime source overrides replacing built-in defaults
 - runtime source overrides taking precedence over TOML while preserving non-overridden TOML values
+- rejection of blank configured/runtime source values
+- rejection of non-finite numeric TOML values
 
 The loader tests treat configuration loading as a public boundary: valid inputs must produce a validated `AppConfig`, invalid configuration must fail with `ConfigurationError`, and precedence must remain `runtime source overrides > TOML > defaults`.
 
@@ -317,13 +337,15 @@ The suite verifies:
 
 ## Sleep Score configuration
 
-`tests/config/test_sleep_score_config.py` contains **32 parameterized test cases** covering configuration validation.
+`tests/config/test_sleep_score_config.py` contains **39 collected test cases** covering configuration validation.
 
 The suite verifies:
 
 - validity of the default configuration
 - non-negative daily component weights
 - rejection of an all-zero component-weight configuration
+- non-negative wake-up component weights and rejection of an all-zero wake-up weighting
+- rejection of non-finite Sleep Score values and monthly bonus thresholds
 - positive penalty intervals
 - non-negative penalty points
 - positive sleep-duration target
@@ -344,7 +366,7 @@ Each validation test creates its own `SleepScoreConfig` instance, so invalid tes
 
 ## Report models
 
-`tests/test_report_models.py` contains **23 collected test cases** covering business-relevant properties and incomplete-data semantics exposed by report models.
+`tests/test_report_models.py` contains **26 collected test cases** covering business-relevant properties and incomplete-data semantics exposed by report models.
 
 The suite verifies:
 
@@ -364,12 +386,14 @@ The suite verifies:
 - sleep reporting dates before noon and from noon onward
 - monthly Sleep Score composition
 - preservation of the analyzer-calculated daily `total_score` value
+- monthly total calorie balance derived from its own average/coverage pair
+- safe zero-duration sleep efficiency
 
 Simple dataclass field storage remains intentionally under-tested; the suite focuses on derived behavior, incomplete-data boundaries, and business-relevant properties.
 
 ## TextRenderer
 
-`tests/renderers/test_text_renderer.py` contains **21 collected test cases** covering the renderer's public textual output contract.
+`tests/renderers/test_text_renderer.py` contains **23 collected test cases** covering the renderer's public textual output contract.
 
 The suite verifies:
 
@@ -393,6 +417,8 @@ The suite verifies:
 - partial daily energy and nutrition without fabricated zero values
 - conditional `based on X day(s)` coverage labels only when contributing days are fewer than reporting days
 - singular `day` wording for one-day coverage
+- independent general-activity coverage rendering
+- omission of workout energy when the aggregate is incomplete
 
 The renderer tests intentionally avoid testing private writer helpers individually. They verify user-visible behavior through the public `render_month()` and `render_month_summary()` methods.
 
@@ -416,7 +442,7 @@ Missing values are never rendered as measured zero values. When a monthly metric
 
 ## JsonRenderer
 
-`tests/renderers/test_json_renderer.py` contains **28 collected test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
+`tests/renderers/test_json_renderer.py` contains **32 collected test cases** covering the versioned JSON report contract for both monthly summaries and detailed daily reports.
 
 The monthly contract tests verify:
 
@@ -431,8 +457,11 @@ The monthly contract tests verify:
 - body-weight statistics
 - energy expenditure values with independent `*_count_days` coverage fields
 - nutrition values with independent `*_count_days` coverage fields
-- calorie balance as a separate top-level API concept with its own coverage
+- calorie balance as a separate top-level API concept with average, total, and its own coverage
+- independent general-activity coverage fields for steps, distance, and step length
+- preservation of missing workout energy in monthly output
 - normalized two-decimal numeric precision
+- rejection of non-finite numbers through `allow_nan=False`
 - `null` for unavailable optional sections
 - `[]` for empty workout collections
 - stable section shape when only some energy or nutrition metrics are available
@@ -460,7 +489,7 @@ The JSON tests deserialize renderer output with `json.loads()` and validate the 
 
 ## AppleHealthImporter
 
-`tests/test_importer.py` contains **8 collected test cases** using temporary ZIP archives.
+`tests/test_importer.py` contains **11 collected test cases** using temporary ZIP archives.
 
 The suite verifies:
 
@@ -470,12 +499,19 @@ The suite verifies:
 - ignoring CDA XML documents
 - rejection of archives containing no valid export XML
 - rejection of archives containing more than one valid export XML
+- typed rejection of invalid ZIP archives, missing export XML, and multiple export XML files
 - acceptance of a localized main export XML filename in the Apple Health export directory
 - rejection of an export XML whose declared uncompressed size exceeds the safety limit
 
 Temporary files are created with pytest's `tmp_path` fixture, allowing the importer to be tested against real ZIP archives without storing generated archives in the repository.
 
 `AppleHealthImporter` owns the lifecycle of both the ZIP archive and the streamed XML entry through its context-managed `open_export()` interface, preventing callers from managing archive resources directly. The importer opens the selected entry rather than extracting it to an arbitrary filesystem path.
+
+## Packaging
+
+`tests/test_packaging.py` contains **1 test case** protecting the explicit package-data configuration required by the web runtime. It verifies that the built package is configured to include the browser HTML/SVG assets and the TOML configuration examples, including the canonical `config.example.toml` served by the API.
+
+The final PRE5.6 verification additionally builds and installs the wheel outside the source tree to sanity-check that `/`, `/favicon.svg`, `/config.example.toml`, and `/health` remain available from the installed package.
 
 ## Integration tests
 
@@ -549,6 +585,12 @@ When a report-format change is intentional, the generated diff should be reviewe
 
 ## Running the tests
 
+Install the project with the development dependencies from `pyproject.toml`:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
 Run the complete suite:
 
 ```bash
@@ -584,6 +626,14 @@ Collect tests without executing them:
 ```bash
 pytest --collect-only -q
 ```
+
+Measure statement coverage for the application package:
+
+```bash
+pytest --cov=apple_health --cov-report=term-missing
+```
+
+The final PRE5.6 suite collects **386 tests** and currently reports **97% statement coverage** for `apple_health`.
 
 ## Code quality
 

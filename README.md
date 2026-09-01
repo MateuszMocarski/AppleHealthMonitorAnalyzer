@@ -53,6 +53,7 @@ independent verification, and AI-assisted interpretation.
 - Steps, distance, active energy and workout duration
 - Workout aggregation by activity type
 - Daily and monthly workout statistics
+- Workout energy and distance aggregates remain unavailable when any contributing workout is missing that measurement
 - Daily energy expenditure analysis (Basal Energy, Active Energy, TDEE)
 
 ### Body Weight Analysis
@@ -76,8 +77,8 @@ independent verification, and AI-assisted interpretation.
 ### Sleep Analysis
 
 - Automatic sleep session reconstruction
-- Sleep stage aggregation
-- Sleep duration and efficiency
+- Sleep stage aggregation, including Apple Health `AsleepUnspecified` records
+- Sleep duration and efficiency, including safe zero-duration handling
 - Average bedtime and wake-up time
 - Configurable daily sleep scoring
 - Monthly sleep score averages and component breakdown
@@ -114,6 +115,7 @@ independent verification, and AI-assisted interpretation.
 - Health-check endpoint for deployment readiness
 - Application-level limits for archive size, config size, uncompressed export XML size, and requested periods
 - Non-cacheable report-generation responses (`Cache-Control: no-store`)
+- Stable client-error mapping for invalid archives, malformed/semantically invalid XML, oversized inputs, and invalid configuration
 
 ### Design
 
@@ -125,6 +127,16 @@ independent verification, and AI-assisted interpretation.
 ## Usage
 
 The project currently supports two entry points: a browser/FastAPI workflow for multi-month report generation and the original command-line interface for single-month execution. Both reuse the same application, parser, analyzer, and renderer layers.
+
+### Development Setup
+
+Install the project together with the development/test toolchain:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+A runtime-only editable install can use `python -m pip install -e .`. The `dev` extra adds pytest, coverage support, Black, Ruff, the wheel build helper, and the HTTP client used by FastAPI's test client.
 
 ### Web Interface
 
@@ -160,7 +172,7 @@ uploaded config.toml
 built-in defaults
 ```
 
-The built-in Apple Watch source contains a non-breaking space: `Apple\xa0Watch` (`NBSP / U+00A0`). The browser guide calls this out explicitly because `Apple Watch` with a normal space is a different source name.
+The built-in Apple Watch source contains a non-breaking space: `Apple\xa0Watch` (`NBSP / U+00A0`). This built-in value is a special family matcher: it accepts both the bare default and standard device-named sources such as `Apple\xa0Watch (Mateusz)`. Any explicit Apple Watch source supplied through TOML or the UI/API is matched exactly. `Apple Watch` with a normal space is still a different value.
 
 For every requested month the browser returns four downloadable artifacts:
 
@@ -169,7 +181,7 @@ For every requested month the browser returns four downloadable artifacts:
 - `summary.txt`
 - `summary.json`
 
-The uploaded Apple Health ZIP and optional TOML file are copied to disposable temporary files for processing and are removed when the request completes. Generated report content is returned directly to the browser. The current anonymous workflow does not persist uploads or generated reports on the server.
+The uploaded Apple Health ZIP and optional TOML file are copied into a request-scoped temporary directory, closed before application processing begins, and removed when the request completes. Generated report content is returned directly to the browser. The current anonymous workflow does not persist uploads or generated reports on the server.
 
 > **Current deployment status:** the application does not yet implement the planned Google identity/Drive mode or production access hardening. The current anonymous report-generation flow is intentionally stateless. Do not expose health-report generation publicly without an appropriate authentication, request-limiting, and deployment security layer.
 
@@ -226,7 +238,16 @@ The response contains one object per requested month. Each object includes the r
 }
 ```
 
-Requested periods preserve their request order. Duplicate periods are rejected, and at most 120 periods may be requested in one call. Malformed uploaded TOML configuration is returned as a client error rather than an internal server failure.
+Requested periods preserve their request order. Duplicate periods are rejected, and at most 120 periods may be requested in one call. Generated-report responses set `Cache-Control: no-store`.
+
+Known malformed client input is mapped to stable HTTP errors:
+
+| Condition | Status |
+| --- | :---: |
+| invalid/duplicate reporting periods, invalid ZIP, missing/multiple export XML, malformed or semantically invalid Apple Health XML, invalid TOML configuration | `422` |
+| ZIP upload over 1 GiB, config upload over 1 MiB, or declared export XML over 4 GiB | `413` |
+
+Unexpected application exceptions are not reclassified as client errors and remain server failures; internal exception messages and local filesystem paths are not returned in the response body.
 
 Other HTTP endpoints:
 
@@ -235,6 +256,7 @@ Other HTTP endpoints:
 | `GET /` | Browser report-generation interface |
 | `GET /health` | Lightweight API health check |
 | `GET /favicon.svg` | Web-interface favicon |
+| `GET /config.example.toml` | Canonical downloadable example application configuration |
 
 ### Upload and Processing Limits
 
@@ -344,7 +366,7 @@ python app.py import export.zip --month 8 --config apple_health/config/examples/
 
 When `--config` is omitted, the application uses the defaults defined by the configuration dataclasses.
 
-TOML files may be partial: only explicitly provided values override defaults. Configuration keys are case-insensitive, unknown fields fail fast, and invalid values stop the application with a configuration error.
+TOML files may be partial: only explicitly provided values override defaults. Configuration keys are case-insensitive, unknown fields fail fast, non-finite numeric values such as `nan`/`inf` are rejected, and invalid values stop the application with a configuration error.
 
 The browser/API workflow can upload the same kind of TOML file as multipart field `config`. It additionally supports per-request source-name overrides for `apple_watch_source` and `apple_health_app_source`. Those runtime source overrides take precedence over values loaded from TOML, while blank source fields leave TOML/default values unchanged.
 
@@ -483,11 +505,11 @@ The importer owns the lifecycle of both the ZIP archive and XML stream through i
 Parses Apple Health XML records and converts them into strongly typed domain objects.
 The parser performs data transformation only and does not calculate statistics or generate reports.
 
-The parser consumes the ZIP entry incrementally with `ElementTree.iterparse()`, validates the `HealthData` root element, and clears processed XML elements. This avoids materializing the complete export XML document as one in-memory string.
+The parser consumes the ZIP entry incrementally with `ElementTree.iterparse()`, validates the `HealthData` root element, validates required attributes and supported numeric/date values, rejects non-finite numeric data, and clears processed XML elements. Syntax errors and semantically invalid supported records are normalized to `HealthDataParseError` instead of leaking parser implementation exceptions. This avoids materializing the complete export XML document as one in-memory string.
 
 #### FastAPI Adapter
 
-Owns the HTTP boundary for the browser workflow. It validates reporting-period input, copies the Apple Health ZIP and optional TOML configuration to disposable temporary files in chunks, normalizes optional source overrides, maps known malformed-upload/configuration conditions to stable client errors, closes uploaded files, and returns generated reports without persisting them.
+Owns the HTTP boundary for the browser workflow. It validates reporting-period input, copies the Apple Health ZIP and optional TOML configuration in chunks into a request-scoped `TemporaryDirectory`, closes those temporary files before handing their paths to the application layer, normalizes optional source overrides, maps known malformed-upload/configuration conditions to stable client errors, closes uploaded files, and returns generated reports without persisting them.
 
 The adapter does not accept arbitrary server-side archive or configuration paths from remote clients. Multi-month requests are converted into `MultiMonthRunOptions` before being passed to the application layer.
 
@@ -653,7 +675,7 @@ It contains the workout type, start and end time, duration, active energy expend
 #### DailyMetrics
 
 Represents aggregated metrics for a single calendar day.
-It stores step count, walking/running distance, optional active and basal energy expenditure, and optional body weight and nutrition data. Missing energy values remain `None` rather than being converted to zero.
+It stores optional step count, optional walking/running distance, optional active and basal energy expenditure, and optional body weight and nutrition data. Missing steps, distance, or energy values remain `None` rather than being converted to zero.
 Body weight and nutrition are represented by dedicated domain objects because they contain additional information and require their own parsing and aggregation rules.
 
 #### WeightMeasurement
@@ -670,7 +692,7 @@ Nutrition data is aggregated from individual Apple Health dietary records before
 
 #### SleepRecord
 
-Represents a single sleep stage interval (e.g. Core, Deep, REM or Awake) recorded by Apple Health.
+Represents a single sleep stage interval (for example Core, Deep, REM, Awake, In Bed, or Asleep Unspecified) recorded by Apple Health.
 
 ### Domain Model Principles
 
@@ -775,20 +797,20 @@ Key reporting areas include:
 JSON reports use `schema_version: "1.0"` and preserve a stable top-level structure for monthly report data:
 
 - `report` – report metadata such as year, month, reporting days and data coverage
-- `general_activity` – steps, distance and step length
+- `general_activity` – steps, distance and step length, with independent contributing-day coverage for monthly averages
 - `sleep` – monthly or daily sleep details and Sleep Score data; monthly sleep output also exposes the effective sleep configuration used for scoring
 - `workouts` – workout summaries using stable technical identifiers such as `indoor_cycling`
 - `body_weight` – body-weight measurements and monthly statistics
 - `energy_expenditure` – basal energy, active energy and TDEE
 - `nutrition` – calorie intake and macronutrients
-- `average_calories_balance_kcal` / `calories_balance_kcal` – calorie balance kept separate from nutrition because it depends on both energy intake and expenditure
+- `average_calories_balance_kcal` / `total_calories_balance_kcal` / `calories_balance_kcal` – monthly average/total and daily calorie balance kept separate from nutrition because they depend on both energy intake and expenditure
 - `days` – detailed daily reports when the full monthly report is requested
 
-Monthly energy and nutrition averages expose their value separately from their contributing-day count. For example, energy output keeps fields such as `average_tdee_kcal` alongside `tdee_count_days`, while nutrition uses fields such as `average_protein_g` alongside `protein_count_days`. Monthly calorie balance similarly exposes `calories_balance_count_days`.
+Monthly general-activity, energy, nutrition, and calorie-balance averages expose their value separately from their contributing-day count. For example, general activity uses `steps_count_days`, `distance_count_days`, and `step_length_count_days`; energy keeps fields such as `average_tdee_kcal` alongside `tdee_count_days`; nutrition uses fields such as `average_protein_g` alongside `protein_count_days`; and monthly calorie balance exposes `calories_balance_count_days` together with both average and total balance values.
 
 A partially available section keeps a stable object shape and uses `null` for unavailable values/counts. If an entire optional section is unavailable, the section itself is `null`. Empty collections such as months or days without workouts remain `[]`.
 
-The renderer never serializes internal `(average, contributing_days)` tuples directly as JSON arrays. Numeric measurements remain JSON numbers and are normalized to two decimal places for a predictable external contract.
+The renderer never serializes internal `(average, contributing_days)` tuples directly as JSON arrays. Numeric measurements remain finite JSON numbers and are normalized to two decimal places for a predictable external contract. Serialization uses `allow_nan=False`, so a non-finite value cannot silently escape as non-standard JSON.
 
 The JSON renderer deliberately exposes a presentation/API contract rather than directly serializing internal dataclasses. This allows internal report models to evolve without automatically breaking external consumers and provides the data contract intended for the future persistent viewer.
 
@@ -798,9 +820,9 @@ The report is intended to provide meaningful trends rather than medical or scien
 
 ### Sleep
 
-Sleep statistics are calculated from recorded sleep stages and may differ from values reported directly by Apple Health.
+Sleep statistics are calculated from recorded sleep stages and may differ from values reported directly by Apple Health. `AsleepUnspecified` contributes to total sleep time and is tracked separately from Core, Deep, and REM stages.
 
-Short interruptions, missing stages or incomplete recordings may affect sleep duration and efficiency calculations.
+Short interruptions, missing stages or incomplete recordings may affect sleep duration and efficiency calculations. A zero-duration session reports `0%` efficiency instead of dividing by zero.
 
 ### Sleep Score
 
@@ -833,7 +855,7 @@ When the monthly bonus system is disabled, the report continues to provide the s
 
 ### Activities
 
-Workout statistics are based solely on activities explicitly recorded in Apple Health.
+Workout statistics are based solely on activities explicitly recorded in Apple Health. Workout duration and session counts can still be aggregated when energy or distance is unavailable, but aggregate workout energy/distance (and their derived averages) remain unavailable if any contributing workout is missing the respective measurement. This prevents partial measurements from being presented as complete totals.
 
 Walking distance and step count are reported independently and should not be interpreted as direct indicators of workout intensity.
 
@@ -857,7 +879,7 @@ Calorie balance is a derived daily metric and is calculated only when calorie in
 
 The accuracy of every metric depends entirely on the quality of the exported Apple Health data.
 
-The application does not modify, interpolate, infer, or silently replace missing measurements with zero. Availability is preserved through parsing, analysis, report models, and renderers.
+The application does not modify, interpolate, infer, or silently replace missing measurements with zero. Availability is preserved through parsing, analysis, report models, and renderers. Supported numeric input must also be finite; `NaN` and positive/negative infinity are rejected rather than entering report calculations.
 
 For monthly energy and nutrition metrics, each average uses only the days that contain the data required by that specific metric. Derived metrics use the intersection of all required daily inputs.
 
@@ -884,27 +906,27 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, configuration precedence, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The current suite contains **334 collected test cases** and passes completely on the current PRE-P5 codebase.
+The current suite contains **386 collected test cases** and passes completely on the final PRE5.6 codebase. The current measured statement coverage for `apple_health` is **97%**.
 
 Coverage includes:
 
 - sleep analysis and scoring
 - activity and health metrics analysis
-- incomplete energy and nutrition semantics
+- incomplete general-activity, workout, energy, and nutrition semantics
 - independent monthly metric coverage and derived-metric intersections
-- Apple Health XML parsing and root validation
-- ZIP import handling, localized export filenames, and uncompressed XML size limits
-- TOML configuration loading and validation
+- Apple Health XML parsing, root/required-field validation, semantic parse errors, and non-finite numeric rejection
+- typed ZIP/import error handling, localized export filenames, and uncompressed XML size limits
+- TOML configuration loading, finite-number validation, and runtime precedence
 - runtime source overrides and `UI > TOML > defaults` precedence
 - optional web `config.toml` upload, cleanup, and size limits
 - report models
 - text rendering, partial data, and conditional coverage labels
-- JSON rendering, explicit `*_count_days`, and stable API-contract behavior
+- JSON rendering, explicit `*_count_days`, monthly total calorie balance, finite-number enforcement, and stable API-contract behavior
 - command-line parsing and CLI validation
 - application execution and run-option resolution
 - strict `ReportPeriod` parsing and validation
 - multi-month application orchestration with one parse per archive
-- FastAPI upload, period, error-handling, cleanup, and privacy behavior
+- FastAPI upload, period, typed error mapping, portable temporary-directory cleanup, canonical example-config download, and privacy behavior
 - run-profile loading, structure validation, and precedence
 - end-to-end single- and multi-month report generation
 - golden-report protection for deterministic text output
@@ -933,7 +955,7 @@ Browser
   ↓ multipart ZIP + selected periods
   ↓ optional config.toml + source overrides
 FastAPI
-  ↓ disposable temporary ZIP/TOML
+  ↓ request-scoped temporary directory (ZIP/TOML)
 AppleHealthApplication.generate_reports()
   ↓ resolve AppConfig once
   ↓ parse ZIP once
@@ -952,7 +974,7 @@ This boundary is intentionally designed so that the next Google mode can add ide
 
 ## Future Development
 
-The PRE-P5 preparation work is complete: missing-data semantics, source overrides, optional TOML upload, downloadable example configuration, and frontend configuration guidance are all part of the current web workflow.
+PRE5.6 preparation and correctness hardening are complete: missing-data semantics, source matching, optional TOML upload, canonical downloadable configuration, frontend guidance, partial-dataset handling, sleep edge cases, typed import/parser errors, portable temporary-file handling, package runtime assets, and finite-number validation are all part of the current web workflow.
 
 The planned application phases are:
 
