@@ -25,19 +25,16 @@ from apple_health.report_models import (
 def _activity_metrics(
     *,
     total_steps: int | None = 64_321,
-    average_daily_steps: tuple[float, int]
-    | None = (
+    average_daily_steps: tuple[float, int] | None = (
         4594.3571428571,
         14,
     ),
     total_distance_km: float | None = 47.891234,
-    average_daily_distance_km: tuple[float, int]
-    | None = (
+    average_daily_distance_km: tuple[float, int] | None = (
         3.4208024286,
         14,
     ),
-    average_step_length_cm: tuple[float, int]
-    | None = (
+    average_step_length_cm: tuple[float, int] | None = (
         74.453287,
         14,
     ),

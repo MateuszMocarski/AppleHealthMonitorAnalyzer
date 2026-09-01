@@ -699,13 +699,11 @@ def test_uses_configured_apple_health_source() -> None:
 
 
 def test_parser_rejects_non_health_data_root() -> None:
-    xml_stream = BytesIO(
-        b"""<?xml version="1.0" encoding="UTF-8"?>
+    xml_stream = BytesIO(b"""<?xml version="1.0" encoding="UTF-8"?>
 <NotHealthData>
     <Record />
 </NotHealthData>
-"""
-    )
+""")
 
     parser = AppleHealthParser(
         xml_stream=xml_stream,
@@ -805,13 +803,11 @@ def test_preserves_missing_activity_metrics_on_non_activity_day() -> None:
 
 
 def test_parser_rejects_malformed_xml() -> None:
-    xml_stream = BytesIO(
-        b"""
+    xml_stream = BytesIO(b"""
 <HealthData>
     <Record>
 </HealthData>
-"""
-    )
+""")
 
     parser = AppleHealthParser(
         xml_stream=xml_stream,
@@ -858,16 +854,14 @@ def test_parser_rejects_invalid_numeric_record_value() -> None:
 
 def test_parser_rejects_missing_required_record_attribute() -> None:
     source_name = AppConfig().source.apple_watch_source
-    xml = _wrap_xml(
-        f"""
+    xml = _wrap_xml(f"""
         <Record
             type="HKQuantityTypeIdentifierStepCount"
             sourceName="{source_name}"
             value="100"
             endDate="2026-08-01 10:00:00 +0200"
         />
-        """
-    )
+        """)
 
     with pytest.raises(
         HealthDataParseError,
