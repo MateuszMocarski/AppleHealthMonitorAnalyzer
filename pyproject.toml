@@ -14,12 +14,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black",
+    "black==26.5.1",
     "build",
     "httpx",
     "pytest",
     "pytest-cov",
-    "ruff",
+    "ruff==0.16.5",
 ]
 
 [tool.setuptools.packages.find]
