@@ -85,11 +85,18 @@ class ActivityAnalyzer:
         workouts: list[Workout],
     ) -> ActivitySummary:
         distances = [workout.distance_km for workout in workouts if workout.distance_km is not None]
+        active_energy_values = [
+            workout.active_energy_kcal
+            for workout in workouts
+            if workout.active_energy_kcal is not None
+        ]
 
         return ActivitySummary(
             activity_type=activity_type,
             sessions=len(workouts),
             duration_minutes=sum(workout.duration_minutes for workout in workouts),
-            active_energy_kcal=sum(workout.active_energy_kcal or 0 for workout in workouts),
+            active_energy_kcal=(
+                sum(active_energy_values) if len(active_energy_values) == len(workouts) else None
+            ),
             distance_km=sum(distances) if distances else None,
         )

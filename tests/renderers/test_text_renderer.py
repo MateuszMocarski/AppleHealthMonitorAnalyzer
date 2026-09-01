@@ -83,8 +83,14 @@ def _daily_summary(
         date=date(2026, 8, 1),
         activities=activities or [],
         total_duration_minutes=sum(activity.duration_minutes for activity in (activities or [])),
-        total_active_energy_kcal=sum(
-            activity.active_energy_kcal for activity in (activities or [])
+        total_active_energy_kcal=(
+            sum(
+                activity.active_energy_kcal
+                for activity in (activities or [])
+                if activity.active_energy_kcal is not None
+            )
+            if all(activity.active_energy_kcal is not None for activity in (activities or []))
+            else None
         ),
         total_steps=total_steps,
         total_distance_km=total_distance_km,
@@ -639,3 +645,29 @@ def test_monthly_report_renders_activity_coverage() -> None:
     assert "  Average daily:       " "5.00 km based on 2 days" in output
 
     assert "  Average step length: " "80.00 cm based on 1 day" in output
+
+
+# =====================================================================
+# Verifies that missing workout energy is omitted instead of being
+# rendered as a measured zero-energy value.
+# =====================================================================
+
+
+def test_monthly_workout_omits_missing_energy() -> None:
+    walking = ActivitySummary(
+        activity_type=WorkoutType.WALKING,
+        sessions=1,
+        duration_minutes=60,
+        active_energy_kcal=None,
+        distance_km=5.0,
+    )
+
+    output = TextRenderer().render_month_summary(
+        _monthly_summary(
+            activities=[walking],
+        )
+    )
+
+    assert "  Energy:   " not in output
+    assert "Average Daily Energy:" not in output
+    assert "  Distance: 5.00 km" in output

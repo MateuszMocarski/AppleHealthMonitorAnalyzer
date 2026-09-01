@@ -33,6 +33,7 @@ class JsonRenderer:
             payload,
             indent=2,
             ensure_ascii=False,
+            allow_nan=False,
         )
 
     def render_month(
@@ -47,6 +48,7 @@ class JsonRenderer:
             payload,
             indent=2,
             ensure_ascii=False,
+            allow_nan=False,
         )
 
     def _build_month_summary_payload(
@@ -240,7 +242,9 @@ class JsonRenderer:
                 activity.duration_minutes / divisor if divisor else None
             ),
             "average_active_energy_kcal": self._round_number(
-                activity.active_energy_kcal / divisor if divisor else None
+                activity.active_energy_kcal / divisor
+                if (divisor and activity.active_energy_kcal is not None)
+                else None
             ),
             "average_distance_km": self._round_number(
                 activity.distance_km / divisor

@@ -1442,3 +1442,173 @@ def test_example_config_download_returns_canonical_file() -> None:
     assert response.status_code == 200
     assert response.content == example_config_path.read_bytes()
     assert 'filename="config.example.toml"' in response.headers["content-disposition"]
+
+
+# =====================================================================
+# Verifies that semantically invalid Apple Health record values are
+# mapped to the stable invalid-export HTTP 422 response.
+# =====================================================================
+
+
+def test_report_generation_rejects_invalid_numeric_xml_value() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            f"""<HealthData>
+<Record
+    type="HKQuantityTypeIdentifierStepCount"
+    sourceName="{source_name}"
+    value="not-a-number"
+    startDate="2026-08-01 10:00:00 +0200"
+    endDate="2026-08-01 10:00:00 +0200"
+/>
+</HealthData>""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that Apple Health records missing required attributes are
+# mapped to the stable invalid-export HTTP 422 response.
+# =====================================================================
+
+
+def test_report_generation_rejects_missing_required_xml_attribute() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            f"""<HealthData>
+<Record
+    type="HKQuantityTypeIdentifierStepCount"
+    sourceName="{source_name}"
+    value="100"
+    endDate="2026-08-01 10:00:00 +0200"
+/>
+</HealthData>""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that non-finite Apple Health numeric values are rejected as
+# invalid export data instead of reaching generated JSON reports.
+# =====================================================================
+
+
+def test_report_generation_rejects_non_finite_xml_value() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            f"""<HealthData>
+<Record
+    type="HKQuantityTypeIdentifierActiveEnergyBurned"
+    sourceName="{source_name}"
+    value="nan"
+    startDate="2026-08-01 10:00:00 +0200"
+    endDate="2026-08-01 10:00:00 +0200"
+/>
+</HealthData>""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that non-finite TOML configuration values are rejected at
+# the HTTP boundary with a controlled configuration error.
+# =====================================================================
+
+
+def test_report_generation_rejects_non_finite_config_value() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[sleep.score.bedtime]\npenalty_points = nan\n",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Expected finite number" in response.json()["detail"]

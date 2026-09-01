@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import time
+from math import isfinite
 
 
 @dataclass(slots=True)
@@ -75,6 +76,7 @@ class SleepScoreConfig:
     monthly_bonus: MonthlySleepBonusConfig = field(default_factory=MonthlySleepBonusConfig)
 
     def validate(self) -> None:
+        self._validate_finite_numbers()
         self._validate_score_weights()
         self._validate_wake_up_weights()
         self._validate_penalty_intervals()
@@ -84,6 +86,25 @@ class SleepScoreConfig:
         self._validate_average_bonus_thresholds()
         self._validate_consistency_bonus_thresholds()
         self._validate_maximum_monthly_bonus()
+
+    def _validate_finite_numbers(self) -> None:
+        values = (
+            self.bedtime.penalty_points,
+            self.duration.penalty_points,
+            self.duration.oversleep_weight,
+            self.duration.undersleep_weight,
+            self.wake_up.bedtime_weight,
+            self.wake_up.duration_weight,
+            self.wake_up.penalty_points,
+            self.weights.bedtime,
+            self.weights.duration,
+            self.weights.wake_up,
+            *(value for pair in self.monthly_bonus.average_thresholds for value in pair),
+            *(value for pair in self.monthly_bonus.consistency_thresholds for value in pair),
+        )
+
+        if any(not isfinite(value) for value in values):
+            raise ValueError("Sleep score numeric values must be finite.")
 
     def _validate_score_weights(self) -> None:
         score_weights = (

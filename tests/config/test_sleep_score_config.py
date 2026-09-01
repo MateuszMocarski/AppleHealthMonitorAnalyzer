@@ -515,3 +515,53 @@ def test_all_zero_wake_up_component_weights_are_rejected() -> None:
         match="At least one wake-up score component weight",
     ):
         config.validate()
+
+
+# =====================================================================
+# Verifies that programmatically constructed Sleep Score configuration
+# also rejects non-finite numeric values.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    ("attribute_path", "value"),
+    [
+        ("bedtime.penalty_points", float("nan")),
+        ("duration.oversleep_weight", float("inf")),
+        ("weights.wake_up", float("-inf")),
+    ],
+)
+def test_non_finite_sleep_score_value_is_rejected(
+    attribute_path: str,
+    value: float,
+) -> None:
+    config = SleepScoreConfig()
+
+    _set_config_value(
+        config,
+        attribute_path,
+        value,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Sleep score numeric values must be finite",
+    ):
+        config.validate()
+
+
+# =====================================================================
+# Verifies that non-finite monthly bonus threshold values are rejected
+# by the same finite-number validation rule.
+# =====================================================================
+
+
+def test_non_finite_monthly_bonus_threshold_is_rejected() -> None:
+    config = SleepScoreConfig()
+    config.monthly_bonus.average_thresholds = ((float("nan"), 15.0),)
+
+    with pytest.raises(
+        ValueError,
+        match="Sleep score numeric values must be finite",
+    ):
+        config.validate()

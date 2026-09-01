@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from datetime import date, datetime
+from math import isfinite
 from typing import BinaryIO
 
 from apple_health.config.app_config import AppConfig
@@ -109,23 +110,40 @@ class AppleHealthParser:
     ) -> Workout:
         active_energy, distance = self._parse_workout_statistics(element)
 
+        apple_activity_type = self._required_attribute(
+            element,
+            "workoutActivityType",
+        )
+
         return Workout(
-            apple_activity_type=element.attrib["workoutActivityType"],
+            apple_activity_type=apple_activity_type,
             activity_type=self._parse_workout_type(
-                element.attrib["workoutActivityType"],
+                apple_activity_type,
                 element,
             ),
-            source_name=element.attrib["sourceName"],
+            source_name=self._required_attribute(
+                element,
+                "sourceName",
+            ),
             source_version=element.attrib.get("sourceVersion"),
-            start=datetime.strptime(
-                element.attrib["startDate"],
-                APPLE_DATE_FORMAT,
+            start=self._parse_datetime(
+                self._required_attribute(
+                    element,
+                    "startDate",
+                )
             ),
-            end=datetime.strptime(
-                element.attrib["endDate"],
-                APPLE_DATE_FORMAT,
+            end=self._parse_datetime(
+                self._required_attribute(
+                    element,
+                    "endDate",
+                )
             ),
-            duration_minutes=float(element.attrib["duration"]),
+            duration_minutes=self._parse_float(
+                self._required_attribute(
+                    element,
+                    "duration",
+                )
+            ),
             active_energy_kcal=active_energy,
             distance_km=distance,
         )
@@ -156,9 +174,11 @@ class AppleHealthParser:
         elif source_name != record_source:
             return
 
-        recorded_at = datetime.strptime(
-            element.attrib["startDate"],
-            APPLE_DATE_FORMAT,
+        recorded_at = self._parse_datetime(
+            self._required_attribute(
+                element,
+                "startDate",
+            )
         )
 
         day = recorded_at.date()
@@ -170,7 +190,12 @@ class AppleHealthParser:
 
         if record_type == "HKQuantityTypeIdentifierBodyMass":
             measurement = WeightMeasurement(
-                value=float(element.attrib["value"]),
+                value=self._parse_float(
+                    self._required_attribute(
+                        element,
+                        "value",
+                    )
+                ),
                 timestamp=recorded_at,
                 is_user_entered=self._is_user_entered(element),
             )
@@ -190,7 +215,10 @@ class AppleHealthParser:
             self._update_nutrition_data(
                 metrics.nutrition,
                 record_type,
-                element.attrib["value"],
+                self._required_attribute(
+                    element,
+                    "value",
+                ),
             )
 
             return
@@ -198,7 +226,10 @@ class AppleHealthParser:
         self._update_daily_metrics(
             metrics,
             record_type,
-            element.attrib["value"],
+            self._required_attribute(
+                element,
+                "value",
+            ),
         )
 
     def _update_daily_metrics(
@@ -208,45 +239,57 @@ class AppleHealthParser:
         value: str,
     ) -> None:
         if record_type == "HKQuantityTypeIdentifierStepCount":
-            step_count = int(value)
+            step_count = self._parse_int(value)
 
             metrics.steps = step_count if metrics.steps is None else metrics.steps + step_count
 
         elif record_type == "HKQuantityTypeIdentifierDistanceWalkingRunning":
             metrics.distance_km = self._add_optional_value(
                 metrics.distance_km,
-                float(value),
+                self._parse_float(value),
             )
 
         elif record_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
             metrics.active_energy = self._add_optional_value(
                 metrics.active_energy,
-                float(value),
+                self._parse_float(value),
             )
 
         elif record_type == "HKQuantityTypeIdentifierBasalEnergyBurned":
             metrics.basal_energy = self._add_optional_value(
                 metrics.basal_energy,
-                float(value),
+                self._parse_float(value),
             )
 
     def _parse_sleep_record(
         self,
         element: ET.Element,
     ) -> SleepRecord:
-        start = datetime.strptime(
-            element.attrib["startDate"],
-            APPLE_DATE_FORMAT,
+        start = self._parse_datetime(
+            self._required_attribute(
+                element,
+                "startDate",
+            )
         )
 
-        end = datetime.strptime(
-            element.attrib["endDate"],
-            APPLE_DATE_FORMAT,
+        end = self._parse_datetime(
+            self._required_attribute(
+                element,
+                "endDate",
+            )
         )
 
         return SleepRecord(
-            stage=self._parse_sleep_stage(element.attrib["value"]),
-            source_name=element.attrib["sourceName"],
+            stage=self._parse_sleep_stage(
+                self._required_attribute(
+                    element,
+                    "value",
+                )
+            ),
+            source_name=self._required_attribute(
+                element,
+                "sourceName",
+            ),
             source_version=element.attrib.get("sourceVersion"),
             start=start,
             end=end,
@@ -306,7 +349,7 @@ class AppleHealthParser:
         record_type: str,
         value: str,
     ) -> None:
-        parsed_value = float(value)
+        parsed_value = self._parse_float(value)
 
         if record_type == "HKQuantityTypeIdentifierDietaryEnergyConsumed":
             nutrition.calories_kcal = self._add_optional_value(
@@ -359,15 +402,70 @@ class AppleHealthParser:
             statistic_type = child.attrib.get("type")
 
             if statistic_type == WORKOUT_ACTIVE_ENERGY_TYPE:
-                active_energy = float(child.attrib["sum"])
+                active_energy = self._parse_float(
+                    self._required_attribute(
+                        child,
+                        "sum",
+                    )
+                )
 
             elif statistic_type in (
                 WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
                 WORKOUT_CYCLING_DISTANCE_TYPE,
             ):
-                distance = float(child.attrib["sum"])
+                distance = self._parse_float(
+                    self._required_attribute(
+                        child,
+                        "sum",
+                    )
+                )
 
         return active_energy, distance
+
+    @staticmethod
+    def _required_attribute(
+        element: ET.Element,
+        attribute: str,
+    ) -> str:
+        try:
+            return element.attrib[attribute]
+        except KeyError as exc:
+            raise HealthDataParseError("Invalid Apple Health export XML.") from exc
+
+    @staticmethod
+    def _parse_datetime(
+        value: str,
+    ) -> datetime:
+        try:
+            return datetime.strptime(
+                value,
+                APPLE_DATE_FORMAT,
+            )
+        except ValueError as exc:
+            raise HealthDataParseError("Invalid Apple Health export XML.") from exc
+
+    @staticmethod
+    def _parse_float(
+        value: str,
+    ) -> float:
+        try:
+            parsed_value = float(value)
+        except ValueError as exc:
+            raise HealthDataParseError("Invalid Apple Health export XML.") from exc
+
+        if not isfinite(parsed_value):
+            raise HealthDataParseError("Invalid Apple Health export XML.")
+
+        return parsed_value
+
+    @staticmethod
+    def _parse_int(
+        value: str,
+    ) -> int:
+        try:
+            return int(value)
+        except ValueError as exc:
+            raise HealthDataParseError("Invalid Apple Health export XML.") from exc
 
     @staticmethod
     def _add_optional_value(

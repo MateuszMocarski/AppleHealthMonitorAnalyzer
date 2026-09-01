@@ -596,3 +596,30 @@ def test_sleep_only_data_determines_reporting_period() -> None:
 
     assert summary.sleep_summary is not None
     assert summary.sleep_summary.total_sessions == 1
+
+
+# =====================================================================
+# Verifies that daily workout energy remains missing when any activity
+# summary for the day has incomplete active-energy data.
+# =====================================================================
+
+
+def test_summarize_day_preserves_missing_workout_energy() -> None:
+    analyzer = HealthAnalyzer(
+        _health_data(
+            daily_metrics=[],
+            workouts=[
+                _workout(
+                    1,
+                    duration_minutes=60,
+                    active_energy_kcal=None,
+                )
+            ],
+        )
+    )
+
+    summary = analyzer.summarize_day(date(2026, 8, 1))
+
+    assert len(summary.activities) == 1
+    assert summary.activities[0].active_energy_kcal is None
+    assert summary.total_active_energy_kcal is None

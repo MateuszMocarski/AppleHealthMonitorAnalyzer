@@ -288,3 +288,32 @@ def test_summarize_month_respects_reporting_days() -> None:
     assert summary.duration_minutes == 90
     assert summary.active_energy_kcal == 450
     assert summary.distance_km == 7.5
+
+
+# =====================================================================
+# Verifies that aggregated workout energy remains missing when any
+# workout in the activity group has no active-energy measurement.
+# =====================================================================
+
+
+def test_activity_summary_energy_is_none_when_any_workout_energy_is_missing() -> None:
+    analyzer = _analyzer(
+        _workout(
+            1,
+            WorkoutType.WALKING,
+            60,
+            300,
+            5,
+        ),
+        _workout(
+            1,
+            WorkoutType.WALKING,
+            30,
+            None,
+            2.5,
+        ),
+    )
+
+    summary = analyzer.summarize_day(datetime(2026, 8, 1).date())[0]
+
+    assert summary.active_energy_kcal is None

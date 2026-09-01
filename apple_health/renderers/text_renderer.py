@@ -325,7 +325,8 @@ class TextRenderer:
         writer.write("Workouts summary")
         writer.write("----------------")
         writer.write(f"  Duration: {self._format_minutes(summary.total_duration_minutes)}")
-        writer.write(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
+        if summary.total_active_energy_kcal is not None:
+            writer.write(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
         writer.write()
 
     def _render_daily_weight(self, writer: _TextWriter, summary: DailySummary) -> None:
@@ -401,7 +402,8 @@ class TextRenderer:
         writer.write(activity.activity_type.value.title())
         writer.write(f"  Sessions: {activity.sessions}")
         writer.write(f"  Duration: {self._format_minutes(activity.duration_minutes)}")
-        writer.write(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
+        if activity.active_energy_kcal is not None:
+            writer.write(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
         if activity.distance_km is not None:
             writer.write(f"  Distance: {activity.distance_km:.2f} km")
         if reporting_days is not None:
@@ -424,12 +426,13 @@ class TextRenderer:
                 else "Daily"
             )
             avg_duration = activity.duration_minutes / divisor
-            avg_energy = activity.active_energy_kcal / divisor
             writer.write()
             writer.write(
                 f"  Average {averaging_label} Duration: " f"{self._format_minutes(avg_duration)}"
             )
-            writer.write(f"  Average {averaging_label} Energy:   {avg_energy:.0f} kcal")
+            if activity.active_energy_kcal is not None:
+                avg_energy = activity.active_energy_kcal / divisor
+                writer.write(f"  Average {averaging_label} Energy:   {avg_energy:.0f} kcal")
             if activity.distance_km is not None:
                 writer.write(
                     f"  Average {averaging_label} Distance: "

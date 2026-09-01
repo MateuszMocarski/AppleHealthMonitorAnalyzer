@@ -15,7 +15,7 @@ class ActivitySummary:
 
     duration_minutes: float
 
-    active_energy_kcal: float
+    active_energy_kcal: float | None
 
     distance_km: float | None
 
@@ -27,7 +27,7 @@ class DailySummary:
     activities: list[ActivitySummary]
 
     total_duration_minutes: float
-    total_active_energy_kcal: float
+    total_active_energy_kcal: float | None
 
     total_steps: int | None
     total_distance_km: float | None

@@ -1,6 +1,8 @@
 import json
 from datetime import date, datetime, time, timezone
 
+import pytest
+
 from apple_health.config.app_config import AppConfig
 from apple_health.enums import WorkoutType
 from apple_health.models import NutritionData
@@ -141,7 +143,15 @@ def _daily_summary(
         ),
         activities=activities,
         total_duration_minutes=sum(activity.duration_minutes for activity in activities),
-        total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
+        total_active_energy_kcal=(
+            sum(
+                activity.active_energy_kcal
+                for activity in activities
+                if activity.active_energy_kcal is not None
+            )
+            if all(activity.active_energy_kcal is not None for activity in activities)
+            else None
+        ),
         total_steps=total_steps,
         total_distance_km=total_distance_km,
         active_energy_kcal=active_energy_kcal,
@@ -1088,3 +1098,58 @@ def test_render_day_uses_null_for_missing_general_activity() -> None:
     payload = json.loads(JsonRenderer().render_month(summary))
 
     assert payload["days"][0]["general_activity"] is None
+
+
+# =====================================================================
+# Verifies that missing workout energy is represented as JSON null and
+# does not produce a derived workout-energy average.
+# =====================================================================
+
+
+def test_render_month_summary_preserves_missing_workout_energy() -> None:
+    walking = ActivitySummary(
+        activity_type=WorkoutType.WALKING,
+        sessions=1,
+        duration_minutes=60,
+        active_energy_kcal=None,
+        distance_km=5.0,
+    )
+
+    payload = json.loads(
+        JsonRenderer().render_month_summary(
+            _monthly_summary(
+                activities=[walking],
+            )
+        )
+    )
+
+    workout = payload["workouts"][0]
+
+    assert workout["active_energy_kcal"] is None
+    assert workout["average_active_energy_kcal"] is None
+
+
+# =====================================================================
+# Verifies that the JSON renderer refuses to emit non-standard NaN or
+# infinity tokens even if a non-finite value reaches the render layer.
+# =====================================================================
+
+
+def test_json_renderer_rejects_non_finite_numbers() -> None:
+    walking = ActivitySummary(
+        activity_type=WorkoutType.WALKING,
+        sessions=1,
+        duration_minutes=60,
+        active_energy_kcal=float("nan"),
+        distance_km=5.0,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Out of range float values are not JSON compliant",
+    ):
+        JsonRenderer().render_month_summary(
+            _monthly_summary(
+                activities=[walking],
+            )
+        )

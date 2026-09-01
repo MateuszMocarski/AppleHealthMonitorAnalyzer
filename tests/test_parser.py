@@ -822,3 +822,91 @@ def test_parser_rejects_malformed_xml() -> None:
         match="Invalid Apple Health export XML.",
     ):
         parser.parse()
+
+
+# =====================================================================
+# Verifies that invalid numeric values in supported Apple Health
+# records are reported as health-data parse errors.
+# =====================================================================
+
+
+def test_parser_rejects_invalid_numeric_record_value() -> None:
+    config = AppConfig()
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name=config.source.apple_watch_source,
+            value="not-a-number",
+        )
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        _parse_xml(
+            xml,
+            config=config,
+        )
+
+
+# =====================================================================
+# Verifies that supported records missing required XML attributes are
+# reported as health-data parse errors.
+# =====================================================================
+
+
+def test_parser_rejects_missing_required_record_attribute() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    xml = _wrap_xml(
+        f"""
+        <Record
+            type="HKQuantityTypeIdentifierStepCount"
+            sourceName="{source_name}"
+            value="100"
+            endDate="2026-08-01 10:00:00 +0200"
+        />
+        """
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        _parse_xml(xml)
+
+
+# =====================================================================
+# Verifies that non-finite floating-point values from Apple Health are
+# rejected instead of entering report calculations.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "nan",
+        "inf",
+        "-inf",
+    ],
+)
+def test_parser_rejects_non_finite_numeric_values(
+    value: str,
+) -> None:
+    config = AppConfig()
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierActiveEnergyBurned",
+            source_name=config.source.apple_watch_source,
+            value=value,
+        )
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        _parse_xml(
+            xml,
+            config=config,
+        )

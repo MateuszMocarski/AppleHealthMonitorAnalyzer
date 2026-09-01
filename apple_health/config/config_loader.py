@@ -1,5 +1,6 @@
 import sys
 from datetime import time
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -517,16 +518,26 @@ class ConfigLoader:
         if isinstance(value, bool):
             raise ConfigurationError(f"Invalid configuration value: {path}. Expected number.")
 
-        if isinstance(value, (int, float)):
-            return float(value)
+        parsed_value: float | None = None
 
-        if isinstance(value, str):
+        if isinstance(value, (int, float)):
+            parsed_value = float(value)
+
+        elif isinstance(value, str):
             try:
-                return float(value)
+                parsed_value = float(value)
             except ValueError:
                 pass
 
-        raise ConfigurationError(f"Invalid configuration value: {path}. Expected number.")
+        if parsed_value is None:
+            raise ConfigurationError(f"Invalid configuration value: {path}. Expected number.")
+
+        if not isfinite(parsed_value):
+            raise ConfigurationError(
+                f"Invalid configuration value: {path}. Expected finite number."
+            )
+
+        return parsed_value
 
     @staticmethod
     def _parse_time(

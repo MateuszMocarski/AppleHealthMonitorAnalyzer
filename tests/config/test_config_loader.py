@@ -753,3 +753,36 @@ def test_blank_runtime_source_override_is_rejected() -> None:
             None,
             apple_watch_source="   ",
         )
+
+
+# =====================================================================
+# Verifies that TOML floating-point values must be finite before they
+# are accepted into the application configuration.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "nan",
+        "inf",
+        "-inf",
+    ],
+)
+def test_non_finite_float_config_is_rejected(
+    tmp_path: Path,
+    value: str,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        f"""
+        [sleep.score.bedtime]
+        penalty_points = {value}
+        """,
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match="sleep.score.bedtime.penalty_points.*finite number",
+    ):
+        ConfigLoader.load(config_path)

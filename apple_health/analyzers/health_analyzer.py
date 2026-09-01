@@ -54,7 +54,15 @@ class HealthAnalyzer:
             nutrition=nutrition,
             activities=activities,
             total_duration_minutes=sum(activity.duration_minutes for activity in activities),
-            total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
+            total_active_energy_kcal=(
+                sum(
+                    activity.active_energy_kcal
+                    for activity in activities
+                    if activity.active_energy_kcal is not None
+                )
+                if all(activity.active_energy_kcal is not None for activity in activities)
+                else None
+            ),
             active_energy_kcal=active_energy_kcal,
             basal_energy_kcal=basal_energy_kcal,
             total_steps=total_steps,
