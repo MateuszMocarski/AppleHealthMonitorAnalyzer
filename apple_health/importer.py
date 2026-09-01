@@ -6,6 +6,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from zipfile import ZipExtFile
 
+from apple_health.exceptions import (
+    ExportXmlNotFoundError,
+    ExportXmlTooLargeError,
+    InvalidArchiveError,
+    MultipleExportXmlError,
+)
+
 MAX_EXPORT_XML_SIZE = 4 * 1024 * 1024 * 1024  # 4 GB
 
 
@@ -20,7 +27,15 @@ class AppleHealthImporter:
         if not self.archive.exists():
             raise FileNotFoundError(self.archive)
 
-        with zipfile.ZipFile(self.archive, "r") as archive:
+        try:
+            archive = zipfile.ZipFile(
+                self.archive,
+                "r",
+            )
+        except zipfile.BadZipFile as exc:
+            raise InvalidArchiveError from exc
+
+        with archive:
             xml_files = [
                 file
                 for file in archive.namelist()
@@ -29,15 +44,20 @@ class AppleHealthImporter:
                 and Path(file).parent.name == "apple_health_export"
             ]
 
-            if len(xml_files) != 1:
-                raise RuntimeError("Expected exactly one export XML, " f"found {len(xml_files)}.")
+            if not xml_files:
+                raise ExportXmlNotFoundError
+
+            if len(xml_files) > 1:
+                raise MultipleExportXmlError
 
             export_info = archive.getinfo(
                 xml_files[0],
             )
 
             if export_info.file_size > MAX_EXPORT_XML_SIZE:
-                raise RuntimeError("Apple Health export XML is too large.")
+                raise ExportXmlTooLargeError
 
-            with archive.open(xml_files[0]) as xml_stream:
+            with archive.open(
+                xml_files[0],
+            ) as xml_stream:
                 yield xml_stream

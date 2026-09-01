@@ -13,8 +13,8 @@ Steps
 Walking/Running distance
 ------------------------
   Total:               6.40 km
-  Average daily:       3.20 km
-  Average step length: 37.65 cm
+  Average daily:       6.40 km based on 1 day
+  Average step length: 80.00 cm based on 1 day
 
 Sleep
 -----
@@ -115,18 +115,17 @@ Body weight:
 
 Average energy expenditure
 --------------------------
-  Basal energy:   950 kcal
-  Active energy:  350 kcal
-  TDEE:           1300 kcal
+  Basal energy:   1900 kcal based on 1 day
+  Active energy:  700 kcal based on 1 day
+  TDEE:           2600 kcal based on 1 day
 
 Average nutrition
 -----------------
-  Protein:  75 g
-  Carbs:    0 g
-  Fat:      0 g
-  Calories: 1000 kcal
+  Protein:  150 g based on 1 day
+  Calories: 2000 kcal based on 1 day
 
-Average calories balance: -300 kcal
+Average calories balance: -600 kcal based on 1 day
+Total calories balance:   -600 kcal based on 1 day
 
 2026-08-01
 ==========
@@ -180,8 +179,6 @@ Daily energy expenditure
 Daily nutrition
 ---------------
   Protein:   150 g
-  Carbs:     0 g
-  Fat:       0 g
   Calories:  2000 kcal
 
 Calories balance: -600 kcal
@@ -209,21 +206,13 @@ Steps
 -----
   Total:         9,000
 
-Walking/Running distance
-------------------------
-  Total:               0.00 km
-  Average step length: 0.00 cm
-
 No workouts.
 
 No weight measurement for that day
 ----------------------------------
 
-Daily energy expenditure
-------------------------
-  Basal energy:   0 kcal
-  Active energy:  0 kcal
-  TDEE:           0 kcal
+No energy expenditure data for that day
+---------------------------------------
 
 No nutrition data for that day
 ------------------------------

@@ -4,7 +4,7 @@ The `apple_health.config` package defines the application's strongly typed confi
 
 Configuration is represented by Python `dataclass` objects rather than module-level globals. The root `AppConfig` object groups configuration by responsibility and can be injected into the components that depend on configurable behavior.
 
-Configuration values are defined by defaults in the dataclasses and may be overridden at runtime by an optional TOML file loaded through `ConfigLoader`.
+Configuration values are defined by defaults in the dataclasses, may be overridden by an optional TOML file loaded through `ConfigLoader`, and may receive per-request source-name overrides from the web/API workflow.
 
 ## Overview
 
@@ -94,9 +94,9 @@ This fallback is primarily useful for standalone use and tests. Application exec
 
 ## Runtime TOML Configuration
 
-The application supports one external configuration source: TOML.
+The application supports optional TOML configuration plus narrow runtime overrides for the two `SourceConfig` fields.
 
-The application configuration can be selected directly with the CLI option:
+For CLI execution, application configuration can be selected directly with:
 
 ```bash
 python app.py import export.zip --config path/to/config.toml
@@ -111,19 +111,45 @@ config = "path/to/config.toml"
 
 Run profiles configure *how the application is executed*; this package continues to define *how Apple Health data is interpreted and scored*. The two configuration concerns remain separate.
 
-When `--config` is omitted, `ConfigLoader.load(None)` returns the default validated `AppConfig`.
+The browser/API workflow can upload the same TOML configuration as multipart field `config`. The uploaded file is temporary and exists only for the request.
 
-When a TOML path is supplied, `ConfigLoader` reads and parses the file, normalizes keys to lowercase, rejects unknown fields, converts supported values, builds nested configuration dataclasses, preserves defaults for omitted values, validates the final `AppConfig`, and returns it or raises `ConfigurationError`.
+`ConfigLoader.load()` also accepts optional runtime source overrides:
 
-The current precedence rule is:
+```python
+config = ConfigLoader.load(
+    config_path,
+    apple_watch_source="Custom Watch",
+    apple_health_app_source="Custom Health",
+)
+```
+
+These are intentionally limited to source-name selection rather than exposing every configuration setting as a separate HTTP field.
+
+The effective application configuration is resolved using:
 
 ```text
 dataclass defaults
         ↓
 TOML overrides
+        ↓
+runtime source overrides
 ```
 
-No environment-variable, database, remote-source, or per-setting CLI overrides are implemented.
+Equivalently, when deciding which supplied value wins:
+
+```text
+runtime/UI source override
+        >
+TOML value
+        >
+dataclass default
+```
+
+A runtime source argument equal to `None` means “do not override”. At the FastAPI boundary, blank or whitespace-only source fields are normalized to `None`.
+
+When no TOML path is supplied and no runtime source override is present, `ConfigLoader.load(None)` returns the default validated `AppConfig`.
+
+When a TOML path is supplied, `ConfigLoader` reads and parses the file, normalizes keys to lowercase, rejects unknown fields, converts supported values, builds nested configuration dataclasses, preserves defaults for omitted values, applies any runtime source overrides, validates the final `AppConfig`, and returns it or raises `ConfigurationError`.
 
 ### Partial Configuration
 
@@ -135,7 +161,31 @@ target_minutes = 450
 undersleep_weight = 1.5
 ```
 
-Only the listed values override defaults.
+Only the listed values override defaults. Runtime source overrides are then applied independently after TOML loading.
+
+Example:
+
+```toml
+[source]
+apple_watch_source = "Watch from TOML"
+apple_health_app_source = "Health from TOML"
+```
+
+with:
+
+```python
+ConfigLoader.load(
+    path,
+    apple_watch_source="Watch from UI",
+)
+```
+
+produces:
+
+```text
+apple_watch_source      = "Watch from UI"
+apple_health_app_source = "Health from TOML"
+```
 
 ### Key Matching
 
@@ -143,11 +193,13 @@ Configuration keys are case-insensitive. After normalization, names must match d
 
 ### Supported Value Conversion
 
-The loader accepts normal TOML numeric values, simple numeric strings for numeric fields, strict TOML booleans, strings, `HH:MM` values for time fields, and arrays of two-item arrays for monthly bonus thresholds.
+The loader accepts normal finite TOML numeric values, simple numeric strings for numeric fields, strict TOML booleans, strings, `HH:MM` values for time fields, and arrays of two-item arrays for monthly bonus thresholds. Non-finite values such as `nan`, `inf`, and `-inf` are rejected before the final configuration object is returned.
 
 ### Errors
 
-Configuration failures are exposed through `ConfigurationError`, including missing files, malformed TOML, unreadable files, unknown fields, invalid types, invalid time values, malformed threshold arrays, and final validation failures.
+Configuration failures are exposed through `ConfigurationError`, including missing files, malformed TOML, unreadable files, unknown fields, invalid types, invalid/non-finite numeric values, invalid time values, malformed threshold arrays, and final validation failures.
+
+The web/API adapter maps configuration errors caused by an uploaded TOML file to HTTP 422 instead of exposing them as internal server failures.
 
 ## `AppConfig`
 
@@ -202,7 +254,7 @@ apple_health/config/source_config.py
 | `apple_watch_source` | `"Apple Watch"` | Source used for Apple Watch activity and sleep records |
 | `apple_health_app_source` | `"Zdrowie"` | Source used for Apple Health application records such as nutrition and body weight |
 
-> **Important:** the default Apple Watch value contains a non-breaking space between `Apple` and `Watch`, matching the source name expected in the exported data.
+> **Important:** the default Apple Watch value contains a non-breaking space between `Apple` and `Watch`. In escaped form the value is `Apple\xa0Watch`; `Apple Watch` with a normal space is a different string. The built-in default is also a special family matcher: it accepts the bare default and standard device-named values such as `Apple\xa0Watch (Mateusz)`. Any explicit Watch value supplied through TOML or a runtime/UI override is matched exactly.
 
 ### Consumers
 
@@ -211,14 +263,22 @@ apple_health/config/source_config.py
 - `AppleHealthParser` when selecting supported daily metric sources;
 - `SleepAnalyzer` when selecting Apple Watch sleep records.
 
-Example override:
+The same effective `AppConfig` is passed through parsing and analysis, so source selection remains consistent across components.
+
+### Runtime overrides
+
+The two source names are the only application settings currently exposed as dedicated per-request web/API overrides.
 
 ```python
-config = AppConfig()
-config.source.apple_watch_source = "My Apple Watch"
+config = ConfigLoader.load(
+    path,
+    apple_watch_source="My Apple Watch",
+)
 ```
 
-The same `config` must then be passed to the parser and analyzer if both should use the custom source.
+If an override is omitted, the corresponding TOML value remains effective. If TOML also omits it, the dataclass default remains effective. Explicit Watch overrides use exact matching; only the untouched built-in `Apple\xa0Watch` value enables the standard Apple Watch family matcher.
+
+The browser intentionally leaves both source fields blank by default and documents both the family-matching behavior and the Apple Watch NBSP requirement to avoid silently replacing the built-in matcher with a visually similar normal-space string.
 
 ## `SleepConfig`
 
@@ -558,6 +618,10 @@ Configuration validation protects calculations from invalid or contradictory val
 
 - `session_gap_threshold_minutes >= 0`
 
+### Finite Numeric Values
+
+All floating-point Sleep Score values must be finite. `NaN`, positive infinity, and negative infinity are rejected before scoring. This includes penalty points, duration/wake-up weights, daily component weights, and both values in monthly bonus threshold pairs.
+
 ### Daily Score Weights
 
 `SleepScoreWeightsConfig` values must satisfy:
@@ -572,6 +636,10 @@ config.sleep.score.weights.bedtime = 0
 config.sleep.score.weights.duration = 0
 config.sleep.score.weights.wake_up = 0
 ```
+
+### Wake-up Component Weights
+
+`WakeUpScoreConfig.bedtime_weight` and `WakeUpScoreConfig.duration_weight` must both be non-negative, and at least one of them must be greater than zero. This prevents division by zero when calculating the maximum available Wake-up Score.
 
 ### Penalty Intervals
 
@@ -746,11 +814,13 @@ apple_health/config/examples/
 
 `config.example.toml` contains the complete current configuration using the application defaults and serves as the primary reference template. The other profiles demonstrate partial configuration.
 
-Example usage:
+CLI example:
 
 ```bash
 python app.py import export.zip --config apple_health/config/examples/config.strict-schedule.toml
 ```
+
+The browser interface can also download the complete `config.example.toml` directly from its advanced settings section and then re-upload a customized copy for one report-generation request.
 
 ## Why Configuration Is Injected
 
@@ -793,15 +863,24 @@ The parser, analyzers and renderers do not need to change when the source of con
 
 ## Current Limitations
 
-Runtime configuration loading currently supports TOML only.
+Generic runtime configuration loading currently supports TOML only.
 
-The application does not currently load configuration from JSON or YAML files, environment variables, databases, remote configuration services, or per-setting CLI override flags.
+The web/API layer additionally exposes only two direct per-request override fields:
 
-Additional configuration sources can be implemented later without changing the `AppConfig` hierarchy consumed by the parser, analyzers, and renderers.
+- `apple_watch_source`
+- `apple_health_app_source`
+
+Other sleep/scoring settings must currently be changed through TOML rather than individual UI controls.
+
+The application does not currently load application configuration from JSON or YAML files, environment variables, databases, or remote configuration services. It also does not expose generic per-setting CLI override flags for the `AppConfig` hierarchy.
+
+These limitations are deliberate: parser, analyzer, and renderer consumers depend only on the final `AppConfig`, so future configuration sources can be added without changing the configuration object hierarchy they consume.
 
 ## Future Configuration Sources
 
 Future loaders may construct the same `AppConfig` from other sources while keeping the configuration model stable.
+
+The planned Google identity/Drive phase does not require changing this configuration contract: uploaded TOML and runtime source overrides remain request-scoped inputs, while report persistence is a separate application concern.
 
 ## Testing
 
@@ -811,17 +890,21 @@ Configuration behavior is covered at several levels:
 - `test_sleep_config.py` verifies sleep-level validation;
 - `test_sleep_score_config.py` verifies detailed Sleep Score validation rules;
 - analyzer tests verify that injected values affect scoring and session reconstruction;
-- parser tests verify custom source injection;
+- parser tests verify custom source injection and missing-data preservation;
 - renderer tests verify configuration-dependent presentation behavior;
-- `test_config_loader.py` verifies TOML loading, type conversion, partial overrides, error handling, final validation, and compatibility of all committed example configuration files;
-- full pipeline tests verify that one shared configuration instance can flow through the application;
+- `test_config_loader.py` contains **40 collected cases** covering TOML loading, type conversion, finite-number rejection, blank-source rejection, partial overrides, error handling, final validation, committed example files, runtime source overrides, and `runtime override > TOML > default` precedence;
+- application tests verify that `MultiMonthRunOptions` forwards runtime source overrides into `ConfigLoader`;
+- FastAPI tests verify source-field normalization, optional TOML upload, temporary-file cleanup, malformed-config HTTP 422 behavior, and the dedicated 1 MiB config-upload limit;
+- full pipeline tests verify that one shared effective configuration instance flows through parser, analyzer, and renderer layers;
 - integration tests verify that TOML overrides produce observable report changes and that the reference example configuration remains loadable.
 
-Run the complete test suite with:
+Run the complete project test suite with:
 
 ```bash
 pytest
 ```
+
+The current repository collects **386 tests**.
 
 Code quality checks:
 
@@ -831,6 +914,8 @@ black --check .
 ```
 
 ## Package Files
+
+The built wheel includes the TOML files under `apple_health/config/examples/` because the browser serves `config.example.toml` at runtime. This README is repository documentation and is not required by the runtime package.
 
 ```text
 apple_health/config/

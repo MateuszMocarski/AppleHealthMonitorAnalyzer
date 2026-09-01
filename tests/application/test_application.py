@@ -221,7 +221,12 @@ def test_application_generates_all_report_variants_for_multiple_months(
 
     class FakeConfigLoader:
         @staticmethod
-        def load(path):
+        def load(
+            path,
+            *,
+            apple_watch_source=None,
+            apple_health_app_source=None,
+        ):
             return object()
 
     class FakeImporter:
@@ -319,3 +324,116 @@ def test_application_generates_all_report_variants_for_multiple_months(
         ),
     ]
     assert calls["parse_count"] == 1
+
+
+# =====================================================================
+# Verifies that multi-month report generation forwards runtime source
+# overrides to configuration resolution before parsing the archive.
+# =====================================================================
+
+
+def test_generate_reports_forwards_source_overrides_to_config_loader(
+    monkeypatch,
+) -> None:
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+        ),
+        config_path=None,
+        apple_watch_source="Custom Watch",
+        apple_health_app_source="Custom Health",
+    )
+
+    calls = {}
+
+    class FakeConfigLoader:
+        @staticmethod
+        def load(
+            path,
+            *,
+            apple_watch_source=None,
+            apple_health_app_source=None,
+        ):
+            calls["config_path"] = path
+            calls["apple_watch_source"] = apple_watch_source
+            calls["apple_health_app_source"] = apple_health_app_source
+            return object()
+
+    class FakeImporter:
+        def __init__(self, path):
+            pass
+
+        @contextmanager
+        def open_export(self):
+            yield object()
+
+    class FakeParser:
+        def __init__(self, xml_stream, config):
+            pass
+
+        def parse(self):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(self, health_data, config):
+            pass
+
+        def summarize_month(self, year, month):
+            return "summary"
+
+    class FakeTextRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return "full-text"
+
+        def render_month_summary(self, summary):
+            return "summary-text"
+
+    class FakeJsonRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return "full-json"
+
+        def render_month_summary(self, summary):
+            return "summary-json"
+
+    monkeypatch.setattr(
+        "apple_health.application.application.ConfigLoader",
+        FakeConfigLoader,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.TextRenderer",
+        FakeTextRenderer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.JsonRenderer",
+        FakeJsonRenderer,
+    )
+
+    AppleHealthApplication().generate_reports(options)
+
+    assert calls == {
+        "config_path": None,
+        "apple_watch_source": "Custom Watch",
+        "apple_health_app_source": "Custom Health",
+    }

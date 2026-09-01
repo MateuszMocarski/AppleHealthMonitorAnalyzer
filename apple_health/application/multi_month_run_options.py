@@ -9,3 +9,5 @@ class MultiMonthRunOptions:
     archive_path: Path
     periods: tuple[ReportPeriod, ...]
     config_path: Path | None
+    apple_watch_source: str | None = None
+    apple_health_app_source: str | None = None

@@ -322,7 +322,10 @@ def test_full_pipeline_preserves_report_values(
 
     assert summary.activity_metrics.total_distance_km == pytest.approx(6.4)
 
-    assert summary.activity_metrics.average_daily_steps == 8500.0
+    assert summary.activity_metrics.average_daily_steps == (
+        8500.0,
+        2,
+    )
 
     assert len(summary.activities) == 1
 
@@ -499,7 +502,8 @@ def test_full_pipeline_renders_json_month_summary(
     assert "body_weight" in payload
     assert "energy_expenditure" in payload
     assert "nutrition" in payload
-    assert "average_calories_balance_kcal" in payload
+    assert payload["calories_balance"] is not None
+    assert payload["calories_balance"]["total_calories_balance_kcal"] is not None
 
     assert "days" not in payload
 

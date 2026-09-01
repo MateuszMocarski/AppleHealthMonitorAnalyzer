@@ -71,16 +71,56 @@ class TextRenderer:
         summary: MonthlySummary,
     ) -> None:
         metrics = summary.activity_metrics
+
         if metrics is None or (metrics.total_steps is None and metrics.total_distance_km is None):
             return
-        self._render_general_activity(
-            writer,
-            total_steps=metrics.total_steps,
-            total_distance_km=metrics.total_distance_km,
-            average_step_length_cm=metrics.average_step_length_cm,
-            average_daily_steps=metrics.average_daily_steps,
-            average_daily_distance_km=metrics.average_daily_distance_km,
-        )
+
+        writer.write("General activity")
+        writer.write("----------------")
+
+        if metrics.total_steps is not None:
+            writer.write("Steps")
+            writer.write("-----")
+            writer.write(f"  Total:         {metrics.total_steps:,}")
+
+            if metrics.average_daily_steps is not None:
+                value, count_days = metrics.average_daily_steps
+
+                coverage = self._format_coverage(
+                    count_days,
+                    summary.reporting_days,
+                )
+
+                writer.write(f"  Average daily: {value:.0f}{coverage}")
+
+        if metrics.total_distance_km is not None:
+            if metrics.total_steps is not None:
+                writer.write()
+
+            writer.write("Walking/Running distance")
+            writer.write("------------------------")
+            writer.write(f"  Total:               " f"{metrics.total_distance_km:.2f} km")
+
+            if metrics.average_daily_distance_km is not None:
+                value, count_days = metrics.average_daily_distance_km
+
+                coverage = self._format_coverage(
+                    count_days,
+                    summary.reporting_days,
+                )
+
+                writer.write(f"  Average daily:       " f"{value:.2f} km{coverage}")
+
+            if metrics.average_step_length_cm is not None:
+                value, count_days = metrics.average_step_length_cm
+
+                coverage = self._format_coverage(
+                    count_days,
+                    summary.reporting_days,
+                )
+
+                writer.write(f"  Average step length: " f"{value:.2f} cm{coverage}")
+
         writer.write()
 
     def _render_monthly_sleep_section(self, writer: _TextWriter, summary: MonthlySummary) -> None:
@@ -125,32 +165,103 @@ class TextRenderer:
         summary: MonthlySummary,
     ) -> None:
         metrics = summary.activity_metrics
-        if (
-            metrics is None
-            or metrics.average_basal_energy_kcal is None
-            or metrics.average_active_energy_kcal is None
+        if metrics is None or all(
+            average is None
+            for average in (
+                metrics.average_basal_energy_kcal,
+                metrics.average_active_energy_kcal,
+                metrics.average_tdee_kcal,
+            )
         ):
             return
+
         writer.write("Average energy expenditure")
         writer.write("--------------------------")
-        writer.write(f"  Basal energy:   {metrics.average_basal_energy_kcal:.0f} kcal")
-        writer.write(f"  Active energy:  {metrics.average_active_energy_kcal:.0f} kcal")
-        writer.write(f"  TDEE:           {metrics.average_tdee_kcal:.0f} kcal")
+
+        if metrics.average_basal_energy_kcal is not None:
+            value, count_days = metrics.average_basal_energy_kcal
+            writer.write(
+                f"  Basal energy:   {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
+        if metrics.average_active_energy_kcal is not None:
+            value, count_days = metrics.average_active_energy_kcal
+            writer.write(
+                f"  Active energy:  {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
+        if metrics.average_tdee_kcal is not None:
+            value, count_days = metrics.average_tdee_kcal
+            writer.write(
+                f"  TDEE:           {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
         writer.write()
 
-    def _render_monthly_nutrition(self, writer: _TextWriter, summary: MonthlySummary) -> None:
+    def _render_monthly_nutrition(
+        self,
+        writer: _TextWriter,
+        summary: MonthlySummary,
+    ) -> None:
         metrics = summary.activity_metrics
-        if metrics is None or metrics.average_calories_kcal is None:
+        if metrics is None or all(
+            average is None
+            for average in (
+                metrics.average_protein_g,
+                metrics.average_carbohydrates_g,
+                metrics.average_fat_g,
+                metrics.average_calories_kcal,
+                metrics.average_calories_balance_kcal,
+            )
+        ):
             return
+
         writer.write("Average nutrition")
         writer.write("-----------------")
-        writer.write(f"  Protein:  {metrics.average_protein_g:.0f} g")
-        writer.write(f"  Carbs:    {metrics.average_carbohydrates_g:.0f} g")
-        writer.write(f"  Fat:      {metrics.average_fat_g:.0f} g")
-        writer.write(f"  Calories: {metrics.average_calories_kcal:.0f} kcal")
-        if metrics.average_calories_balance is not None:
+
+        if metrics.average_protein_g is not None:
+            value, count_days = metrics.average_protein_g
+            writer.write(
+                f"  Protein:  {value:.0f} g"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
+        if metrics.average_carbohydrates_g is not None:
+            value, count_days = metrics.average_carbohydrates_g
+            writer.write(
+                f"  Carbs:    {value:.0f} g"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
+        if metrics.average_fat_g is not None:
+            value, count_days = metrics.average_fat_g
+            writer.write(
+                f"  Fat:      {value:.0f} g"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
+        if metrics.average_calories_kcal is not None:
+            value, count_days = metrics.average_calories_kcal
+            writer.write(
+                f"  Calories: {value:.0f} kcal"
+                f"{self._format_coverage(count_days, summary.reporting_days)}"
+            )
+
+        if metrics.average_calories_balance_kcal is not None:
+            value_average, count_days_average = metrics.average_calories_balance_kcal
+            value_total, count_days_total = metrics.total_calories_balance_kcal
             writer.write()
-            writer.write(f"Average calories balance: {metrics.average_calories_balance:.0f} kcal")
+            writer.write(
+                f"Average calories balance: {value_average:.0f} kcal"
+                f"{self._format_coverage(count_days_average, summary.reporting_days)}"
+            )
+            writer.write(
+                f"Total calories balance:   {value_total:.0f} kcal"
+                f"{self._format_coverage(count_days_total, summary.reporting_days)}"
+            )
 
     def _render_day(self, writer: _TextWriter, summary: DailySummary) -> None:
         self._render_day_header(writer, summary)
@@ -172,21 +283,39 @@ class TextRenderer:
             self._render_sleep_score(writer, summary.sleep_score)
             writer.write()
 
-    def _render_daily_general_activity(self, writer: _TextWriter, summary: DailySummary) -> None:
+    def _render_daily_general_activity(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
+        if summary.total_steps is None and summary.total_distance_km is None:
+            header = "No general activity data for that day"
+
+            writer.write(header)
+            writer.write("-" * len(header))
+            writer.write()
+            return
+
         self._render_general_activity(
             writer,
             total_steps=summary.total_steps,
             total_distance_km=summary.total_distance_km,
-            average_step_length_cm=summary.average_step_length_cm,
+            average_step_length_cm=(summary.average_step_length_cm),
         )
+
         writer.write()
 
     def _render_daily_workouts(self, writer: _TextWriter, summary: DailySummary) -> None:
+        has_general_activity = (summary.total_steps is not None and summary.total_steps > 0) or (
+            summary.total_distance_km is not None and summary.total_distance_km > 0
+        )
+
         if not summary.activities:
-            if summary.total_steps > 0:
+            if has_general_activity:
                 writer.write("No workouts.")
             else:
                 writer.write("No activities.")
+
             writer.write()
             return
         writer.write("Workouts")
@@ -196,7 +325,8 @@ class TextRenderer:
         writer.write("Workouts summary")
         writer.write("----------------")
         writer.write(f"  Duration: {self._format_minutes(summary.total_duration_minutes)}")
-        writer.write(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
+        if summary.total_active_energy_kcal is not None:
+            writer.write(f"  Energy:   {summary.total_active_energy_kcal:.0f} kcal")
         writer.write()
 
     def _render_daily_weight(self, writer: _TextWriter, summary: DailySummary) -> None:
@@ -208,20 +338,52 @@ class TextRenderer:
         writer.write("-" * len(header))
         writer.write()
 
-    def _render_day_expenditures(self, writer: _TextWriter, summary: DailySummary) -> None:
+    def _render_day_expenditures(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
+        if summary.basal_energy_kcal is None and summary.active_energy_kcal is None:
+            writer.write("No energy expenditure data for that day")
+            writer.write("---------------------------------------")
+            return
+
         writer.write("Daily energy expenditure")
         writer.write("------------------------")
-        writer.write(f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal")
-        writer.write(f"  Active energy:  {summary.active_energy_kcal:.0f} kcal")
-        writer.write(f"  TDEE:           {summary.tdee_kcal:.0f} kcal")
 
-    def _render_daily_nutrition_section(self, writer: _TextWriter, summary: DailySummary) -> None:
+        if summary.basal_energy_kcal is not None:
+            writer.write(f"  Basal energy:   {summary.basal_energy_kcal:.0f} kcal")
+
+        if summary.active_energy_kcal is not None:
+            writer.write(f"  Active energy:  {summary.active_energy_kcal:.0f} kcal")
+
+        if summary.tdee_kcal is not None:
+            writer.write(f"  TDEE:           {summary.tdee_kcal:.0f} kcal")
+
+    def _render_daily_nutrition_section(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
         writer.write()
-        if summary.nutrition is None:
+
+        nutrition = summary.nutrition
+
+        if nutrition is None or all(
+            value is None
+            for value in (
+                nutrition.protein_g,
+                nutrition.carbohydrates_g,
+                nutrition.fat_g,
+                nutrition.calories_kcal,
+            )
+        ):
             writer.write("No nutrition data for that day")
             writer.write("------------------------------")
             return
+
         self._render_day_nutrition(writer, summary)
+
         if summary.calories_balance_kcal is not None:
             writer.write()
             writer.write(f"Calories balance: {summary.calories_balance_kcal:.0f} kcal")
@@ -240,7 +402,8 @@ class TextRenderer:
         writer.write(activity.activity_type.value.title())
         writer.write(f"  Sessions: {activity.sessions}")
         writer.write(f"  Duration: {self._format_minutes(activity.duration_minutes)}")
-        writer.write(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
+        if activity.active_energy_kcal is not None:
+            writer.write(f"  Energy:   {activity.active_energy_kcal:.0f} kcal")
         if activity.distance_km is not None:
             writer.write(f"  Distance: {activity.distance_km:.2f} km")
         if reporting_days is not None:
@@ -263,12 +426,13 @@ class TextRenderer:
                 else "Daily"
             )
             avg_duration = activity.duration_minutes / divisor
-            avg_energy = activity.active_energy_kcal / divisor
             writer.write()
             writer.write(
                 f"  Average {averaging_label} Duration: " f"{self._format_minutes(avg_duration)}"
             )
-            writer.write(f"  Average {averaging_label} Energy:   {avg_energy:.0f} kcal")
+            if activity.active_energy_kcal is not None:
+                avg_energy = activity.active_energy_kcal / divisor
+                writer.write(f"  Average {averaging_label} Energy:   {avg_energy:.0f} kcal")
             if activity.distance_km is not None:
                 writer.write(
                     f"  Average {averaging_label} Distance: "
@@ -279,26 +443,28 @@ class TextRenderer:
     def _render_general_activity(
         self,
         writer: _TextWriter,
-        total_steps: int,
-        total_distance_km: float,
-        average_step_length_cm: float,
-        average_daily_steps: float | None = None,
-        average_daily_distance_km: float | None = None,
+        total_steps: int | None,
+        total_distance_km: float | None,
+        average_step_length_cm: float | None,
     ) -> None:
         writer.write("General activity")
         writer.write("----------------")
-        writer.write("Steps")
-        writer.write("-----")
-        writer.write(f"  Total:         {total_steps:,}")
-        if average_daily_steps is not None:
-            writer.write(f"  Average daily: {average_daily_steps:.0f}")
-        writer.write()
-        writer.write("Walking/Running distance")
-        writer.write("------------------------")
-        writer.write(f"  Total:               {total_distance_km:.2f} km")
-        if average_daily_distance_km is not None:
-            writer.write(f"  Average daily:       {average_daily_distance_km:.2f} km")
-        writer.write(f"  Average step length: {average_step_length_cm:.2f} cm")
+
+        if total_steps is not None:
+            writer.write("Steps")
+            writer.write("-----")
+            writer.write(f"  Total:         {total_steps:,}")
+
+        if total_distance_km is not None:
+            if total_steps is not None:
+                writer.write()
+
+            writer.write("Walking/Running distance")
+            writer.write("------------------------")
+            writer.write(f"  Total:               " f"{total_distance_km:.2f} km")
+
+            if average_step_length_cm is not None:
+                writer.write(f"  Average step length: " f"{average_step_length_cm:.2f} cm")
 
     def _render_daily_sleep(self, writer: _TextWriter, summary: DailySummary) -> None:
         if summary.sleep_session is None:
@@ -333,6 +499,10 @@ class TextRenderer:
         writer.write(f"  Core:               {self._format_minutes(summary.average_core_minutes)}")
         writer.write(f"  Deep:               {self._format_minutes(summary.average_deep_minutes)}")
         writer.write(f"  REM:                {self._format_minutes(summary.average_rem_minutes)}")
+        if summary.average_unspecified_minutes > 0:
+            writer.write(
+                f"  Unspecified:        {self._format_minutes(summary.average_unspecified_minutes)}"
+            )
 
     def _render_sleep_score(self, writer: _TextWriter, sleep_score: SleepScore) -> None:
         header = "Sleep score"
@@ -366,13 +536,29 @@ class TextRenderer:
             f"  Monthly score:     " f"{summary.monthly_sleep_score:.0f}/{monthly_score_max}"
         )
 
-    def _render_day_nutrition(self, writer: _TextWriter, summary: DailySummary) -> None:
+    def _render_day_nutrition(
+        self,
+        writer: _TextWriter,
+        summary: DailySummary,
+    ) -> None:
+        nutrition = summary.nutrition
+        if nutrition is None:
+            return
+
         writer.write("Daily nutrition")
         writer.write("---------------")
-        writer.write(f"  Protein:   {summary.nutrition.protein_g:.0f} g")
-        writer.write(f"  Carbs:     {summary.nutrition.carbohydrates_g:.0f} g")
-        writer.write(f"  Fat:       {summary.nutrition.fat_g:.0f} g")
-        writer.write(f"  Calories:  {summary.nutrition.calories_kcal:.0f} kcal")
+
+        if nutrition.protein_g is not None:
+            writer.write(f"  Protein:   {nutrition.protein_g:.0f} g")
+
+        if nutrition.carbohydrates_g is not None:
+            writer.write(f"  Carbs:     {nutrition.carbohydrates_g:.0f} g")
+
+        if nutrition.fat_g is not None:
+            writer.write(f"  Fat:       {nutrition.fat_g:.0f} g")
+
+        if nutrition.calories_kcal is not None:
+            writer.write(f"  Calories:  {nutrition.calories_kcal:.0f} kcal")
 
     @staticmethod
     def _format_minutes(minutes: float) -> str:
@@ -426,3 +612,14 @@ class TextRenderer:
         for threshold, bonus in score.monthly_bonus.consistency_thresholds:
             writer.write(f"      < {threshold:g} std dev -> +{bonus:g}")
         writer.write()
+
+    @staticmethod
+    def _format_coverage(
+        count_days: int,
+        reporting_days: int,
+    ) -> str:
+        if count_days == reporting_days:
+            return ""
+
+        unit = "day" if count_days == 1 else "days"
+        return f" based on {count_days} {unit}"

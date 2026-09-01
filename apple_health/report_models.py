@@ -15,7 +15,7 @@ class ActivitySummary:
 
     duration_minutes: float
 
-    active_energy_kcal: float
+    active_energy_kcal: float | None
 
     distance_km: float | None
 
@@ -27,13 +27,13 @@ class DailySummary:
     activities: list[ActivitySummary]
 
     total_duration_minutes: float
-    total_active_energy_kcal: float
+    total_active_energy_kcal: float | None
 
-    total_steps: int
-    total_distance_km: float
+    total_steps: int | None
+    total_distance_km: float | None
 
-    active_energy_kcal: float
-    basal_energy_kcal: float
+    active_energy_kcal: float | None
+    basal_energy_kcal: float | None
 
     weight: float | None = None
 
@@ -44,22 +44,34 @@ class DailySummary:
     sleep_score: SleepScore | None = None
 
     @property
-    def average_step_length_cm(self) -> float:
+    def average_step_length_cm(
+        self,
+    ) -> float | None:
+        if self.total_steps is None or self.total_distance_km is None:
+            return None
+
         if self.total_steps == 0:
             return 0.0
 
         return self.total_distance_km * 100000 / self.total_steps
 
     @property
-    def tdee_kcal(self) -> float:
+    def tdee_kcal(self) -> float | None:
+        if self.active_energy_kcal is None or self.basal_energy_kcal is None:
+            return None
+
         return self.active_energy_kcal + self.basal_energy_kcal
 
     @property
     def calories_balance_kcal(self) -> float | None:
-        if self.nutrition is None:
+        if self.nutrition is None or self.nutrition.calories_kcal is None:
             return None
 
-        return self.nutrition.calories_kcal - self.tdee_kcal
+        tdee_kcal = self.tdee_kcal
+        if tdee_kcal is None:
+            return None
+
+        return self.nutrition.calories_kcal - tdee_kcal
 
 
 @dataclass(slots=True)
@@ -90,18 +102,12 @@ class MonthlySummary:
 @dataclass(slots=True)
 class ActivityMetricsSummary:
     total_steps: int | None
-
-    average_daily_steps: float | None
+    average_daily_steps: tuple[float, int] | None
 
     total_distance_km: float | None
+    average_daily_distance_km: tuple[float, int] | None
 
-    average_daily_distance_km: float | None
-
-    average_step_length_cm: float | None
-
-    average_basal_energy_kcal: float | None
-
-    average_active_energy_kcal: float | None
+    average_step_length_cm: tuple[float, int] | None
 
     average_weight: float | None
     start_weight: float | None
@@ -110,16 +116,16 @@ class ActivityMetricsSummary:
     min_weight: float | None
     measurements: int
 
-    average_protein_g: float | None
-    average_carbohydrates_g: float | None
-    average_fat_g: float | None
-    average_calories_kcal: float | None
+    average_basal_energy_kcal: tuple[float, int] | None
+    average_active_energy_kcal: tuple[float, int] | None
+    average_tdee_kcal: tuple[float, int] | None
 
-    @property
-    def average_tdee_kcal(self) -> float | None:
-        if self.average_active_energy_kcal is None or self.average_basal_energy_kcal is None:
-            return None
-        return self.average_active_energy_kcal + self.average_basal_energy_kcal
+    average_protein_g: tuple[float, int] | None
+    average_carbohydrates_g: tuple[float, int] | None
+    average_fat_g: tuple[float, int] | None
+    average_calories_kcal: tuple[float, int] | None
+
+    average_calories_balance_kcal: tuple[float, int] | None
 
     @property
     def weight_change(self) -> float | None:
@@ -129,10 +135,18 @@ class ActivityMetricsSummary:
         return self.end_weight - self.start_weight
 
     @property
-    def average_calories_balance(self) -> float | None:
-        if self.average_calories_kcal is None or self.average_tdee_kcal is None:
-            return
-        return self.average_calories_kcal - self.average_tdee_kcal
+    def total_calories_balance_kcal(
+        self,
+    ) -> tuple[float, int] | None:
+        if self.average_calories_balance_kcal is None:
+            return None
+
+        average, count_days = self.average_calories_balance_kcal
+
+        return (
+            average * count_days,
+            count_days,
+        )
 
 
 @dataclass(slots=True)
@@ -148,10 +162,14 @@ class SleepSession:
     core_minutes: float
     deep_minutes: float
     rem_minutes: float
+    unspecified_minutes: float
     awake_minutes: float
 
     @property
     def sleep_efficiency_percent(self) -> float:
+        if self.time_in_bed_minutes <= 0:
+            return 0.0
+
         return self.time_asleep_minutes / self.time_in_bed_minutes * 100
 
     @property
@@ -176,6 +194,7 @@ class SleepMonthlySummary:
     average_core_minutes: float
     average_deep_minutes: float
     average_rem_minutes: float
+    average_unspecified_minutes: float
 
     average_bedtime_score: float
     average_duration_score: float

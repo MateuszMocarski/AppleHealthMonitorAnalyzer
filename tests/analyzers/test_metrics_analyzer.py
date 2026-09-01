@@ -14,10 +14,10 @@ from apple_health.models import (
 def _metrics(
     day: int,
     *,
-    steps: int = 0,
-    distance_km: float = 0.0,
-    active_energy: float = 0.0,
-    basal_energy: float = 0.0,
+    steps: int | None = None,
+    distance_km: float | None = None,
+    active_energy: float | None = None,
+    basal_energy: float | None = None,
     weight: float | None = None,
     nutrition: NutritionData | None = None,
 ) -> DailyMetrics:
@@ -50,10 +50,10 @@ def _metrics(
 
 def _nutrition(
     *,
-    calories_kcal: float = 0.0,
-    protein_g: float = 0.0,
-    carbohydrates_g: float = 0.0,
-    fat_g: float = 0.0,
+    calories_kcal: float | None = None,
+    protein_g: float | None = None,
+    carbohydrates_g: float | None = None,
+    fat_g: float | None = None,
 ) -> NutritionData:
     return NutritionData(
         calories_kcal=calories_kcal,
@@ -198,8 +198,15 @@ def test_summarize_month_calculates_daily_activity_averages() -> None:
         reporting_days=3,
     )
 
-    assert summary.average_daily_steps == 5000.0
-    assert summary.average_daily_distance_km == 4.0
+    assert summary.average_daily_steps == (
+        7500.0,
+        2,
+    )
+
+    assert summary.average_daily_distance_km == (
+        6.0,
+        2,
+    )
 
 
 # =====================================================================
@@ -228,8 +235,9 @@ def test_summarize_month_calculates_energy_averages() -> None:
         reporting_days=2,
     )
 
-    assert summary.average_basal_energy_kcal == 1950.0
-    assert summary.average_active_energy_kcal == 700.0
+    assert summary.average_basal_energy_kcal == (1950.0, 2)
+    assert summary.average_active_energy_kcal == (700.0, 2)
+    assert summary.average_tdee_kcal == (2650.0, 2)
 
 
 # =====================================================================
@@ -253,7 +261,10 @@ def test_summarize_month_calculates_average_step_length() -> None:
         reporting_days=1,
     )
 
-    assert summary.average_step_length_cm == 80.0
+    assert summary.average_step_length_cm == (
+        80.0,
+        1,
+    )
 
 
 # =====================================================================
@@ -277,51 +288,10 @@ def test_average_step_length_is_zero_when_no_steps_exist() -> None:
         reporting_days=1,
     )
 
-    assert summary.average_step_length_cm == 0.0
-
-
-# =====================================================================
-# Verifies that nutrition values are summed from available daily
-# records and averaged across all completed reporting days.
-# =====================================================================
-
-
-def test_summarize_month_calculates_nutrition_averages() -> None:
-    analyzer = _analyzer(
-        _metrics(
-            1,
-            nutrition=_nutrition(
-                calories_kcal=2000,
-                protein_g=150,
-                carbohydrates_g=200,
-                fat_g=70,
-            ),
-        ),
-        _metrics(
-            2,
-            nutrition=_nutrition(
-                calories_kcal=2200,
-                protein_g=170,
-                carbohydrates_g=220,
-                fat_g=80,
-            ),
-        ),
-        _metrics(
-            3,
-            nutrition=None,
-        ),
+    assert summary.average_step_length_cm == (
+        0.0,
+        1,
     )
-
-    summary = analyzer.summarize_month(
-        year=2026,
-        month=8,
-        reporting_days=3,
-    )
-
-    assert summary.average_calories_kcal == 1400.0
-    assert summary.average_protein_g == pytest.approx(320 / 3)
-    assert summary.average_carbohydrates_g == 140.0
-    assert summary.average_fat_g == 50.0
 
 
 # =====================================================================
@@ -390,3 +360,304 @@ def test_weight_statistics_are_empty_when_no_measurements_exist() -> None:
     assert summary.min_weight is None
     assert summary.max_weight is None
     assert summary.measurements == 0
+
+
+# =====================================================================
+# Verifies that missing nutrition data remains unavailable instead of
+# being represented as zero-valued monthly nutrition.
+# =====================================================================
+
+
+def test_summarize_month_preserves_missing_nutrition() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            active_energy=600,
+            basal_energy=1800,
+            nutrition=None,
+        ),
+        _metrics(
+            2,
+            active_energy=700,
+            basal_energy=1900,
+            nutrition=None,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=2,
+    )
+
+    assert summary.average_calories_kcal is None
+    assert summary.average_protein_g is None
+    assert summary.average_carbohydrates_g is None
+    assert summary.average_fat_g is None
+    assert summary.average_calories_balance_kcal is None
+
+
+# =====================================================================
+# Verifies that missing nutrition days are excluded from nutrition
+# averages instead of being treated as days with zero intake.
+# =====================================================================
+
+
+def test_summarize_month_averages_nutrition_only_across_available_days() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+                protein_g=150,
+                carbohydrates_g=200,
+                fat_g=70,
+            ),
+        ),
+        _metrics(
+            2,
+            nutrition=_nutrition(
+                calories_kcal=2200,
+                protein_g=170,
+                carbohydrates_g=220,
+                fat_g=80,
+            ),
+        ),
+        _metrics(
+            3,
+            nutrition=None,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_calories_kcal == (2100.0, 2)
+    assert summary.average_protein_g == (160.0, 2)
+    assert summary.average_carbohydrates_g == (210.0, 2)
+    assert summary.average_fat_g == (75.0, 2)
+
+
+# =====================================================================
+# Verifies that monthly calorie balance is averaged only across days
+# with available calorie intake data.
+# =====================================================================
+
+
+def test_summarize_month_calculates_calorie_balance_only_for_available_days() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            active_energy=500,
+            basal_energy=1500,
+            nutrition=_nutrition(
+                calories_kcal=2500,
+            ),
+        ),
+        _metrics(
+            2,
+            active_energy=1000,
+            basal_energy=2000,
+            nutrition=None,
+        ),
+        _metrics(
+            3,
+            active_energy=600,
+            basal_energy=1600,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+            ),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_tdee_kcal == (2400.0, 3)
+    assert summary.average_calories_kcal == (2250.0, 2)
+    assert summary.average_calories_balance_kcal == (150.0, 2)
+
+
+# =====================================================================
+# Verifies that basal, active and TDEE averages use their own coverage,
+# with TDEE requiring both energy components on the same day.
+# =====================================================================
+
+
+def test_summarize_month_uses_independent_energy_coverage() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            basal_energy=1500,
+            active_energy=500,
+        ),
+        _metrics(
+            2,
+            basal_energy=1600,
+            active_energy=None,
+        ),
+        _metrics(
+            3,
+            basal_energy=None,
+            active_energy=700,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_basal_energy_kcal == (1550.0, 2)
+    assert summary.average_active_energy_kcal == (600.0, 2)
+    assert summary.average_tdee_kcal == (2000.0, 1)
+
+
+# =====================================================================
+# Verifies that each monthly nutrition average uses only days where that
+# specific nutrient is available.
+# =====================================================================
+
+
+def test_summarize_month_uses_independent_nutrition_coverage() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+                protein_g=100,
+                fat_g=70,
+            ),
+        ),
+        _metrics(
+            2,
+            nutrition=_nutrition(
+                protein_g=120,
+                carbohydrates_g=250,
+            ),
+        ),
+        _metrics(
+            3,
+            nutrition=_nutrition(
+                calories_kcal=2400,
+                carbohydrates_g=300,
+                fat_g=80,
+            ),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=3,
+    )
+
+    assert summary.average_calories_kcal == (2200.0, 2)
+    assert summary.average_protein_g == (110.0, 2)
+    assert summary.average_carbohydrates_g == (275.0, 2)
+    assert summary.average_fat_g == (75.0, 2)
+
+
+# =====================================================================
+# Verifies that monthly calorie balance uses only days where calories,
+# basal energy and active energy are all available together.
+# =====================================================================
+
+
+def test_summarize_month_uses_complete_daily_coverage_for_calorie_balance() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            basal_energy=1500,
+            active_energy=500,
+            nutrition=_nutrition(calories_kcal=2500),
+        ),
+        _metrics(
+            2,
+            basal_energy=2000,
+            active_energy=None,
+            nutrition=_nutrition(calories_kcal=2900),
+        ),
+        _metrics(
+            3,
+            basal_energy=1600,
+            active_energy=600,
+            nutrition=_nutrition(calories_kcal=None),
+        ),
+        _metrics(
+            4,
+            basal_energy=1400,
+            active_energy=400,
+            nutrition=_nutrition(calories_kcal=1800),
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=4,
+    )
+
+    assert summary.average_calories_kcal == (2400.0, 3)
+    assert summary.average_tdee_kcal == (2000.0, 3)
+    assert summary.average_calories_balance_kcal == (250.0, 2)
+
+
+# =====================================================================
+# Verifies that steps, distance and step length preserve independent
+# data coverage instead of treating missing activity records as zero.
+# =====================================================================
+
+
+def test_summarize_month_preserves_independent_activity_coverage() -> None:
+    analyzer = _analyzer(
+        _metrics(
+            1,
+            steps=5000,
+            distance_km=4.0,
+        ),
+        _metrics(
+            2,
+            nutrition=_nutrition(
+                calories_kcal=2000,
+            ),
+        ),
+        _metrics(
+            3,
+            steps=7000,
+        ),
+        _metrics(
+            4,
+            distance_km=6.0,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=4,
+    )
+
+    assert summary.total_steps == 12000
+    assert summary.average_daily_steps == (
+        6000.0,
+        2,
+    )
+
+    assert summary.total_distance_km == 10.0
+    assert summary.average_daily_distance_km == (
+        5.0,
+        2,
+    )
+
+    assert summary.average_step_length_cm == (
+        80.0,
+        1,
+    )

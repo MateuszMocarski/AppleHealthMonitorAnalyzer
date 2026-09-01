@@ -21,7 +21,7 @@ class HealthAnalyzer:
 
         self.sleep_analyzer = SleepAnalyzer(health_data, config=self.config)
 
-        self.last_data_day = max(metrics.date for metrics in health_data.daily_metrics)
+        self.last_data_day = self._find_last_data_day()
 
     def summarize_day(self, day: date) -> DailySummary:
 
@@ -29,8 +29,8 @@ class HealthAnalyzer:
 
         metrics = self.metrics_analyzer.metrics_for_day(day)
 
-        active_energy_kcal = metrics.active_energy if metrics else 0.0
-        basal_energy_kcal = metrics.basal_energy if metrics else 0.0
+        active_energy_kcal = metrics.active_energy if metrics else None
+        basal_energy_kcal = metrics.basal_energy if metrics else None
 
         weight = (
             metrics.weight.value if metrics is not None and metrics.weight is not None else None
@@ -38,8 +38,9 @@ class HealthAnalyzer:
 
         nutrition = metrics.nutrition if metrics else None
 
-        total_steps = metrics.steps if metrics else 0
-        total_distance_km = metrics.distance_km if metrics else 0.0
+        total_steps = metrics.steps if metrics is not None else None
+
+        total_distance_km = metrics.distance_km if metrics is not None else None
 
         sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
 
@@ -53,7 +54,15 @@ class HealthAnalyzer:
             nutrition=nutrition,
             activities=activities,
             total_duration_minutes=sum(activity.duration_minutes for activity in activities),
-            total_active_energy_kcal=sum(activity.active_energy_kcal for activity in activities),
+            total_active_energy_kcal=(
+                sum(
+                    activity.active_energy_kcal
+                    for activity in activities
+                    if activity.active_energy_kcal is not None
+                )
+                if all(activity.active_energy_kcal is not None for activity in activities)
+                else None
+            ),
             active_energy_kcal=active_energy_kcal,
             basal_energy_kcal=basal_energy_kcal,
             total_steps=total_steps,
@@ -98,6 +107,9 @@ class HealthAnalyzer:
         year: int,
         month: int,
     ) -> int:
+        if self.last_data_day is None:
+            return 0
+
         last_complete_day = self.last_data_day - timedelta(days=1)
 
         if (year, month) < (
@@ -120,3 +132,17 @@ class HealthAnalyzer:
         month: int,
     ) -> list[date]:
         return [date(year, month, day) for day in range(1, self._reporting_days(year, month) + 1)]
+
+    def _find_last_data_day(
+        self,
+    ) -> date | None:
+        data_days = [metrics.date for metrics in self.metrics_analyzer.daily_metrics]
+
+        data_days.extend(workout.start.date() for workout in self.activity_analyzer.workouts)
+
+        data_days.extend(session.reporting_date for session in self.sleep_analyzer.sleep_sessions)
+
+        return max(
+            data_days,
+            default=None,
+        )

@@ -2,7 +2,7 @@ import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from zipfile import BadZipFile, ZipFile
+from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +11,11 @@ from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
+from apple_health.exceptions import (
+    ExportXmlTooLargeError,
+    HealthDataParseError,
+    InvalidArchiveError,
+)
 
 client = TestClient(app)
 
@@ -775,7 +780,7 @@ def test_report_generation_deletes_temporary_archive_after_failure(
 
         assert temporary_archive_path.exists()
 
-        raise BadZipFile("invalid archive")
+        raise InvalidArchiveError
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -991,7 +996,7 @@ def test_report_generation_maps_invalid_health_root_to_stable_error(
         self,
         options,
     ):
-        raise ValueError("Expected Apple HealthData root element.")
+        raise HealthDataParseError("Invalid Apple Health export XML.")
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1109,7 +1114,7 @@ def test_report_generation_rejects_oversized_export_xml(
         self,
         options,
     ):
-        raise RuntimeError("Apple Health export XML is too large.")
+        raise ExportXmlTooLargeError
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1168,3 +1173,442 @@ def test_report_generation_disables_response_caching(
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
+
+
+# =====================================================================
+# Verifies that optional source overrides submitted by the web client
+# are normalized and forwarded to multi-month report generation.
+# =====================================================================
+
+
+def test_report_generation_forwards_source_overrides(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        assert options.apple_watch_source == "Custom Watch"
+        assert options.apple_health_app_source == "Custom Health"
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "apple_watch_source": "  Custom Watch  ",
+            "apple_health_app_source": "  Custom Health  ",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }
+
+
+# =====================================================================
+# Verifies that blank source fields are treated as absent overrides so
+# the configured defaults remain effective.
+# =====================================================================
+
+
+def test_report_generation_ignores_blank_source_overrides(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        assert options.apple_watch_source is None
+        assert options.apple_health_app_source is None
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "apple_watch_source": "   ",
+            "apple_health_app_source": "",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }
+
+
+# =====================================================================
+# Verifies that the web interface exposes optional source override
+# controls together with the Apple Watch NBSP default warning.
+# =====================================================================
+
+
+def test_web_interface_exposes_source_override_controls() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="apple-watch-source"' in html
+    assert 'id="apple-health-app-source"' in html
+    assert "Apple\\xa0Watch" in html
+    assert "NBSP / U+00A0" in html
+
+
+# =====================================================================
+# Verifies that an uploaded TOML configuration is available during
+# report generation and removed after the request is completed.
+# =====================================================================
+
+
+def test_report_generation_forwards_uploaded_config(
+    monkeypatch,
+) -> None:
+    config_content = """
+[source]
+apple_health_app_source = "Custom Health"
+"""
+
+    captured_config_path: Path | None = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_config_path
+
+        captured_config_path = options.config_path
+
+        assert captured_config_path is not None
+        assert captured_config_path.exists()
+        assert (
+            captured_config_path.read_text(
+                encoding="utf-8",
+            )
+            == config_content
+        )
+
+        return []
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                config_content.encode(),
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }
+
+    assert captured_config_path is not None
+    assert not captured_config_path.exists()
+
+
+# =====================================================================
+# Verifies that malformed uploaded TOML configuration is rejected as
+# invalid client input instead of causing an internal server error.
+# =====================================================================
+
+
+def test_report_generation_rejects_malformed_config() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[source",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Invalid TOML configuration" in response.json()["detail"]
+
+
+# =====================================================================
+# Verifies that uploaded configuration files exceeding the dedicated
+# size limit are rejected before configuration parsing.
+# =====================================================================
+
+
+def test_report_generation_rejects_oversized_config(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "apple_health.api.app.MAX_CONFIG_UPLOAD_SIZE",
+        10,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"12345678901",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "Uploaded configuration is too large.",
+    }
+
+
+# =====================================================================
+# Verifies that the downloadable example configuration is served from
+# the repository's canonical config.example.toml file.
+# =====================================================================
+
+
+def test_example_config_download_returns_canonical_file() -> None:
+    example_config_path = (
+        Path(__file__).parents[2] / "apple_health" / "config" / "examples" / "config.example.toml"
+    )
+
+    response = client.get(
+        "/config.example.toml",
+    )
+
+    assert response.status_code == 200
+    assert response.content == example_config_path.read_bytes()
+    assert 'filename="config.example.toml"' in response.headers["content-disposition"]
+
+
+# =====================================================================
+# Verifies that semantically invalid Apple Health record values are
+# mapped to the stable invalid-export HTTP 422 response.
+# =====================================================================
+
+
+def test_report_generation_rejects_invalid_numeric_xml_value() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            f"""<HealthData>
+<Record
+    type="HKQuantityTypeIdentifierStepCount"
+    sourceName="{source_name}"
+    value="not-a-number"
+    startDate="2026-08-01 10:00:00 +0200"
+    endDate="2026-08-01 10:00:00 +0200"
+/>
+</HealthData>""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that Apple Health records missing required attributes are
+# mapped to the stable invalid-export HTTP 422 response.
+# =====================================================================
+
+
+def test_report_generation_rejects_missing_required_xml_attribute() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            f"""<HealthData>
+<Record
+    type="HKQuantityTypeIdentifierStepCount"
+    sourceName="{source_name}"
+    value="100"
+    endDate="2026-08-01 10:00:00 +0200"
+/>
+</HealthData>""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that non-finite Apple Health numeric values are rejected as
+# invalid export data instead of reaching generated JSON reports.
+# =====================================================================
+
+
+def test_report_generation_rejects_non_finite_xml_value() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    archive_buffer = BytesIO()
+
+    with ZipFile(
+        archive_buffer,
+        "w",
+    ) as archive:
+        archive.writestr(
+            "apple_health_export/export.xml",
+            f"""<HealthData>
+<Record
+    type="HKQuantityTypeIdentifierActiveEnergyBurned"
+    sourceName="{source_name}"
+    value="nan"
+    startDate="2026-08-01 10:00:00 +0200"
+    endDate="2026-08-01 10:00:00 +0200"
+/>
+</HealthData>""",
+        )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                archive_buffer.getvalue(),
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export XML.",
+    }
+
+
+# =====================================================================
+# Verifies that non-finite TOML configuration values are rejected at
+# the HTTP boundary with a controlled configuration error.
+# =====================================================================
+
+
+def test_report_generation_rejects_non_finite_config_value() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[sleep.score.bedtime]\npenalty_points = nan\n",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "Expected finite number" in response.json()["detail"]

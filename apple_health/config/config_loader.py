@@ -1,5 +1,6 @@
 import sys
 from datetime import time
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -82,34 +83,43 @@ _MONTHLY_BONUS_KEYS = {
 
 class ConfigLoader:
     @staticmethod
-    def load(path: Path | None) -> AppConfig:
+    def load(
+        path: Path | None,
+        *,
+        apple_watch_source: str | None = None,
+        apple_health_app_source: str | None = None,
+    ) -> AppConfig:
         if path is None:
             config = AppConfig()
-            ConfigLoader._validate_config(config)
-            return config
+        else:
+            data = ConfigLoader._load_toml(path)
 
-        data = ConfigLoader._load_toml(path)
-
-        ConfigLoader._validate_keys(
-            data,
-            _TOP_LEVEL_KEYS,
-        )
-
-        app_kwargs: dict[str, Any] = {}
-
-        if "source" in data:
-            app_kwargs["source"] = ConfigLoader._build_source_config(
-                data["source"],
+            ConfigLoader._validate_keys(
+                data,
+                _TOP_LEVEL_KEYS,
             )
 
-        if "sleep" in data:
-            app_kwargs["sleep"] = ConfigLoader._build_sleep_config(
-                data["sleep"],
+            app_kwargs: dict[str, Any] = {}
+
+            if "source" in data:
+                app_kwargs["source"] = ConfigLoader._build_source_config(
+                    data["source"],
+                )
+
+            if "sleep" in data:
+                app_kwargs["sleep"] = ConfigLoader._build_sleep_config(
+                    data["sleep"],
+                )
+
+            config = AppConfig(
+                **app_kwargs,
             )
 
-        config = AppConfig(
-            **app_kwargs,
-        )
+        if apple_watch_source is not None:
+            config.source.apple_watch_source = apple_watch_source
+
+        if apple_health_app_source is not None:
+            config.source.apple_health_app_source = apple_health_app_source
 
         ConfigLoader._validate_config(config)
 
@@ -508,16 +518,26 @@ class ConfigLoader:
         if isinstance(value, bool):
             raise ConfigurationError(f"Invalid configuration value: {path}. Expected number.")
 
-        if isinstance(value, (int, float)):
-            return float(value)
+        parsed_value: float | None = None
 
-        if isinstance(value, str):
+        if isinstance(value, (int, float)):
+            parsed_value = float(value)
+
+        elif isinstance(value, str):
             try:
-                return float(value)
+                parsed_value = float(value)
             except ValueError:
                 pass
 
-        raise ConfigurationError(f"Invalid configuration value: {path}. Expected number.")
+        if parsed_value is None:
+            raise ConfigurationError(f"Invalid configuration value: {path}. Expected number.")
+
+        if not isfinite(parsed_value):
+            raise ConfigurationError(
+                f"Invalid configuration value: {path}. Expected finite number."
+            )
+
+        return parsed_value
 
     @staticmethod
     def _parse_time(

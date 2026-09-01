@@ -1216,3 +1216,127 @@ def test_uses_configured_sleep_session_gap_threshold() -> None:
     )
 
     assert len(analyzer.sleep_sessions) == 1
+
+
+# =====================================================================
+# Verifies that sleep source filtering requires an exact configured
+# sourceName instead of accepting a longer source containing that value.
+# =====================================================================
+
+
+def test_sleep_source_requires_exact_match() -> None:
+    config = AppConfig()
+    config.source.apple_watch_source = "Custom Watch"
+
+    analyzer = _analyzer(
+        _sleep_record(
+            _datetime(10, 23),
+            _datetime(11, 6),
+            source_name="Custom Watch Device",
+        ),
+        config=config,
+    )
+
+    assert analyzer.sleep_sessions == []
+
+
+# =====================================================================
+# Verifies that zero-duration sleep sessions expose zero efficiency
+# instead of raising a division-by-zero error.
+# =====================================================================
+
+
+def test_zero_duration_sleep_session_has_zero_efficiency() -> None:
+    start = _datetime(11)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start,
+        ),
+    )
+
+    session = analyzer.sleep_sessions[0]
+
+    assert session.time_in_bed_minutes == 0
+    assert session.sleep_efficiency_percent == 0.0
+
+
+# =====================================================================
+# Verifies that unspecified Apple sleep stages contribute to total sleep
+# time and remain explicitly represented in the reconstructed session.
+# =====================================================================
+
+
+def test_unspecified_sleep_stage_is_counted_as_sleep() -> None:
+    start = _datetime(11)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            start,
+            start + timedelta(hours=8),
+            SleepStage.UNSPECIFIED,
+        ),
+    )
+
+    session = analyzer.sleep_sessions[0]
+
+    assert session.unspecified_minutes == 480
+    assert session.time_asleep_minutes == 480
+
+    assert session.time_asleep_minutes == (
+        session.core_minutes
+        + session.deep_minutes
+        + session.rem_minutes
+        + session.unspecified_minutes
+    )
+
+
+# =====================================================================
+# Verifies that monthly sleep summaries preserve the average duration
+# of Apple's legacy unspecified sleep stage across reported sessions.
+# =====================================================================
+
+
+def test_monthly_summary_calculates_average_unspecified_sleep() -> None:
+    first_start = _datetime(1)
+    second_start = _datetime(2)
+
+    analyzer = _analyzer(
+        _sleep_record(
+            first_start,
+            first_start + timedelta(hours=2),
+            SleepStage.UNSPECIFIED,
+        ),
+        _sleep_record(
+            second_start,
+            second_start + timedelta(hours=1),
+            SleepStage.UNSPECIFIED,
+        ),
+    )
+
+    summary = analyzer.summarize_month(
+        year=2026,
+        month=8,
+        reporting_days=2,
+    )
+
+    assert summary.average_unspecified_minutes == 90
+
+
+# =====================================================================
+# Verifies that the built-in Apple Watch source accepts Apple's standard
+# device-specific sourceName representation for sleep records.
+# =====================================================================
+
+
+def test_default_sleep_source_matches_device_name() -> None:
+    analyzer = _analyzer(
+        _sleep_record(
+            _datetime(10, 23),
+            _datetime(11, 6),
+            source_name="Apple\xa0Watch (Dupsko)",
+        ),
+    )
+
+    assert len(analyzer.sleep_sessions) == 1

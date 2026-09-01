@@ -653,3 +653,136 @@ def test_example_config_file_is_loadable(
     config = ConfigLoader.load(config_path)
 
     assert config is not None
+
+
+# =====================================================================
+# Verifies that runtime source overrides replace default SourceConfig
+# values when no TOML configuration is provided.
+# =====================================================================
+
+
+def test_runtime_source_overrides_replace_defaults() -> None:
+    config = ConfigLoader.load(
+        None,
+        apple_watch_source="Custom Watch",
+        apple_health_app_source="Custom Health",
+    )
+
+    assert config.source.apple_watch_source == "Custom Watch"
+    assert config.source.apple_health_app_source == "Custom Health"
+
+
+# =====================================================================
+# Verifies that runtime source overrides take precedence over values
+# loaded from TOML while preserving non-overridden source settings.
+# =====================================================================
+
+
+def test_runtime_source_overrides_take_precedence_over_toml(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        """
+        [source]
+        apple_watch_source = "TOML Watch"
+        apple_health_app_source = "TOML Health"
+        """,
+    )
+
+    config = ConfigLoader.load(
+        config_path,
+        apple_watch_source="UI Watch",
+    )
+
+    assert config.source.apple_watch_source == "UI Watch"
+    assert config.source.apple_health_app_source == "TOML Health"
+
+
+# =====================================================================
+# Verifies that blank source names from TOML are rejected because source
+# matching requires a non-empty exact sourceName value.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    ("field_name", "error_message"),
+    [
+        (
+            "apple_watch_source",
+            "Apple Watch source cannot be empty.",
+        ),
+        (
+            "apple_health_app_source",
+            "Apple Health app source cannot be empty.",
+        ),
+    ],
+)
+def test_blank_source_config_is_rejected(
+    tmp_path: Path,
+    field_name: str,
+    error_message: str,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        f"""
+        [source]
+        {field_name} = "   "
+        """,
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match=error_message,
+    ):
+        ConfigLoader.load(config_path)
+
+
+# =====================================================================
+# Verifies that blank runtime source overrides are rejected even when
+# ConfigLoader is used directly outside the HTTP adapter.
+# =====================================================================
+
+
+def test_blank_runtime_source_override_is_rejected() -> None:
+    with pytest.raises(
+        ConfigurationError,
+        match="Apple Watch source cannot be empty.",
+    ):
+        ConfigLoader.load(
+            None,
+            apple_watch_source="   ",
+        )
+
+
+# =====================================================================
+# Verifies that TOML floating-point values must be finite before they
+# are accepted into the application configuration.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "nan",
+        "inf",
+        "-inf",
+    ],
+)
+def test_non_finite_float_config_is_rejected(
+    tmp_path: Path,
+    value: str,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        f"""
+        [sleep.score.bedtime]
+        penalty_points = {value}
+        """,
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match="sleep.score.bedtime.penalty_points.*finite number",
+    ):
+        ConfigLoader.load(config_path)

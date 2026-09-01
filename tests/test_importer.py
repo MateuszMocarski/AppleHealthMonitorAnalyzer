@@ -3,6 +3,12 @@ from pathlib import Path
 
 import pytest
 
+from apple_health.exceptions import (
+    ExportXmlNotFoundError,
+    ExportXmlTooLargeError,
+    InvalidArchiveError,
+    MultipleExportXmlError,
+)
 from apple_health.importer import AppleHealthImporter
 
 
@@ -118,18 +124,25 @@ def test_open_export_ignores_cda_xml_files(
 
 
 @pytest.mark.parametrize(
-    "files",
+    ("files", "expected_exception"),
     [
-        {},
-        {
-            "apple_health_export/export.xml": "<HealthData />",
-            "apple_health_export/eksport.xml": "<HealthData />",
-        },
+        (
+            {},
+            ExportXmlNotFoundError,
+        ),
+        (
+            {
+                "apple_health_export/export.xml": "<HealthData />",
+                "apple_health_export/eksport.xml": "<HealthData />",
+            },
+            MultipleExportXmlError,
+        ),
     ],
 )
 def test_open_export_rejects_invalid_xml_file_count(
     tmp_path: Path,
     files: dict[str, str],
+    expected_exception: type[Exception],
 ) -> None:
     archive_path = tmp_path / "export.zip"
 
@@ -140,10 +153,7 @@ def test_open_export_rejects_invalid_xml_file_count(
 
     importer = AppleHealthImporter(archive_path)
 
-    with pytest.raises(
-        RuntimeError,
-        match=r"Expected exactly one export XML, found \d+\.",
-    ):
+    with pytest.raises(expected_exception):
         with importer.open_export():
             pass
 
@@ -201,9 +211,77 @@ def test_open_export_rejects_oversized_export_xml(
         archive_path,
     )
 
-    with pytest.raises(
-        RuntimeError,
-        match="Apple Health export XML is too large.",
-    ):
+    with pytest.raises(ExportXmlTooLargeError):
+        with importer.open_export():
+            pass
+
+
+# =====================================================================
+# Verifies that an archive without an Apple Health export XML raises
+# the dedicated missing-export exception.
+# =====================================================================
+
+
+def test_open_export_rejects_missing_export_xml(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "export.zip"
+
+    _create_zip(
+        archive_path,
+        {},
+    )
+
+    importer = AppleHealthImporter(archive_path)
+
+    with pytest.raises(ExportXmlNotFoundError):
+        with importer.open_export():
+            pass
+
+
+# =====================================================================
+# Verifies that an archive containing multiple Apple Health export XML
+# files raises the dedicated multiple-export exception.
+# =====================================================================
+
+
+def test_open_export_rejects_multiple_export_xml_files(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "export.zip"
+
+    _create_zip(
+        archive_path,
+        {
+            "apple_health_export/export.xml": "<HealthData />",
+            "apple_health_export/eksport.xml": "<HealthData />",
+        },
+    )
+
+    importer = AppleHealthImporter(archive_path)
+
+    with pytest.raises(MultipleExportXmlError):
+        with importer.open_export():
+            pass
+
+
+# =====================================================================
+# Verifies that malformed ZIP input is translated into the dedicated
+# Apple Health archive exception at the importer boundary.
+# =====================================================================
+
+
+def test_open_export_rejects_invalid_zip_archive(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "export.zip"
+
+    archive_path.write_bytes(
+        b"this-is-not-a-zip",
+    )
+
+    importer = AppleHealthImporter(archive_path)
+
+    with pytest.raises(InvalidArchiveError):
         with importer.open_export():
             pass

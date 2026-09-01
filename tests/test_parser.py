@@ -10,6 +10,7 @@ from apple_health.constants import (
     WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
 )
 from apple_health.enums import SleepStage, WorkoutType
+from apple_health.exceptions import HealthDataParseError
 from apple_health.parser import AppleHealthParser
 
 # =======
@@ -251,6 +252,31 @@ def test_aggregates_apple_watch_daily_metrics() -> None:
 
 
 # =====================================================================
+# Verifies that missing daily energy components remain unavailable
+# instead of being defaulted to zero during parsing.
+# =====================================================================
+
+
+def test_preserves_missing_energy_fields_as_none() -> None:
+    config = AppConfig()
+    source_config = config.source
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierActiveEnergyBurned",
+            source_name=source_config.apple_watch_source,
+            value="650",
+        ),
+    )
+
+    data = _parse_xml(xml, config=config)
+
+    metrics = data.daily_metrics[0]
+
+    assert metrics.active_energy == pytest.approx(650)
+    assert metrics.basal_energy is None
+
+
+# =====================================================================
 # Verifies that Apple Watch metric types from an unexpected source are
 # ignored instead of being included in daily activity totals.
 # =====================================================================
@@ -336,6 +362,39 @@ def test_aggregates_nutrition_records() -> None:
     assert nutrition.protein_g == pytest.approx(155)
     assert nutrition.carbohydrates_g == pytest.approx(194)
     assert nutrition.fat_g == pytest.approx(73)
+
+
+# =====================================================================
+# Verifies that missing nutrition fields remain unavailable instead of
+# being defaulted to zero when other nutrition data exists for the day.
+# =====================================================================
+
+
+def test_preserves_missing_nutrition_fields_as_none() -> None:
+    config = AppConfig()
+    source_config = config.source
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryProtein",
+            source_name=source_config.apple_health_app_source,
+            value="100",
+        ),
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryProtein",
+            source_name=source_config.apple_health_app_source,
+            value="55",
+        ),
+    )
+
+    data = _parse_xml(xml, config=config)
+
+    nutrition = data.daily_metrics[0].nutrition
+
+    assert nutrition is not None
+    assert nutrition.protein_g == pytest.approx(155)
+    assert nutrition.calories_kcal is None
+    assert nutrition.carbohydrates_g is None
+    assert nutrition.fat_g is None
 
 
 # =====================================================================
@@ -653,7 +712,201 @@ def test_parser_rejects_non_health_data_root() -> None:
     )
 
     with pytest.raises(
-        ValueError,
-        match="Expected Apple HealthData root element.",
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
     ):
         parser.parse()
+
+
+# =====================================================================
+# Verifies that configured source names are matched exactly instead of
+# accepting records whose sourceName merely contains the configured value.
+# =====================================================================
+
+
+def test_configured_source_names_require_exact_match() -> None:
+    config = AppConfig()
+    config.source.apple_watch_source = "Custom Watch"
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name="Custom Watch Device",
+            value="5000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert data.daily_metrics == []
+
+
+# =====================================================================
+# Verifies that the built-in Apple Watch source matches Apple's standard
+# device-specific sourceName representation.
+# =====================================================================
+
+
+def test_default_apple_watch_source_matches_device_name() -> None:
+    config = AppConfig()
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name="Apple\xa0Watch (Dupsko)",
+            value="5000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    assert len(data.daily_metrics) == 1
+    assert data.daily_metrics[0].steps == 5000
+
+
+# =====================================================================
+# Verifies that days created from non-activity records preserve missing
+# step and walking-distance measurements instead of inventing zeros.
+# =====================================================================
+
+
+def test_preserves_missing_activity_metrics_on_non_activity_day() -> None:
+    config = AppConfig()
+
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierDietaryEnergyConsumed",
+            source_name=config.source.apple_health_app_source,
+            value="2000",
+        )
+    )
+
+    data = _parse_xml(
+        xml,
+        config=config,
+    )
+
+    metrics = data.daily_metrics[0]
+
+    assert metrics.steps is None
+    assert metrics.distance_km is None
+
+
+# =====================================================================
+# Verifies that malformed XML is translated into the dedicated parser
+# exception instead of leaking the ElementTree implementation error.
+# =====================================================================
+
+
+def test_parser_rejects_malformed_xml() -> None:
+    xml_stream = BytesIO(
+        b"""
+<HealthData>
+    <Record>
+</HealthData>
+"""
+    )
+
+    parser = AppleHealthParser(
+        xml_stream=xml_stream,
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        parser.parse()
+
+
+# =====================================================================
+# Verifies that invalid numeric values in supported Apple Health
+# records are reported as health-data parse errors.
+# =====================================================================
+
+
+def test_parser_rejects_invalid_numeric_record_value() -> None:
+    config = AppConfig()
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierStepCount",
+            source_name=config.source.apple_watch_source,
+            value="not-a-number",
+        )
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        _parse_xml(
+            xml,
+            config=config,
+        )
+
+
+# =====================================================================
+# Verifies that supported records missing required XML attributes are
+# reported as health-data parse errors.
+# =====================================================================
+
+
+def test_parser_rejects_missing_required_record_attribute() -> None:
+    source_name = AppConfig().source.apple_watch_source
+    xml = _wrap_xml(
+        f"""
+        <Record
+            type="HKQuantityTypeIdentifierStepCount"
+            sourceName="{source_name}"
+            value="100"
+            endDate="2026-08-01 10:00:00 +0200"
+        />
+        """
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        _parse_xml(xml)
+
+
+# =====================================================================
+# Verifies that non-finite floating-point values from Apple Health are
+# rejected instead of entering report calculations.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "nan",
+        "inf",
+        "-inf",
+    ],
+)
+def test_parser_rejects_non_finite_numeric_values(
+    value: str,
+) -> None:
+    config = AppConfig()
+    xml = _wrap_xml(
+        _record(
+            record_type="HKQuantityTypeIdentifierActiveEnergyBurned",
+            source_name=config.source.apple_watch_source,
+            value=value,
+        )
+    )
+
+    with pytest.raises(
+        HealthDataParseError,
+        match="Invalid Apple Health export XML.",
+    ):
+        _parse_xml(
+            xml,
+            config=config,
+        )

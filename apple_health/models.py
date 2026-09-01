@@ -40,11 +40,12 @@ class SleepRecord:
 @dataclass
 class DailyMetrics:
     date: date
-    steps: int = 0
-    distance_km: float = 0.0
+    steps: int | None = None
+    distance_km: float | None = None
 
-    active_energy: float = 0.0
-    basal_energy: float = 0.0
+    active_energy: float | None = None
+    basal_energy: float | None = None
+
     weight: WeightMeasurement | None = None
     nutrition: NutritionData | None = None
 
@@ -65,7 +66,7 @@ class WeightMeasurement:
 
 @dataclass(slots=True)
 class NutritionData:
-    calories_kcal: float = 0.0
-    protein_g: float = 0.0
-    carbohydrates_g: float = 0.0
-    fat_g: float = 0.0
+    calories_kcal: float | None = None
+    protein_g: float | None = None
+    carbohydrates_g: float | None = None
+    fat_g: float | None = None

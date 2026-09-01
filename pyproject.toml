@@ -7,14 +7,32 @@ requires-python = ">=3.10"
 
 dependencies = [
     "fastapi>=0.116.0",
-    "httpx",
     "tomli>=2.0.0; python_version < '3.11'",
     "uvicorn>=0.35.0",
     "python-multipart",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "black",
+    "build",
+    "httpx",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+
 [tool.setuptools.packages.find]
 include = ["apple_health*"]
+
+[tool.setuptools.package-data]
+"apple_health.api" = [
+    "web/*.html",
+    "web/*.svg",
+]
+"apple_health.config" = [
+    "examples/*.toml",
+]
 
 [tool.black]
 line-length = 100
