@@ -1,5 +1,8 @@
 from secrets import token_urlsafe
+from typing import Protocol
 from urllib.parse import urlencode
+
+import httpx
 
 from apple_health.google.sessions import SessionStore
 
@@ -8,9 +11,51 @@ class GoogleOAuthError(ValueError):
     pass
 
 
+class GoogleTokenClient(Protocol):
+    def exchange_code(
+        self,
+        code: str,
+        client_id: str,
+        client_secret: str,
+        redirect_uri: str,
+    ) -> str: ...
+
+
+class HttpGoogleTokenClient:
+    TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+    REQUEST_TIMEOUT = 10.0
+
+    def exchange_code(
+        self,
+        code: str,
+        client_id: str,
+        client_secret: str,
+        redirect_uri: str,
+    ) -> str:
+        response = httpx.post(
+            self.TOKEN_ENDPOINT,
+            data={
+                "code": code,
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+            timeout=self.REQUEST_TIMEOUT,
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise GoogleOAuthError("Google token exchange failed") from exc
+
+        payload = response.json()
+
+        return payload["access_token"]
+
+
 class GoogleOAuthService:
     AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
-    TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 
     SCOPES = (
         "openid",
@@ -68,30 +113,13 @@ class GoogleOAuthService:
 
         sessions.clear_oauth_state(session_id)
 
-    def exchange_code(
-        self,
-        code: str,
-        exchange_token,
-    ) -> str:
-        if self._client_secret is None:
-            raise GoogleOAuthError("Google OAuth client secret is not configured")
-
-        return exchange_token(
-            self.TOKEN_ENDPOINT,
-            code=code,
-            client_id=self._client_id,
-            client_secret=self._client_secret,
-            redirect_uri=self._redirect_uri,
-            grant_type="authorization_code",
-        )
-
     def complete(
         self,
         sessions: SessionStore,
         session_id: str,
         returned_state: str,
         code: str,
-        exchange_token,
+        token_client: GoogleTokenClient,
     ) -> None:
         self.validate_callback_state(
             sessions=sessions,
@@ -99,9 +127,14 @@ class GoogleOAuthService:
             returned_state=returned_state,
         )
 
-        access_token = self.exchange_code(
+        if self._client_secret is None:
+            raise GoogleOAuthError("Google OAuth client secret is not configured")
+
+        access_token = token_client.exchange_code(
             code=code,
-            exchange_token=exchange_token,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+            redirect_uri=self._redirect_uri,
         )
 
         sessions.set_google_access_token(

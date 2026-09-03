@@ -1,8 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import Cookie, FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 
 from apple_health.api.models import (
     MonthlyReportResponse,
@@ -19,6 +19,9 @@ from apple_health.exceptions import (
     InvalidArchiveError,
     MultipleExportXmlError,
 )
+from apple_health.google.oauth import GoogleOAuthService, HttpGoogleTokenClient
+from apple_health.google.sessions import SessionCookieSettings, SessionStore
+from apple_health.google.settings import GoogleSettings
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 MAX_CONFIG_UPLOAD_SIZE = 1024 * 1024  # 1 MB
@@ -33,6 +36,9 @@ app = FastAPI(
     title="Apple Health Monitor Analyzer",
     version="0.1.0",
 )
+
+session_store = SessionStore()
+google_token_client = HttpGoogleTokenClient()
 
 
 def _copy_upload_to_file(
@@ -142,6 +148,76 @@ def example_config() -> FileResponse:
         media_type="application/toml",
         filename="config.example.toml",
     )
+
+
+@app.get(
+    "/auth/google/start",
+    include_in_schema=False,
+)
+def google_oauth_start() -> RedirectResponse:
+    settings = GoogleSettings.load()
+
+    oauth = GoogleOAuthService(
+        client_id=settings.client_id,
+        client_secret=settings.client_secret,
+        redirect_uri=settings.redirect_uri,
+    )
+
+    session_id = session_store.create()
+
+    authorization_url = oauth.start(
+        sessions=session_store,
+        session_id=session_id,
+    )
+
+    cookie_settings = SessionCookieSettings.for_environment(
+        settings.environment,
+    )
+
+    response = RedirectResponse(
+        authorization_url,
+        status_code=302,
+    )
+
+    response.set_cookie(
+        key=cookie_settings.name,
+        value=session_id,
+        httponly=cookie_settings.http_only,
+        secure=cookie_settings.secure,
+        samesite=cookie_settings.same_site,
+    )
+
+    return response
+
+
+@app.get(
+    "/auth/google/callback",
+    include_in_schema=False,
+)
+def google_oauth_callback(
+    code: str,
+    state: str,
+    ahm_session: str = Cookie(),
+) -> dict[str, str]:
+    settings = GoogleSettings.load()
+
+    oauth = GoogleOAuthService(
+        client_id=settings.client_id,
+        client_secret=settings.client_secret,
+        redirect_uri=settings.redirect_uri,
+    )
+
+    oauth.complete(
+        sessions=session_store,
+        session_id=ahm_session,
+        returned_state=state,
+        code=code,
+        token_client=google_token_client,
+    )
+
+    return {
+        "status": "google_connected",
+    }
 
 
 @app.get("/health")

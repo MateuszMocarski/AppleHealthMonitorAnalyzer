@@ -1,8 +1,13 @@
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 import pytest
 
-from apple_health.google.oauth import GoogleOAuthError, GoogleOAuthService
+from apple_health.google.oauth import (
+    GoogleOAuthError,
+    GoogleOAuthService,
+    HttpGoogleTokenClient,
+)
 from apple_health.google.sessions import SessionStore
 
 # =====================================================================
@@ -137,72 +142,66 @@ def test_oauth_callback_state_cannot_be_reused() -> None:
 
 
 # =====================================================================
-# Verifies that an authorization code is exchanged using the configured
-# Google OAuth client credentials and redirect URI.
+# Verifies that completing Google OAuth forwards the configured client
+# credentials and redirect URI to the token client.
 # =====================================================================
 
 
-def test_exchange_code_uses_google_oauth_configuration() -> None:
+def test_complete_oauth_uses_google_oauth_configuration() -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
     oauth = GoogleOAuthService(
         client_id="dev-client-id",
         client_secret="dev-client-secret",
         redirect_uri="http://localhost:8000/auth/google/callback",
     )
 
-    exchanged_parameters = None
+    oauth.start(
+        sessions=sessions,
+        session_id=session_id,
+    )
 
-    def exchange_token(endpoint, **parameters):
-        nonlocal exchanged_parameters
-        exchanged_parameters = parameters
-        return "access-token"
+    session = sessions.get(session_id)
 
-    access_token = oauth.exchange_code(
+    assert session is not None
+    assert session.oauth_state is not None
+
+    class CapturingTokenClient:
+        def __init__(self) -> None:
+            self.parameters: dict[str, str] | None = None
+
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> str:
+            self.parameters = {
+                "code": code,
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+            }
+            return "access-token"
+
+    token_client = CapturingTokenClient()
+
+    oauth.complete(
+        sessions=sessions,
+        session_id=session_id,
+        returned_state=session.oauth_state,
         code="authorization-code",
-        exchange_token=exchange_token,
+        token_client=token_client,
     )
 
-    assert access_token == "access-token"
-    assert exchanged_parameters["code"] == "authorization-code"
-    assert exchanged_parameters["client_id"] == "dev-client-id"
-    assert exchanged_parameters["client_secret"] == "dev-client-secret"
-    assert exchanged_parameters["redirect_uri"] == "http://localhost:8000/auth/google/callback"
-
-
-# =====================================================================
-# Verifies that exchanging an authorization code uses the Google token
-# endpoint and authorization_code grant type.
-# =====================================================================
-
-
-def test_exchange_code_uses_google_token_endpoint_and_grant_type() -> None:
-    oauth = GoogleOAuthService(
-        client_id="dev-client-id",
-        client_secret="dev-client-secret",
-        redirect_uri="http://localhost:8000/auth/google/callback",
-    )
-
-    exchange_request = None
-
-    def exchange_token(endpoint, **parameters):
-        nonlocal exchange_request
-        exchange_request = (endpoint, parameters)
-        return "access-token"
-
-    oauth.exchange_code(
-        code="authorization-code",
-        exchange_token=exchange_token,
-    )
-
-    assert exchange_request == (
-        "https://oauth2.googleapis.com/token",
-        {
-            "code": "authorization-code",
-            "client_id": "dev-client-id",
-            "client_secret": "dev-client-secret",
-            "redirect_uri": "http://localhost:8000/auth/google/callback",
-            "grant_type": "authorization_code",
-        },
-    )
+    assert token_client.parameters == {
+        "code": "authorization-code",
+        "client_id": "dev-client-id",
+        "client_secret": "dev-client-secret",
+        "redirect_uri": "http://localhost:8000/auth/google/callback",
+    }
 
 
 # =====================================================================
@@ -231,15 +230,140 @@ def test_complete_oauth_stores_access_token_in_session() -> None:
     assert session is not None
     assert session.oauth_state is not None
 
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> str:
+            return "access-token"
+
     oauth.complete(
         sessions=sessions,
         session_id=session_id,
         returned_state=session.oauth_state,
         code="authorization-code",
-        exchange_token=lambda endpoint, **parameters: "access-token",
+        token_client=FakeTokenClient(),
     )
 
     session = sessions.get(session_id)
 
     assert session is not None
     assert session.google_access_token == "access-token"
+
+
+# =====================================================================
+# Verifies that the HTTP Google token client exchanges an authorization
+# code against the Google OAuth token endpoint.
+# =====================================================================
+
+
+def test_http_google_token_client_exchanges_authorization_code(
+    monkeypatch,
+) -> None:
+    captured_request = None
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, str]:
+            return {
+                "access_token": "access-token",
+            }
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        nonlocal captured_request
+        captured_request = (
+            url,
+            data,
+            timeout,
+        )
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    access_token = token_client.exchange_code(
+        code="authorization-code",
+        client_id="dev-client-id",
+        client_secret="dev-client-secret",
+        redirect_uri="http://localhost:8000/auth/google/callback",
+    )
+
+    assert access_token == "access-token"
+    assert captured_request == (
+        "https://oauth2.googleapis.com/token",
+        {
+            "code": "authorization-code",
+            "client_id": "dev-client-id",
+            "client_secret": "dev-client-secret",
+            "redirect_uri": "http://localhost:8000/auth/google/callback",
+            "grant_type": "authorization_code",
+        },
+        10.0,
+    )
+
+
+# =====================================================================
+# Verifies that an HTTP failure from the Google token endpoint is
+# exposed as a controlled OAuth error.
+# =====================================================================
+
+
+def test_http_google_token_client_maps_google_http_error(
+    monkeypatch,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            request = httpx.Request(
+                "POST",
+                "https://oauth2.googleapis.com/token",
+            )
+            response = httpx.Response(
+                400,
+                request=request,
+            )
+
+            raise httpx.HTTPStatusError(
+                "Google token exchange failed",
+                request=request,
+                response=response,
+            )
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )

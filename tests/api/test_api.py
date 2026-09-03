@@ -2,10 +2,12 @@ import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
+import apple_health.api.app as api_app_module
 from apple_health.api.app import app
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
@@ -16,6 +18,7 @@ from apple_health.exceptions import (
     HealthDataParseError,
     InvalidArchiveError,
 )
+from apple_health.google.sessions import SessionStore
 
 client = TestClient(app)
 
@@ -1612,3 +1615,136 @@ def test_report_generation_rejects_non_finite_config_value() -> None:
 
     assert response.status_code == 422
     assert "Expected finite number" in response.json()["detail"]
+
+
+# =====================================================================
+# Verifies that starting Google OAuth creates a backend session, sets
+# its opaque cookie, and redirects the browser to Google authorization.
+# =====================================================================
+
+
+def test_google_oauth_start_redirects_with_backend_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/start",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+
+    authorization_url = urlparse(response.headers["location"])
+    query = parse_qs(authorization_url.query)
+
+    assert authorization_url.scheme == "https"
+    assert authorization_url.netloc == "accounts.google.com"
+
+    session_id = response.cookies["ahm_session"]
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is not None
+    assert query["state"] == [session.oauth_state]
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=lax" in set_cookie
+    assert "Secure" not in set_cookie
+
+
+# =====================================================================
+# Verifies that a valid Google OAuth callback exchanges the
+# authorization code and stores the access token in the backend session.
+# =====================================================================
+
+
+def test_google_oauth_callback_completes_backend_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> str:
+            return "access-token"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "google_connected",
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is None
+    assert session.google_access_token == "access-token"
