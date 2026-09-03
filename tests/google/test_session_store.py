@@ -1,0 +1,180 @@
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from apple_health.google.sessions import SessionCookieSettings, SessionStore
+
+# =====================================================================
+# Verifies that a newly created session can be retrieved from the
+# in-memory session store by its generated identifier.
+# =====================================================================
+
+
+def test_created_session_can_be_retrieved() -> None:
+    store = SessionStore()
+
+    session_id = store.create()
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.session_id == session_id
+
+
+# =====================================================================
+# Verifies that each newly created session receives a unique
+# identifier.
+# =====================================================================
+
+
+def test_created_sessions_receive_unique_identifiers() -> None:
+    store = SessionStore()
+
+    first_session_id = store.create()
+    second_session_id = store.create()
+
+    assert first_session_id != second_session_id
+
+
+# =====================================================================
+# Verifies that a deleted session can no longer be retrieved from the
+# in-memory session store.
+# =====================================================================
+
+
+def test_deleted_session_can_no_longer_be_retrieved() -> None:
+    store = SessionStore()
+
+    session_id = store.create()
+
+    store.delete(session_id)
+
+    assert store.get(session_id) is None
+
+
+# =====================================================================
+# Verifies that a session expires after the eight-hour absolute TTL.
+# =====================================================================
+
+
+def test_session_expires_after_eight_hours() -> None:
+    current_time = datetime(
+        2026,
+        9,
+        3,
+        12,
+        0,
+        tzinfo=timezone.utc,
+    )
+    store = SessionStore(clock=lambda: current_time)
+
+    session_id = store.create()
+
+    current_time += timedelta(hours=8, seconds=1)
+
+    assert store.get(session_id) is None
+
+
+# =====================================================================
+# Verifies that retrieving a session does not extend its absolute
+# expiration time.
+# =====================================================================
+
+
+def test_retrieving_session_does_not_extend_expiration() -> None:
+    current_time = datetime(
+        2026,
+        9,
+        3,
+        12,
+        0,
+        tzinfo=timezone.utc,
+    )
+    store = SessionStore(clock=lambda: current_time)
+
+    session_id = store.create()
+
+    current_time += timedelta(hours=7)
+    assert store.get(session_id) is not None
+
+    current_time += timedelta(hours=1, seconds=1)
+    assert store.get(session_id) is None
+
+
+# =====================================================================
+# Verifies that production session cookies use the required security
+# attributes.
+# =====================================================================
+
+
+def test_production_session_cookie_settings_are_secure() -> None:
+    settings = SessionCookieSettings.for_environment("production")
+
+    assert settings.name == "ahm_session"
+    assert settings.http_only is True
+    assert settings.secure is True
+    assert settings.same_site == "lax"
+
+
+# =====================================================================
+# Verifies that development session cookies allow local HTTP usage.
+# =====================================================================
+
+
+def test_development_session_cookie_settings_allow_local_http() -> None:
+    settings = SessionCookieSettings.for_environment("development")
+
+    assert settings.name == "ahm_session"
+    assert settings.http_only is True
+    assert settings.secure is False
+    assert settings.same_site == "lax"
+
+
+# =====================================================================
+# Verifies that a session expires exactly at the eight-hour absolute
+# TTL boundary.
+# =====================================================================
+
+
+def test_session_expires_exactly_at_eight_hours() -> None:
+    current_time = datetime(
+        2026,
+        9,
+        3,
+        12,
+        0,
+        tzinfo=timezone.utc,
+    )
+    store = SessionStore(clock=lambda: current_time)
+
+    session_id = store.create()
+
+    current_time += timedelta(hours=8)
+
+    assert store.get(session_id) is None
+
+
+# =====================================================================
+# Verifies that deleting an unknown session is safe and idempotent.
+# =====================================================================
+
+
+def test_deleting_unknown_session_does_not_fail() -> None:
+    store = SessionStore()
+
+    store.delete("unknown-session-id")
+    store.delete("unknown-session-id")
+
+
+# =====================================================================
+# Verifies that session cookie settings reject an unsupported
+# application environment.
+# =====================================================================
+
+
+def test_session_cookie_settings_reject_unsupported_environment() -> None:
+    with pytest.raises(
+        ValueError,
+        match="environment",
+    ):
+        SessionCookieSettings.for_environment("banana")
