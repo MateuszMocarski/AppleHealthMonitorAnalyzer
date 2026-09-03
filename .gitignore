@@ -23,3 +23,8 @@ dist/
 
 # Allow committed text fixtures used by tests
 !tests/integration/fixtures/*.txt
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
