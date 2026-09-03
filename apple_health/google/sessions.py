@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 
@@ -8,6 +8,8 @@ from secrets import token_urlsafe
 class Session:
     session_id: str
     expires_at: datetime
+    oauth_state: str | None = None
+    google_access_token: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,3 +67,44 @@ class SessionStore:
 
     def delete(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+    def set_oauth_state(
+        self,
+        session_id: str,
+        oauth_state: str,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            oauth_state=oauth_state,
+        )
+
+    def clear_oauth_state(self, session_id: str) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            oauth_state=None,
+        )
+
+    def set_google_access_token(
+        self,
+        session_id: str,
+        access_token: str,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            google_access_token=access_token,
+        )
