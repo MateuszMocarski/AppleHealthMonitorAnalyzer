@@ -19,6 +19,7 @@ dev = [
     "httpx",
     "pytest",
     "pytest-cov",
+    "python-dotenv",
     "ruff==0.16.5",
 ]
 
