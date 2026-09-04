@@ -1,11 +1,11 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from apple_health.application.application import AppleHealthApplication
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_period import ReportPeriod
-from apple_health.application.run_options import RunOptions
+from health_analyzer.application.application import HealthAnalyzerApplication
+from health_analyzer.application.monthly_reports import MonthlyReports
+from health_analyzer.application.multi_month_run_options import MultiMonthRunOptions
+from health_analyzer.application.report_period import ReportPeriod
+from health_analyzer.application.run_options import RunOptions
 
 # =====================================================================
 # Verifies that the application orchestrates a complete monthly text
@@ -67,27 +67,27 @@ def test_application_runs_monthly_text_report(
             return "rendered-report"
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "health_analyzer.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
+        "health_analyzer.application.application.AppleHealthImporter",
         FakeImporter,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
+        "health_analyzer.application.application.AppleHealthParser",
         FakeParser,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "health_analyzer.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "health_analyzer.application.application.TextRenderer",
         FakeTextRenderer,
     )
 
-    output = AppleHealthApplication().run(
+    output = HealthAnalyzerApplication().run(
         options,
     )
 
@@ -160,27 +160,27 @@ def test_application_runs_json_month_summary(
             raise AssertionError("render_month should not be called")
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "health_analyzer.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
+        "health_analyzer.application.application.AppleHealthImporter",
         FakeImporter,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
+        "health_analyzer.application.application.AppleHealthParser",
         FakeParser,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "health_analyzer.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "health_analyzer.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
-    output = AppleHealthApplication().run(
+    output = HealthAnalyzerApplication().run(
         options,
     )
 
@@ -225,7 +225,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             path,
             *,
             apple_watch_source=None,
-            apple_health_app_source=None,
+            health_analyzer_app_source=None,
         ):
             return object()
 
@@ -273,31 +273,31 @@ def test_application_generates_all_report_variants_for_multiple_months(
             return f"json-summary:{summary}"
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "health_analyzer.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
+        "health_analyzer.application.application.AppleHealthImporter",
         FakeImporter,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
+        "health_analyzer.application.application.AppleHealthParser",
         FakeParser,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "health_analyzer.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "health_analyzer.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "health_analyzer.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
-    reports = AppleHealthApplication().generate_reports(
+    reports = HealthAnalyzerApplication().generate_reports(
         options,
     )
 
@@ -345,7 +345,7 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
         ),
         config_path=None,
         apple_watch_source="Custom Watch",
-        apple_health_app_source="Custom Health",
+        health_analyzer_app_source="Custom Health",
     )
 
     calls = {}
@@ -356,11 +356,11 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
             path,
             *,
             apple_watch_source=None,
-            apple_health_app_source=None,
+            health_analyzer_app_source=None,
         ):
             calls["config_path"] = path
             calls["apple_watch_source"] = apple_watch_source
-            calls["apple_health_app_source"] = apple_health_app_source
+            calls["health_analyzer_app_source"] = health_analyzer_app_source
             return object()
 
     class FakeImporter:
@@ -406,34 +406,34 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
             return "summary-json"
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "health_analyzer.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
+        "health_analyzer.application.application.AppleHealthImporter",
         FakeImporter,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
+        "health_analyzer.application.application.AppleHealthParser",
         FakeParser,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "health_analyzer.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "health_analyzer.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "health_analyzer.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
-    AppleHealthApplication().generate_reports(options)
+    HealthAnalyzerApplication().generate_reports(options)
 
     assert calls == {
         "config_path": None,
         "apple_watch_source": "Custom Watch",
-        "apple_health_app_source": "Custom Health",
+        "health_analyzer_app_source": "Custom Health",
     }

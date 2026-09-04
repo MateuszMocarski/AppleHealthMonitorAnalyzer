@@ -1,4 +1,4 @@
-from apple_health.cli import run_cli
+from health_analyzer.cli import run_cli
 
 if __name__ == "__main__":
     run_cli()

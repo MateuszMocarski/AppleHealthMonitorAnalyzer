@@ -1,6 +1,6 @@
 import pytest
 
-from apple_health.application.report_period import ReportPeriod
+from health_analyzer.application.report_period import ReportPeriod
 
 # =====================================================================
 # Verifies that a report period can be created from the supported

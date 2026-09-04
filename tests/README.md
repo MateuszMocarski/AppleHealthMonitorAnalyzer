@@ -15,7 +15,7 @@ The suite currently contains **386 collected test cases**.
 | FastAPI | 40 |
 | `AppleHealthParser` | 36 |
 | CLI | 5 |
-| `AppleHealthApplication` | 4 |
+| `HealthAnalyzerApplication` | 4 |
 | `ReportPeriod` | 10 |
 | `RunOptions` | 1 |
 | `RunOptionsResolver` | 9 |
@@ -134,7 +134,7 @@ The suite verifies:
 - monthly summary generation when no sleep data is available
 - monthly summary generation when no activity metrics are available for the reporting period
 - propagation of injected `AppConfig` into `SleepAnalyzer`
-- empty `AppleHealthData` without reporting-boundary crashes
+- empty `HealthData` without reporting-boundary crashes
 - workout-only and sleep-only datasets determining the last available data day
 - preservation of missing workout active energy in daily totals
 
@@ -229,7 +229,7 @@ API tests intentionally exercise both synthetic real-pipeline requests and isola
 
 Application-layer tests cover both the original single-month CLI execution contract and the multi-month report-generation workflow used by the FastAPI adapter.
 
-### AppleHealthApplication
+### HealthAnalyzerApplication
 
 `tests/application/test_application.py` contains **4 collected test cases**.
 
@@ -280,7 +280,7 @@ The resolver establishes the runtime precedence contract:
 CLI flags > run profile > built-in defaults
 ```
 
-The application boundary keeps CLI and HTTP adapters out of report-processing business logic. `AppleHealthApplication.run()` preserves the single-month CLI contract, while `generate_reports()` provides the parse-once, multi-month contract used by the API.
+The application boundary keeps CLI and HTTP adapters out of report-processing business logic. `HealthAnalyzerApplication.run()` preserves the single-month CLI contract, while `generate_reports()` provides the parse-once, multi-month contract used by the API.
 
 ## Application configuration
 
@@ -526,7 +526,7 @@ AppleHealthImporter
     ↓
 AppleHealthParser
     ↓
-AppleHealthData
+HealthData
     ↓
 HealthAnalyzer
     ├── ActivityAnalyzer
@@ -630,10 +630,10 @@ pytest --collect-only -q
 Measure statement coverage for the application package:
 
 ```bash
-pytest --cov=apple_health --cov-report=term-missing
+pytest --cov=health_analyzer --cov-report=term-missing
 ```
 
-The final PRE5.6 suite collects **386 tests** and currently reports **97% statement coverage** for `apple_health`.
+The final PRE5.6 suite collects **386 tests** and currently reports **97% statement coverage** for `health_analyzer`.
 
 ## Code quality
 

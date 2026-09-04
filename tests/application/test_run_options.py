@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from apple_health.application.run_options import RunOptions
+from health_analyzer.application.run_options import RunOptions
 
 # =====================================================================
 # Verifies that RunOptions preserves the complete resolved parameter

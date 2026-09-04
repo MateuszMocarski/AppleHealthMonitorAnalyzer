@@ -3,11 +3,11 @@ from statistics import pstdev
 
 import pytest
 
-from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
-from apple_health.config.app_config import AppConfig
-from apple_health.enums import SleepStage
-from apple_health.models import AppleHealthData, SleepRecord
-from apple_health.report_models import SleepScore, SleepSession
+from health_analyzer.analyzers.sleep_analyzer import SleepAnalyzer
+from health_analyzer.config.app_config import AppConfig
+from health_analyzer.enums import SleepStage
+from health_analyzer.models import HealthData, SleepRecord
+from health_analyzer.report_models import SleepScore, SleepSession
 
 # =======
 # Helpers
@@ -49,8 +49,8 @@ def _sleep_record(
 
 def _health_data(
     sleep_records: list[SleepRecord],
-) -> AppleHealthData:
-    return AppleHealthData(
+) -> HealthData:
+    return HealthData(
         workouts=[],
         daily_metrics=[],
         sleep_records=sleep_records,

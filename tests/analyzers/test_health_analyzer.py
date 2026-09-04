@@ -2,11 +2,11 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.config.app_config import AppConfig
-from apple_health.enums import SleepStage, WorkoutType
-from apple_health.models import (
-    AppleHealthData,
+from health_analyzer.analyzers.health_analyzer import HealthAnalyzer
+from health_analyzer.config.app_config import AppConfig
+from health_analyzer.enums import SleepStage, WorkoutType
+from health_analyzer.models import (
+    HealthData,
     DailyMetrics,
     NutritionData,
     SleepRecord,
@@ -103,8 +103,8 @@ def _health_data(
     daily_metrics: list[DailyMetrics],
     workouts: list[Workout] | None = None,
     sleep_records: list[SleepRecord] | None = None,
-) -> AppleHealthData:
-    return AppleHealthData(
+) -> HealthData:
+    return HealthData(
         workouts=workouts or [],
         daily_metrics=daily_metrics,
         sleep_records=sleep_records or [],

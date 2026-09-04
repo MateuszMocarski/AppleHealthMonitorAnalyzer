@@ -23,14 +23,14 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["apple_health*"]
+include = ["health_analyzer*"]
 
 [tool.setuptools.package-data]
-"apple_health.api" = [
+"health_analyzer.api" = [
     "web/*.html",
     "web/*.svg",
 ]
-"apple_health.config" = [
+"health_analyzer.config" = [
     "examples/*.toml",
 ]
 

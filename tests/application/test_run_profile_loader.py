@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.application.run_profile_loader import RunProfileLoader
-from apple_health.config.exceptions import ConfigurationError
+from health_analyzer.application.run_profile_loader import RunProfileLoader
+from health_analyzer.config.exceptions import ConfigurationError
 
 # =====================================================================
 # Verifies that a complete [run] TOML section is converted into a fully
@@ -170,9 +170,9 @@ def test_unknown_top_level_section_raises_configuration_error(
 @pytest.mark.parametrize(
     "profile_path",
     [
-        Path("apple_health/application/examples/run.example.toml"),
-        Path("apple_health/application/examples/run.month-summary.toml"),
-        Path("apple_health/application/examples/run.partial.toml"),
+        Path("health_analyzer/application/examples/run.example.toml"),
+        Path("health_analyzer/application/examples/run.month-summary.toml"),
+        Path("health_analyzer/application/examples/run.partial.toml"),
     ],
 )
 def test_example_run_profile_is_loadable(

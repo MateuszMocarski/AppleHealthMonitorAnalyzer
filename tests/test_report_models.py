@@ -2,8 +2,8 @@ from datetime import date, datetime, time, timezone
 
 import pytest
 
-from apple_health.models import NutritionData
-from apple_health.report_models import (
+from health_analyzer.models import NutritionData
+from health_analyzer.report_models import (
     ActivityMetricsSummary,
     DailySummary,
     MonthlySummary,

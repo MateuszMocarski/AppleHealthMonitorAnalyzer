@@ -3,11 +3,11 @@ from datetime import date, datetime, time, timezone
 
 import pytest
 
-from apple_health.config.app_config import AppConfig
-from apple_health.enums import WorkoutType
-from apple_health.models import NutritionData
-from apple_health.renderers.json_renderer import JsonRenderer
-from apple_health.report_models import (
+from health_analyzer.config.app_config import AppConfig
+from health_analyzer.enums import WorkoutType
+from health_analyzer.models import NutritionData
+from health_analyzer.renderers.json_renderer import JsonRenderer
+from health_analyzer.report_models import (
     ActivityMetricsSummary,
     ActivitySummary,
     DailySummary,

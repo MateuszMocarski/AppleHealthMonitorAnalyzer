@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.application.run_options_resolver import (
+from health_analyzer.application.run_options_resolver import (
     RunOptionsResolver,
 )
-from apple_health.application.run_profile import RunProfile
+from health_analyzer.application.run_profile import RunProfile
 
 # =====================================================================
 # Verifies that unresolved run parameters fall back to built-in

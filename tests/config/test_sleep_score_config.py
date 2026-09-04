@@ -1,6 +1,6 @@
 import pytest
 
-from apple_health.config.sleep_score_config import SleepScoreConfig
+from health_analyzer.config.sleep_score_config import SleepScoreConfig
 
 
 def _set_config_value(

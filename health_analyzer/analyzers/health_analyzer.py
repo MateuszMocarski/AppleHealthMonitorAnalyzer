@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+from calendar import monthrange
+from datetime import date, timedelta
+
+from health_analyzer.analyzers.activity_analyzer import ActivityAnalyzer
+from health_analyzer.analyzers.metrics_analyzer import MetricsAnalyzer
+from health_analyzer.analyzers.sleep_analyzer import SleepAnalyzer
+from health_analyzer.config.app_config import AppConfig
+from health_analyzer.models import HealthData
+from health_analyzer.report_models import DailySummary, MonthlySummary
+
+
+class HealthAnalyzer:
+    def __init__(self, health_data: HealthData, config: AppConfig | None = None) -> None:
+        self.config = config or AppConfig()
+
+        self.activity_analyzer = ActivityAnalyzer(health_data)
+
+        self.metrics_analyzer = MetricsAnalyzer(health_data)
+
+        self.sleep_analyzer = SleepAnalyzer(health_data, config=self.config)
+
+        self.last_data_day = self._find_last_data_day()
+
+    def summarize_day(self, day: date) -> DailySummary:
+
+        activities = self.activity_analyzer.summarize_day(day)
+
+        metrics = self.metrics_analyzer.metrics_for_day(day)
+
+        active_energy_kcal = metrics.active_energy if metrics else None
+        basal_energy_kcal = metrics.basal_energy if metrics else None
+
+        weight = (
+            metrics.weight.value if metrics is not None and metrics.weight is not None else None
+        )
+
+        nutrition = metrics.nutrition if metrics else None
+
+        total_steps = metrics.steps if metrics is not None else None
+
+        total_distance_km = metrics.distance_km if metrics is not None else None
+
+        sleep_session = self.sleep_analyzer.session_for_day(day) if self.sleep_analyzer else None
+
+        sleep_score = (
+            self.sleep_analyzer.score_session(sleep_session) if sleep_session is not None else None
+        )
+
+        return DailySummary(
+            date=day,
+            weight=weight,
+            nutrition=nutrition,
+            activities=activities,
+            total_duration_minutes=sum(activity.duration_minutes for activity in activities),
+            total_active_energy_kcal=(
+                sum(
+                    activity.active_energy_kcal
+                    for activity in activities
+                    if activity.active_energy_kcal is not None
+                )
+                if all(activity.active_energy_kcal is not None for activity in activities)
+                else None
+            ),
+            active_energy_kcal=active_energy_kcal,
+            basal_energy_kcal=basal_energy_kcal,
+            total_steps=total_steps,
+            total_distance_km=total_distance_km,
+            sleep_session=sleep_session,
+            sleep_score=sleep_score,
+        )
+
+    def summarize_month(
+        self,
+        year: int,
+        month: int,
+    ) -> MonthlySummary:
+        reporting_days = self._reporting_days(year, month)
+
+        daily_summaries = [self.summarize_day(day) for day in self._days_in_month(year, month)]
+
+        return MonthlySummary(
+            year=year,
+            month=month,
+            reporting_days=reporting_days,
+            days=daily_summaries,
+            activities=self.activity_analyzer.summarize_month(
+                year,
+                month,
+                reporting_days,
+            ),
+            activity_metrics=self.metrics_analyzer.summarize_month(
+                year,
+                month,
+                reporting_days,
+            ),
+            sleep_summary=self.sleep_analyzer.summarize_month(
+                year,
+                month,
+                reporting_days,
+            ),
+        )
+
+    def _reporting_days(
+        self,
+        year: int,
+        month: int,
+    ) -> int:
+        if self.last_data_day is None:
+            return 0
+
+        last_complete_day = self.last_data_day - timedelta(days=1)
+
+        if (year, month) < (
+            last_complete_day.year,
+            last_complete_day.month,
+        ):
+            return monthrange(year, month)[1]
+
+        if (year, month) == (
+            last_complete_day.year,
+            last_complete_day.month,
+        ):
+            return last_complete_day.day
+
+        return 0
+
+    def _days_in_month(
+        self,
+        year: int,
+        month: int,
+    ) -> list[date]:
+        return [date(year, month, day) for day in range(1, self._reporting_days(year, month) + 1)]
+
+    def _find_last_data_day(
+        self,
+    ) -> date | None:
+        data_days = [metrics.date for metrics in self.metrics_analyzer.daily_metrics]
+
+        data_days.extend(workout.start.date() for workout in self.activity_analyzer.workouts)
+
+        data_days.extend(session.reporting_date for session in self.sleep_analyzer.sleep_sessions)
+
+        return max(
+            data_days,
+            default=None,
+        )

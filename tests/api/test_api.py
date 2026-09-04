@@ -6,12 +6,12 @@ from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
-from apple_health.api.app import app
-from apple_health.application.application import AppleHealthApplication
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.report_period import ReportPeriod
-from apple_health.config.app_config import AppConfig
-from apple_health.exceptions import (
+from health_analyzer.api.app import app
+from health_analyzer.application.application import HealthAnalyzerApplication
+from health_analyzer.application.monthly_reports import MonthlyReports
+from health_analyzer.application.report_period import ReportPeriod
+from health_analyzer.config.app_config import AppConfig
+from health_analyzer.exceptions import (
     ExportXmlTooLargeError,
     HealthDataParseError,
     InvalidArchiveError,
@@ -68,7 +68,7 @@ def _create_export_archive(
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             xml,
         )
 
@@ -180,7 +180,7 @@ def test_generate_reports_for_multiple_months(
         ]
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -232,7 +232,7 @@ def test_report_generation_rejects_oversized_archive(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "apple_health.api.app.MAX_UPLOAD_SIZE",
+        "health_analyzer.api.app.MAX_UPLOAD_SIZE",
         10,
     )
 
@@ -369,7 +369,7 @@ def test_report_generation_accepts_whitespace_between_periods(
         return []
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -469,7 +469,7 @@ def test_report_generation_rejects_archive_without_export_xml() -> None:
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/readme.txt",
+            "health_analyzer_export/readme.txt",
             "not an Apple Health export",
         )
 
@@ -506,11 +506,11 @@ def test_report_generation_rejects_archive_with_multiple_export_xml_files(
 
     with zipfile.ZipFile(archive_path, "w") as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             "<HealthData />",
         )
         archive.writestr(
-            "apple_health_export/eksport.xml",
+            "health_analyzer_export/eksport.xml",
             "<HealthData />",
         )
 
@@ -584,7 +584,7 @@ def test_report_generation_rejects_invalid_export_xml() -> None:
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             "this-is-not-valid-xml",
         )
 
@@ -614,7 +614,7 @@ def test_report_generation_rejects_invalid_export_xml() -> None:
 # =====================================================================
 
 
-def test_report_generation_rejects_non_apple_health_xml() -> None:
+def test_report_generation_rejects_non_health_analyzer_xml() -> None:
     archive_buffer = BytesIO()
 
     with ZipFile(
@@ -622,7 +622,7 @@ def test_report_generation_rejects_non_apple_health_xml() -> None:
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             """<?xml version="1.0" encoding="UTF-8"?>
 <NotHealthData>
     <Something />
@@ -666,7 +666,7 @@ def test_report_generation_does_not_trust_filename_or_mime_type(
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             """<?xml version="1.0" encoding="UTF-8"?>
 <HealthData>
 </HealthData>
@@ -674,7 +674,7 @@ def test_report_generation_does_not_trust_filename_or_mime_type(
         )
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         lambda self, options: [],
     )
@@ -736,7 +736,7 @@ def test_report_generation_deletes_temporary_archive_after_success(
         return []
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -783,7 +783,7 @@ def test_report_generation_deletes_temporary_archive_after_failure(
         raise InvalidArchiveError
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -823,7 +823,7 @@ def test_report_generation_preserves_unexpected_server_errors(
         raise RuntimeError("unexpected failure")
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -866,7 +866,7 @@ def test_report_generation_preserves_unexpected_value_errors(
         raise ValueError("unexpected value error")
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -909,7 +909,7 @@ def test_report_generation_does_not_expose_server_error_message(
         raise RuntimeError("SECRET_INTERNAL_ERROR_MESSAGE")
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -955,7 +955,7 @@ def test_report_generation_does_not_expose_local_paths(
         raise RuntimeError(f"Failed while reading {local_path}")
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -999,7 +999,7 @@ def test_report_generation_maps_invalid_health_root_to_stable_error(
         raise HealthDataParseError("Invalid Apple Health export XML.")
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -1040,7 +1040,7 @@ def test_report_generation_preserves_unhandled_exception_types(
         raise OSError("unexpected filesystem failure")
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -1077,7 +1077,7 @@ def test_report_generation_rejects_too_many_periods(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "apple_health.api.app.MAX_REPORT_PERIODS",
+        "health_analyzer.api.app.MAX_REPORT_PERIODS",
         2,
     )
 
@@ -1117,7 +1117,7 @@ def test_report_generation_rejects_oversized_export_xml(
         raise ExportXmlTooLargeError
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -1152,7 +1152,7 @@ def test_report_generation_disables_response_caching(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         lambda self, options: [],
     )
@@ -1189,12 +1189,12 @@ def test_report_generation_forwards_source_overrides(
         options,
     ):
         assert options.apple_watch_source == "Custom Watch"
-        assert options.apple_health_app_source == "Custom Health"
+        assert options.health_analyzer_app_source == "Custom Health"
 
         return []
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -1211,7 +1211,7 @@ def test_report_generation_forwards_source_overrides(
         data={
             "periods": "2026-08",
             "apple_watch_source": "  Custom Watch  ",
-            "apple_health_app_source": "  Custom Health  ",
+            "health_analyzer_app_source": "  Custom Health  ",
         },
     )
 
@@ -1235,12 +1235,12 @@ def test_report_generation_ignores_blank_source_overrides(
         options,
     ):
         assert options.apple_watch_source is None
-        assert options.apple_health_app_source is None
+        assert options.health_analyzer_app_source is None
 
         return []
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -1257,7 +1257,7 @@ def test_report_generation_ignores_blank_source_overrides(
         data={
             "periods": "2026-08",
             "apple_watch_source": "   ",
-            "apple_health_app_source": "",
+            "health_analyzer_app_source": "",
         },
     )
 
@@ -1297,7 +1297,7 @@ def test_report_generation_forwards_uploaded_config(
 ) -> None:
     config_content = """
 [source]
-apple_health_app_source = "Custom Health"
+health_analyzer_app_source = "Custom Health"
 """
 
     captured_config_path: Path | None = None
@@ -1322,7 +1322,7 @@ apple_health_app_source = "Custom Health"
         return []
 
     monkeypatch.setattr(
-        AppleHealthApplication,
+        HealthAnalyzerApplication,
         "generate_reports",
         fake_generate_reports,
     )
@@ -1395,7 +1395,7 @@ def test_report_generation_rejects_oversized_config(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "apple_health.api.app.MAX_CONFIG_UPLOAD_SIZE",
+        "health_analyzer.api.app.MAX_CONFIG_UPLOAD_SIZE",
         10,
     )
 
@@ -1432,7 +1432,7 @@ def test_report_generation_rejects_oversized_config(
 
 def test_example_config_download_returns_canonical_file() -> None:
     example_config_path = (
-        Path(__file__).parents[2] / "apple_health" / "config" / "examples" / "config.example.toml"
+        Path(__file__).parents[2] / "health_analyzer" / "config" / "examples" / "config.example.toml"
     )
 
     response = client.get(
@@ -1459,7 +1459,7 @@ def test_report_generation_rejects_invalid_numeric_xml_value() -> None:
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             f"""<HealthData>
 <Record
     type="HKQuantityTypeIdentifierStepCount"
@@ -1506,7 +1506,7 @@ def test_report_generation_rejects_missing_required_xml_attribute() -> None:
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             f"""<HealthData>
 <Record
     type="HKQuantityTypeIdentifierStepCount"
@@ -1552,7 +1552,7 @@ def test_report_generation_rejects_non_finite_xml_value() -> None:
         "w",
     ) as archive:
         archive.writestr(
-            "apple_health_export/export.xml",
+            "health_analyzer_export/export.xml",
             f"""<HealthData>
 <Record
     type="HKQuantityTypeIdentifierActiveEnergyBurned"

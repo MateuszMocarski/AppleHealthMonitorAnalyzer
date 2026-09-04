@@ -143,7 +143,7 @@ A runtime-only editable install can use `python -m pip install -e .`. The `dev` 
 Start the FastAPI application with Uvicorn:
 
 ```bash
-uvicorn apple_health.api.app:app --reload
+uvicorn health_analyzer.api.app:app --reload
 ```
 
 Then open the local application in a browser, normally at `http://127.0.0.1:8000/`.
@@ -195,7 +195,7 @@ The uploaded Apple Health ZIP and optional TOML file are copied into a request-s
 | `periods` | yes | Comma-separated reporting periods in strict `YYYY-MM` format |
 | `config` | no | Optional TOML application configuration |
 | `apple_watch_source` | no | Optional per-request Apple Watch `sourceName` override |
-| `apple_health_app_source` | no | Optional per-request Apple Health application `sourceName` override |
+| `health_analyzer_app_source` | no | Optional per-request Apple Health application `sourceName` override |
 
 Blank or whitespace-only source override fields are normalized to “no override”.
 
@@ -208,7 +208,7 @@ curl -X POST   -F "archive=@export.zip"   -F "periods=2026-07,2026-08"   http://
 Request with an uploaded application configuration and one explicit source override:
 
 ```bash
-curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@apple_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://127.0.0.1:8000/reports/generate
+curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@health_analyzer/config/examples/config.example.toml"   -F "health_analyzer_app_source=Health"   http://127.0.0.1:8000/reports/generate
 ```
 
 For web/API execution the effective configuration is resolved in this order:
@@ -333,7 +333,7 @@ Text output remains the default when `--format` is omitted.
 Application execution can be described by an optional TOML run profile. A profile may define the archive path, reporting period, output mode, monthly-summary mode, and the path to the application configuration file.
 
 ```bash
-python app.py --profile apple_health/application/examples/run.example.toml
+python app.py --profile health_analyzer/application/examples/run.example.toml
 ```
 
 Run profiles may be partial. Final run options are resolved using the following precedence:
@@ -349,28 +349,28 @@ built-in defaults
 This allows a reusable profile to provide normal execution settings while individual CLI flags override them for a single run. For example:
 
 ```bash
-python app.py --profile apple_health/application/examples/run.month-summary.toml --enforce-daily --format text
+python app.py --profile health_analyzer/application/examples/run.month-summary.toml --enforce-daily --format text
 ```
 
 `--month-summary` explicitly enables summary-only output, while `--enforce-daily` explicitly disables it and requests daily report details.
 
-Example run profiles are available in `apple_health/application/examples/`.
+Example run profiles are available in `health_analyzer/application/examples/`.
 
 ### Runtime Configuration
 
 Use `--config` to load an optional TOML application configuration file for CLI execution:
 
 ```bash
-python app.py import export.zip --month 8 --config apple_health/config/examples/config.example.toml
+python app.py import export.zip --month 8 --config health_analyzer/config/examples/config.example.toml
 ```
 
 When `--config` is omitted, the application uses the defaults defined by the configuration dataclasses.
 
 TOML files may be partial: only explicitly provided values override defaults. Configuration keys are case-insensitive, unknown fields fail fast, non-finite numeric values such as `nan`/`inf` are rejected, and invalid values stop the application with a configuration error.
 
-The browser/API workflow can upload the same kind of TOML file as multipart field `config`. It additionally supports per-request source-name overrides for `apple_watch_source` and `apple_health_app_source`. Those runtime source overrides take precedence over values loaded from TOML, while blank source fields leave TOML/default values unchanged.
+The browser/API workflow can upload the same kind of TOML file as multipart field `config`. It additionally supports per-request source-name overrides for `apple_watch_source` and `health_analyzer_app_source`. Those runtime source overrides take precedence over values loaded from TOML, while blank source fields leave TOML/default values unchanged.
 
-Example application configuration files are available in [`apple_health/config/examples/`](apple_health/config/examples/). The complete default template is `config.example.toml` and can also be downloaded directly from the browser interface. For the complete configuration reference, see [`apple_health/config/README.md`](apple_health/config/README.md).
+Example application configuration files are available in [`health_analyzer/config/examples/`](health_analyzer/config/examples/). The complete default template is `config.example.toml` and can also be downloaded directly from the browser interface. For the complete configuration reference, see [`health_analyzer/config/README.md`](health_analyzer/config/README.md).
 
 ### Command Line Arguments
 
@@ -386,7 +386,7 @@ Example application configuration files are available in [`apple_health/config/e
 | `--format` | Output format: `text` or `json`. Overrides the profile value when supplied. |
 | `--config` | Path to an optional TOML application configuration file. Overrides the profile value when supplied. |
 
-The CLI processes one reporting month per execution and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics. The multi-month four-output workflow is exposed separately through `AppleHealthApplication.generate_reports()` and the FastAPI endpoint.
+The CLI processes one reporting month per execution and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics. The multi-month four-output workflow is exposed separately through `HealthAnalyzerApplication.generate_reports()` and the FastAPI endpoint.
 
 ## Project Architecture
 
@@ -398,15 +398,15 @@ flowchart TD
     WEB["🌐 Browser UI"]
     API["FastAPI<br/><i>HTTP Adapter</i>"]
     ENTRY["⌨️ app.py<br/><i>CLI Entry Point</i>"]
-    CLI["apple_health.cli<br/><i>CLI Adapter</i>"]
+    CLI["health_analyzer.cli<br/><i>CLI Adapter</i>"]
     PROFILE["📋 Run Profile<br/><i>Optional TOML</i>"]
-    APP["AppleHealthApplication<br/><i>Application Orchestrator</i>"]
+    APP["HealthAnalyzerApplication<br/><i>Application Orchestrator</i>"]
     A["📦 Apple Health Export<br/><b>export.zip</b>"]
     CFG["⚙️ AppConfig<br/><i>Application Configuration</i>"]
 
     B["AppleHealthImporter"]
     C["AppleHealthParser"]
-    D["AppleHealthData<br/><i>Domain Model Root</i>"]
+    D["HealthData<br/><i>Domain Model Root</i>"]
 
     E["HealthAnalyzer<br/><i>Orchestrator</i>"]
     EA["ActivityAnalyzer"]
@@ -478,27 +478,27 @@ The diagram keeps the processing core independent from its adapters. The CLI and
 | 🟣 **Presentation** | Render report models into text or JSON representations |
 | 🔴 **Output** | Final human-readable or machine-readable report |
 
-Application execution is coordinated by `AppleHealthApplication`. `run()` preserves the single-month CLI workflow, while `generate_reports()` supports the web/API workflow by parsing one archive once and rendering four report variants for every requested `ReportPeriod`.
+Application execution is coordinated by `HealthAnalyzerApplication`. `run()` preserves the single-month CLI workflow, while `generate_reports()` supports the web/API workflow by parsing one archive once and rendering four report variants for every requested `ReportPeriod`.
 
 Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created for each application run and injected into components that require configurable behavior.
 
 #### CLI
 
-The `apple_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
+The `health_analyzer.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
 
-The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `AppleHealthApplication`; the FastAPI adapter reuses the same application workflow without depending on command-line parsing.
+The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `HealthAnalyzerApplication`; the FastAPI adapter reuses the same application workflow without depending on command-line parsing.
 
 #### AppConfig
 
 Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once for each application run before being injected into configurable components.
 
-Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
+Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`health_analyzer/config/README.md`](health_analyzer/config/README.md).
 
 #### AppleHealthImporter
 
 Responsible for opening the Apple Health export archive and exposing the single eligible Apple Health XML entry as a stream. The importer does not extract the XML to an arbitrary filesystem path.
 
-The importer owns the lifecycle of both the ZIP archive and XML stream through its context-managed interface. It accepts localized main-export XML filenames within the `apple_health_export` directory, excludes CDA XML documents, requires exactly one eligible XML entry, and rejects an entry whose declared uncompressed size exceeds the configured 4 GiB safety limit. It is intentionally isolated from parsing logic, allowing the parser to operate independently of the data source.
+The importer owns the lifecycle of both the ZIP archive and XML stream through its context-managed interface. It accepts localized main-export XML filenames within the `health_analyzer_export` directory, excludes CDA XML documents, requires exactly one eligible XML entry, and rejects an entry whose declared uncompressed size exceeds the configured 4 GiB safety limit. It is intentionally isolated from parsing logic, allowing the parser to operate independently of the data source.
 
 #### AppleHealthParser
 
@@ -517,17 +517,17 @@ The adapter does not accept arbitrary server-side archive or configuration paths
 
 `ReportPeriod` represents one strict `YYYY-MM` reporting period. `MultiMonthRunOptions` groups the temporary archive path with an ordered tuple of periods, an optional TOML configuration path, and optional runtime source overrides. `MonthlyReports` carries the four rendered artifacts produced for one month.
 
-`AppleHealthApplication.generate_reports()` resolves configuration once, opens and parses the Apple Health export once, creates one analyzer over the resulting `AppleHealthData`, and then summarizes and renders each requested month independently. This preserves the core multi-month invariant:
+`HealthAnalyzerApplication.generate_reports()` resolves configuration once, opens and parses the Apple Health export once, creates one analyzer over the resulting `HealthData`, and then summarizes and renders each requested month independently. This preserves the core multi-month invariant:
 
 ```text
 ONE ZIP
 → ONE PARSE
-→ ONE AppleHealthData
+→ ONE HealthData
 → N MONTHS
 → 4 REPORTS PER MONTH
 ```
 
-#### AppleHealthData (Domain Model Root)
+#### HealthData (Domain Model Root)
 
 Acts as the central in-memory representation of imported health data.
 All subsequent analysis operates exclusively on this domain model, making it the single source of truth for the application.
@@ -578,7 +578,7 @@ Both renderers are isolated in the `renderers` package, allowing presentation fo
 - Renderers produce representations of report models without controlling the final output destination.
 - Configurable components receive application settings through dependency injection rather than depending on module-level configuration globals.
 - CLI and HTTP adapters remain outside report-processing business logic.
-- Multi-month generation parses each uploaded archive once and reuses one `AppleHealthData` instance across requested months.
+- Multi-month generation parses each uploaded archive once and reuses one `HealthData` instance across requested months.
 - Temporary uploaded archives are disposable inputs rather than durable application state.
 
 ## Configuration
@@ -600,7 +600,7 @@ Components retain default configuration behavior when instantiated independently
 
 Configuration values start from defaults defined by the configuration dataclasses. An optional TOML file can override any supported configuration value, and web/API execution may additionally override the two source-name fields for a single request. Missing TOML values continue to use dataclass defaults, while blank UI source fields do not override the effective TOML/default value.
 
-For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`apple_health/config/README.md`](apple_health/config/README.md).
+For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`health_analyzer/config/README.md`](health_analyzer/config/README.md).
 
 ## Domain Model
 
@@ -610,7 +610,7 @@ It serves as the single source of truth for all analyses and report generation.
 ```mermaid
 classDiagram
 
-class AppleHealthData {
+class HealthData {
     +workouts
     +dailyMetrics
     +sleepRecords
@@ -655,14 +655,14 @@ class SleepRecord {
     +sourceName
 }
 
-AppleHealthData "1" o-- "*" Workout
-AppleHealthData "1" o-- "*" DailyMetrics
-AppleHealthData "1" o-- "*" SleepRecord
+HealthData "1" o-- "*" Workout
+HealthData "1" o-- "*" DailyMetrics
+HealthData "1" o-- "*" SleepRecord
 
 DailyMetrics "1" o-- "0..1" WeightMeasurement
 DailyMetrics "1" o-- "0..1" NutritionData
 ```
-#### AppleHealthData
+#### HealthData
 
 Acts as the root of the application's domain model.
 It aggregates all imported health data and serves as the single source of truth for every analysis performed by the application.
@@ -698,7 +698,7 @@ Represents a single sleep stage interval (for example Core, Deep, REM, Awake, In
 
 - XML-independent domain representation.
 - Strongly typed domain objects.
-- AppleHealthData acts as the single source of truth for parsed health data.
+- HealthData acts as the single source of truth for parsed health data.
 - Domain objects contain data rather than reporting or presentation logic.
 - Related daily metrics are grouped into dedicated domain objects where appropriate.
 - Business rules, aggregation and report generation are implemented by analyzers rather than domain entities.
@@ -906,7 +906,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, configuration precedence, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The current suite contains **386 collected test cases** and passes completely on the final PRE5.6 codebase. The current measured statement coverage for `apple_health` is **97%**.
+The current suite contains **386 collected test cases** and passes completely on the final PRE5.6 codebase. The current measured statement coverage for `health_analyzer` is **97%**.
 
 Coverage includes:
 
@@ -956,10 +956,10 @@ Browser
   ↓ optional config.toml + source overrides
 FastAPI
   ↓ request-scoped temporary directory (ZIP/TOML)
-AppleHealthApplication.generate_reports()
+HealthAnalyzerApplication.generate_reports()
   ↓ resolve AppConfig once
   ↓ parse ZIP once
-AppleHealthData
+HealthData
   ↓ analyze N months
 4 rendered reports per month
   ↓

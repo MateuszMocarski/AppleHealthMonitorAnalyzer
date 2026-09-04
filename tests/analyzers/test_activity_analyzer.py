@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
-from apple_health.enums import WorkoutType
-from apple_health.models import AppleHealthData, Workout
+from health_analyzer.analyzers.activity_analyzer import ActivityAnalyzer
+from health_analyzer.enums import WorkoutType
+from health_analyzer.models import HealthData, Workout
 
 
 def _workout(
@@ -38,7 +38,7 @@ def _analyzer(
     *workouts: Workout,
 ) -> ActivityAnalyzer:
     return ActivityAnalyzer(
-        AppleHealthData(
+        HealthData(
             workouts=list(workouts),
             daily_metrics=[],
             sleep_records=[],

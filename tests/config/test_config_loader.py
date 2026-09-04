@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.config.app_config import AppConfig
-from apple_health.config.config_loader import ConfigLoader
-from apple_health.config.exceptions import ConfigurationError
+from health_analyzer.config.app_config import AppConfig
+from health_analyzer.config.config_loader import ConfigLoader
+from health_analyzer.config.exceptions import ConfigurationError
 
 
 def _write_config(
@@ -46,14 +46,14 @@ def test_loads_source_config_from_toml(
         """
         [source]
         apple_watch_source = "Custom Watch"
-        apple_health_app_source = "Custom Health"
+        health_analyzer_app_source = "Custom Health"
         """,
     )
 
     config = ConfigLoader.load(config_path)
 
     assert config.source.apple_watch_source == "Custom Watch"
-    assert config.source.apple_health_app_source == "Custom Health"
+    assert config.source.health_analyzer_app_source == "Custom Health"
 
 
 # =====================================================================
@@ -76,7 +76,7 @@ def test_partial_source_config_preserves_defaults(
     config = ConfigLoader.load(config_path)
 
     assert config.source.apple_watch_source == "Custom Watch"
-    assert config.source.apple_health_app_source == "Zdrowie"
+    assert config.source.health_analyzer_app_source == "Zdrowie"
 
 
 # =====================================================================
@@ -640,11 +640,11 @@ def test_partial_nested_config_preserves_unset_defaults(
 @pytest.mark.parametrize(
     "config_path",
     [
-        Path("apple_health/config/examples/config.example.toml"),
-        Path("apple_health/config/examples/config.lenient.toml"),
-        Path("apple_health/config/examples/config.oversleeping.toml"),
-        Path("apple_health/config/examples/config.strict-schedule.toml"),
-        Path("apple_health/config/examples/config.undersleeping.toml"),
+        Path("health_analyzer/config/examples/config.example.toml"),
+        Path("health_analyzer/config/examples/config.lenient.toml"),
+        Path("health_analyzer/config/examples/config.oversleeping.toml"),
+        Path("health_analyzer/config/examples/config.strict-schedule.toml"),
+        Path("health_analyzer/config/examples/config.undersleeping.toml"),
     ],
 )
 def test_example_config_file_is_loadable(
@@ -665,11 +665,11 @@ def test_runtime_source_overrides_replace_defaults() -> None:
     config = ConfigLoader.load(
         None,
         apple_watch_source="Custom Watch",
-        apple_health_app_source="Custom Health",
+        health_analyzer_app_source="Custom Health",
     )
 
     assert config.source.apple_watch_source == "Custom Watch"
-    assert config.source.apple_health_app_source == "Custom Health"
+    assert config.source.health_analyzer_app_source == "Custom Health"
 
 
 # =====================================================================
@@ -686,7 +686,7 @@ def test_runtime_source_overrides_take_precedence_over_toml(
         """
         [source]
         apple_watch_source = "TOML Watch"
-        apple_health_app_source = "TOML Health"
+        health_analyzer_app_source = "TOML Health"
         """,
     )
 
@@ -696,7 +696,7 @@ def test_runtime_source_overrides_take_precedence_over_toml(
     )
 
     assert config.source.apple_watch_source == "UI Watch"
-    assert config.source.apple_health_app_source == "TOML Health"
+    assert config.source.health_analyzer_app_source == "TOML Health"
 
 
 # =====================================================================
@@ -713,7 +713,7 @@ def test_runtime_source_overrides_take_precedence_over_toml(
             "Apple Watch source cannot be empty.",
         ),
         (
-            "apple_health_app_source",
+            "health_analyzer_app_source",
             "Apple Health app source cannot be empty.",
         ),
     ],

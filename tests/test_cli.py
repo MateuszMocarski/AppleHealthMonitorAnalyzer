@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.cli import _build_parser, _validate_arguments
+from health_analyzer.cli import _build_parser, _validate_arguments
 
 # =====================================================================
 # Verifies that optional CLI arguments remain unresolved when they are

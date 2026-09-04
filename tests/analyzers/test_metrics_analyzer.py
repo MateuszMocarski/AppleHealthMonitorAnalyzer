@@ -2,9 +2,9 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
-from apple_health.models import (
-    AppleHealthData,
+from health_analyzer.analyzers.metrics_analyzer import MetricsAnalyzer
+from health_analyzer.models import (
+    HealthData,
     DailyMetrics,
     NutritionData,
     WeightMeasurement,
@@ -67,7 +67,7 @@ def _analyzer(
     *daily_metrics: DailyMetrics,
 ) -> MetricsAnalyzer:
     return MetricsAnalyzer(
-        AppleHealthData(
+        HealthData(
             workouts=[],
             daily_metrics=list(daily_metrics),
             sleep_records=[],

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from apple_health.application.run_profile import RunProfile
+from health_analyzer.application.run_profile import RunProfile
 
 # =====================================================================
 # Verifies that RunProfile supports partial execution settings so that
