@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 
 dependencies = [
     "fastapi>=0.116.0",
+    "httpx",
     "tomli>=2.0.0; python_version < '3.11'",
     "uvicorn>=0.35.0",
     "python-multipart",
@@ -16,7 +17,6 @@ dependencies = [
 dev = [
     "black==26.5.1",
     "build",
-    "httpx",
     "pytest",
     "pytest-cov",
     "python-dotenv",

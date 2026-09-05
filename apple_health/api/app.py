@@ -1,8 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import Cookie, FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from apple_health.api.models import (
     MonthlyReportResponse,
@@ -19,6 +19,16 @@ from apple_health.exceptions import (
     InvalidArchiveError,
     MultipleExportXmlError,
 )
+from apple_health.google.oauth import (
+    GoogleOAuthError,
+    GoogleOAuthService,
+    GoogleOAuthStateError,
+    HttpGoogleIdentityClient,
+    HttpGoogleRevocationClient,
+    HttpGoogleTokenClient,
+)
+from apple_health.google.sessions import SessionCookieSettings, SessionStore
+from apple_health.google.settings import GoogleSettings
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 MAX_CONFIG_UPLOAD_SIZE = 1024 * 1024  # 1 MB
@@ -33,6 +43,12 @@ app = FastAPI(
     title="Apple Health Monitor Analyzer",
     version="0.1.0",
 )
+
+session_store = SessionStore()
+
+google_token_client = HttpGoogleTokenClient()
+google_identity_client = HttpGoogleIdentityClient()
+google_revocation_client = HttpGoogleRevocationClient()
 
 
 def _copy_upload_to_file(
@@ -125,6 +141,10 @@ def index() -> FileResponse:
     "/favicon.svg",
     include_in_schema=False,
 )
+@app.get(
+    "/favicon.ico",
+    include_in_schema=False,
+)
 def favicon() -> FileResponse:
     return FileResponse(
         WEB_DIRECTORY / "favicon.svg",
@@ -142,6 +162,229 @@ def example_config() -> FileResponse:
         media_type="application/toml",
         filename="config.example.toml",
     )
+
+
+@app.get(
+    "/auth/google/start",
+    include_in_schema=False,
+)
+def google_oauth_start(
+    ahm_session: str | None = Cookie(default=None),
+) -> RedirectResponse:
+    settings = GoogleSettings.load()
+
+    oauth = GoogleOAuthService(
+        client_id=settings.client_id,
+        client_secret=settings.client_secret,
+        redirect_uri=settings.redirect_uri,
+    )
+
+    session_id = ahm_session
+
+    if session_id is None or session_store.get(session_id) is None:
+        session_id = session_store.create()
+
+    authorization_url = oauth.start(
+        sessions=session_store,
+        session_id=session_id,
+    )
+
+    cookie_settings = SessionCookieSettings.for_environment(
+        settings.environment,
+    )
+
+    response = RedirectResponse(
+        authorization_url,
+        status_code=302,
+    )
+
+    response.set_cookie(
+        key=cookie_settings.name,
+        value=session_id,
+        httponly=cookie_settings.http_only,
+        secure=cookie_settings.secure,
+        samesite=cookie_settings.same_site,
+    )
+
+    return response
+
+
+@app.get(
+    "/auth/google/callback",
+    include_in_schema=False,
+)
+def google_oauth_callback(
+    state: str,
+    code: str | None = None,
+    error: str | None = None,
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str]:
+    if ahm_session is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth session is missing or has expired.",
+        )
+
+    if session_store.get(ahm_session) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth session is missing or has expired.",
+        )
+
+    settings = GoogleSettings.load()
+
+    oauth = GoogleOAuthService(
+        client_id=settings.client_id,
+        client_secret=settings.client_secret,
+        redirect_uri=settings.redirect_uri,
+    )
+
+    if error == "access_denied":
+        raise HTTPException(
+            status_code=400,
+            detail="Google authorization was denied.",
+        )
+
+    if code is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth callback is incomplete.",
+        )
+
+    try:
+        oauth.complete(
+            sessions=session_store,
+            session_id=ahm_session,
+            returned_state=state,
+            code=code,
+            token_client=google_token_client,
+            identity_client=google_identity_client,
+        )
+    except GoogleOAuthStateError:
+        raise HTTPException(status_code=400, detail="Google OAuth callback is invalid.")
+    except GoogleOAuthError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Google OAuth connection failed.",
+        ) from exc
+
+    return {
+        "status": "google_connected",
+    }
+
+
+@app.post(
+    "/auth/sign-out",
+    include_in_schema=False,
+)
+def sign_out(
+    response: Response,
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str]:
+    if ahm_session is not None:
+        session_store.delete(ahm_session)
+
+    response.delete_cookie(
+        key="ahm_session",
+    )
+
+    return {
+        "status": "signed_out",
+    }
+
+
+@app.post(
+    "/auth/google/disconnect",
+    include_in_schema=False,
+    response_model=None,
+)
+def disconnect_google(
+    response: Response,
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str] | JSONResponse:
+    if ahm_session is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google connection is not available.",
+        )
+
+    session = session_store.get(ahm_session)
+
+    if session is None or session.google_access_token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google connection is not available.",
+        )
+
+    try:
+        google_revocation_client.revoke(
+            session.google_access_token,
+        )
+    except GoogleOAuthError:
+        session_store.delete(ahm_session)
+
+        error_response = JSONResponse(
+            status_code=502,
+            content={
+                "detail": "Google disconnect failed.",
+            },
+        )
+        error_response.delete_cookie(
+            key="ahm_session",
+        )
+
+        return error_response
+
+    session_store.delete(ahm_session)
+
+    response.delete_cookie(
+        key="ahm_session",
+    )
+
+    return {
+        "status": "google_disconnected",
+    }
+
+
+@app.get(
+    "/auth/google/status",
+    include_in_schema=False,
+)
+def google_status(
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str]:
+    if ahm_session is None:
+        return {
+            "status": "disconnected",
+        }
+
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        return {
+            "status": "disconnected",
+        }
+
+    if not session_store.is_google_mode_ready(
+        ahm_session,
+        frozenset(GoogleOAuthService.SCOPES),
+    ):
+        if session.google_sub is not None and session.google_email is not None:
+            return {
+                "status": "reconnect_required",
+                "email": session.google_email,
+            }
+
+        return {
+            "status": "disconnected",
+        }
+
+    assert session.google_email is not None
+
+    return {
+        "status": "connected",
+        "email": session.google_email,
+    }
 
 
 @app.get("/health")

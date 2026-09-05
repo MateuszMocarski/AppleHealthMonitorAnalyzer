@@ -1,11 +1,14 @@
 import json
 import zipfile
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
+import apple_health.api.app as api_app_module
 from apple_health.api.app import app
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
@@ -16,6 +19,12 @@ from apple_health.exceptions import (
     HealthDataParseError,
     InvalidArchiveError,
 )
+from apple_health.google.oauth import (
+    GoogleOAuthError,
+    GoogleOAuthService,
+    GoogleTokenResponse,
+)
+from apple_health.google.sessions import SessionStore
 
 client = TestClient(app)
 
@@ -1612,3 +1621,1549 @@ def test_report_generation_rejects_non_finite_config_value() -> None:
 
     assert response.status_code == 422
     assert "Expected finite number" in response.json()["detail"]
+
+
+# =====================================================================
+# Verifies that starting Google OAuth creates a backend session, sets
+# its opaque cookie, and redirects the browser to Google authorization.
+# =====================================================================
+
+
+def test_google_oauth_start_redirects_with_backend_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/start",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+
+    authorization_url = urlparse(response.headers["location"])
+    query = parse_qs(authorization_url.query)
+
+    assert authorization_url.scheme == "https"
+    assert authorization_url.netloc == "accounts.google.com"
+
+    session_id = response.cookies["ahm_session"]
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is not None
+    assert query["state"] == [session.oauth_state]
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=lax" in set_cookie
+    assert "Secure" not in set_cookie
+
+
+# =====================================================================
+# Verifies that a valid Google OAuth callback exchanges the
+# authorization code and stores the access token in the backend session.
+# =====================================================================
+
+
+def test_google_oauth_callback_completes_backend_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
+
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ) -> FakeIdentity:
+            assert access_token == "access-token"
+
+            return FakeIdentity()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FakeIdentityClient(),
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "google_connected",
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is None
+    assert session.google_access_token == "access-token"
+    assert session.google_sub == "google-user-123"
+    assert session.google_email == "user@example.com"
+
+
+# =====================================================================
+# Verifies that denying Google authorization returns a controlled OAuth
+# error instead of FastAPI validation failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_access_denied(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "error": "access_denied",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google authorization was denied.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback without a backend session
+# returns a controlled error instead of FastAPI validation failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_missing_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth session is missing or has expired.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback with an expired backend session
+# returns a controlled error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_expired_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    current_time = datetime(
+        2026,
+        9,
+        5,
+        18,
+        0,
+        tzinfo=timezone.utc,
+    )
+    sessions = SessionStore(clock=lambda: current_time)
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    current_time += timedelta(hours=8)
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth session is missing or has expired.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback with an invalid state returns
+# a controlled error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_invalid_state(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "different-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth callback is invalid.",
+    }
+
+
+# =====================================================================
+# Verifies that a consumed Google OAuth state cannot be reused and a
+# replayed callback returns a controlled error.
+# =====================================================================
+
+
+def test_google_oauth_callback_rejects_replayed_state(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
+
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ) -> FakeIdentity:
+            return FakeIdentity()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FakeIdentityClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    first_response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    replayed_response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert replayed_response.status_code == 400
+    assert replayed_response.json() == {
+        "detail": "Google OAuth callback is invalid.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google token exchange failure returns a controlled
+# upstream error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_token_exchange_failure(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            raise GoogleOAuthError(
+                "Google token exchange failed",
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FailingTokenClient(),
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Google OAuth connection failed.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google identity lookup failure returns a controlled
+# upstream error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_identity_failure(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
+
+    class FailingIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ):
+            raise GoogleOAuthError(
+                "Google identity request failed",
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FailingIdentityClient(),
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Google OAuth connection failed.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback without an authorization code
+# returns a controlled error.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_missing_code(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth callback is incomplete.",
+    }
+
+
+# =====================================================================
+# Verifies that signing out deletes the backend session and expires the
+# local AHM session cookie without requiring Google configuration.
+# =====================================================================
+
+
+def test_sign_out_deletes_backend_session_and_cookie(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/sign-out",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "signed_out",
+    }
+    assert sessions.get(session_id) is None
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that signing out without an active backend session remains
+# successful and still expires the local AHM session cookie.
+# =====================================================================
+
+
+def test_sign_out_is_idempotent() -> None:
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        "missing-session-id",
+    )
+
+    response = auth_client.post(
+        "/auth/sign-out",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "signed_out",
+    }
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that disconnecting Google revokes the current access grant,
+# deletes the backend session, and expires the local AHM session cookie.
+# =====================================================================
+
+
+def test_disconnect_google_revokes_access_and_deletes_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeRevocationClient:
+        def __init__(self) -> None:
+            self.revoked_token: str | None = None
+
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            self.revoked_token = access_token
+
+    revocation_client = FakeRevocationClient()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        revocation_client,
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "google_disconnected",
+    }
+
+    assert revocation_client.revoked_token == "access-token"
+    assert sessions.get(session_id) is None
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that a Google revocation failure returns a controlled error
+# while still deleting the local session and expiring its cookie.
+# =====================================================================
+
+
+def test_disconnect_google_handles_revocation_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingRevocationClient:
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            raise GoogleOAuthError(
+                "Google token revocation failed",
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        FailingRevocationClient(),
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Google disconnect failed.",
+    }
+
+    assert sessions.get(session_id) is None
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that disconnecting Google without an active backend session
+# returns a controlled error instead of FastAPI validation failure.
+# =====================================================================
+
+
+def test_disconnect_google_handles_missing_session() -> None:
+    auth_client = TestClient(app)
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google connection is not available.",
+    }
+
+
+# =====================================================================
+# Verifies that disconnecting Google with a stale session cookie
+# returns a controlled error.
+# =====================================================================
+
+
+def test_disconnect_google_handles_stale_session_cookie(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        "missing-session-id",
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google connection is not available.",
+    }
+
+
+# =====================================================================
+# Verifies that disconnecting Google without stored Google credentials
+# returns a controlled error and does not attempt token revocation.
+# =====================================================================
+
+
+def test_disconnect_google_without_credentials_does_not_revoke(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingIfCalledRevocationClient:
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            raise AssertionError("Revocation should not be called")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        FailingIfCalledRevocationClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google connection is not available.",
+    }
+
+    assert sessions.get(session_id) is not None
+
+
+# =====================================================================
+# Verifies that signing out of an active Google-backed session deletes
+# only the local AHM session and does not revoke the Google OAuth grant.
+# =====================================================================
+
+
+def test_sign_out_does_not_revoke_google_access(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingIfCalledRevocationClient:
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            raise AssertionError("Sign out must not revoke Google access")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        FailingIfCalledRevocationClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/sign-out",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "signed_out",
+    }
+    assert sessions.get(session_id) is None
+
+
+# =====================================================================
+# Verifies that Google connection status reports an active and ready
+# Google-backed session together with its display email address.
+# =====================================================================
+
+
+def test_google_status_reports_connected_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/status",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "connected",
+        "email": "user@example.com",
+    }
+
+
+# =====================================================================
+# Verifies that Google connection status reports disconnected when no
+# active AHM session cookie is available.
+# =====================================================================
+
+
+def test_google_status_reports_disconnected_without_session() -> None:
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/status",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "disconnected",
+    }
+
+
+# =====================================================================
+# Verifies that Google connection status requires reconnection when the
+# stored Google access token has expired while identity remains known.
+# =====================================================================
+
+
+def test_google_status_reports_reconnect_required_for_expired_token(
+    monkeypatch,
+) -> None:
+    current_time = datetime(
+        2026,
+        1,
+        1,
+        tzinfo=timezone.utc,
+    )
+
+    sessions = SessionStore(
+        clock=lambda: current_time,
+    )
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=60,
+    )
+
+    current_time += timedelta(
+        seconds=60,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/status",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "reconnect_required",
+        "email": "user@example.com",
+    }
+
+
+# =====================================================================
+# Verifies that Google connection status requires reconnection when the
+# stored access token is missing one of the required OAuth scopes.
+# =====================================================================
+
+
+def test_google_status_reports_reconnect_required_for_missing_scope(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(
+            {
+                "openid",
+                "email",
+            }
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/status",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "reconnect_required",
+        "email": "user@example.com",
+    }
+
+
+# =====================================================================
+# Verifies that reconnecting Google reuses the existing AHM session
+# instead of replacing it with a newly created backend session.
+# =====================================================================
+
+
+def test_google_oauth_start_reuses_existing_session_for_reconnect(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/start",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.cookies["ahm_session"] == session_id
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is not None
+
+    authorization_url = urlparse(
+        response.headers["location"],
+    )
+    query = parse_qs(
+        authorization_url.query,
+    )
+
+    assert query["state"] == [
+        session.oauth_state,
+    ]
+
+
+# =====================================================================
+# Verifies that starting Google OAuth with a stale AHM session cookie
+# creates a new backend session instead of reusing the invalid session.
+# =====================================================================
+
+
+def test_google_oauth_start_replaces_stale_session_cookie(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        "stale-session-id",
+    )
+
+    response = auth_client.get(
+        "/auth/google/start",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+
+    new_session_id = response.cookies["ahm_session"]
+
+    assert new_session_id != "stale-session-id"
+
+    session = sessions.get(new_session_id)
+
+    assert session is not None
+    assert session.oauth_state is not None
+
+
+# =====================================================================
+# Verifies that completing Google OAuth during reconnection replaces
+# the old Google credentials while preserving the existing AHM session.
+# =====================================================================
+
+
+def test_google_oauth_callback_refreshes_existing_session_credentials(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="old-access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=60,
+    )
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="new-access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(
+                    GoogleOAuthService.SCOPES,
+                ),
+            )
+
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ) -> FakeIdentity:
+            assert access_token == "new-access-token"
+            return FakeIdentity()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FakeIdentityClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "google_connected",
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is None
+    assert session.google_access_token == "new-access-token"
+    assert session.google_sub == "google-user-123"
+    assert session.google_email == "user@example.com"
+    assert session.google_granted_scopes == frozenset(
+        GoogleOAuthService.SCOPES,
+    )
+
+
+# =====================================================================
+# Verifies that reconnecting Google reuses the existing AHM session
+# without extending its absolute expiration time.
+# =====================================================================
+
+
+def test_google_oauth_reconnect_preserves_session_expiry(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    current_time = datetime(
+        2026,
+        1,
+        1,
+        tzinfo=timezone.utc,
+    )
+
+    sessions = SessionStore(
+        clock=lambda: current_time,
+    )
+    session_id = sessions.create()
+
+    original_session = sessions.get(session_id)
+
+    assert original_session is not None
+
+    original_expires_at = original_session.expires_at
+
+    current_time += timedelta(hours=1)
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/start",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.cookies["ahm_session"] == session_id
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.expires_at == original_expires_at
