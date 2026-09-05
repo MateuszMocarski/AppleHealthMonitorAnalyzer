@@ -32,26 +32,40 @@ class HttpGoogleTokenClient:
         client_secret: str,
         redirect_uri: str,
     ) -> str:
-        response = httpx.post(
-            self.TOKEN_ENDPOINT,
-            data={
-                "code": code,
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-            timeout=self.REQUEST_TIMEOUT,
-        )
+        try:
+            response = httpx.post(
+                self.TOKEN_ENDPOINT,
+                data={
+                    "code": code,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+                timeout=self.REQUEST_TIMEOUT,
+            )
+        except httpx.RequestError as exc:
+            raise GoogleOAuthError("Google token exchange failed") from exc
 
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise GoogleOAuthError("Google token exchange failed") from exc
 
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GoogleOAuthError("Google token response is invalid") from exc
 
-        return payload["access_token"]
+        if not isinstance(payload, dict):
+            raise GoogleOAuthError("Google token response is invalid")
+
+        access_token = payload.get("access_token")
+
+        if not isinstance(access_token, str) or not access_token.strip():
+            raise GoogleOAuthError("Google token response is invalid")
+
+        return access_token
 
 
 class GoogleOAuthService:

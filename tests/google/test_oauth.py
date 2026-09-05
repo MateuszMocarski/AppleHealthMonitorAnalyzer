@@ -367,3 +367,188 @@ def test_http_google_token_client_maps_google_http_error(
             client_secret="dev-client-secret",
             redirect_uri="http://localhost:8000/auth/google/callback",
         )
+
+
+# =====================================================================
+# Verifies that a network failure during the Google token exchange is
+# exposed as a controlled OAuth error.
+# =====================================================================
+
+
+def test_http_google_token_client_maps_network_error(
+    monkeypatch,
+) -> None:
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> None:
+        request = httpx.Request(
+            "POST",
+            "https://oauth2.googleapis.com/token",
+        )
+
+        raise httpx.ConnectError(
+            "Connection failed",
+            request=request,
+        )
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
+
+
+# =====================================================================
+# Verifies that malformed JSON returned by the Google token endpoint is
+# exposed as a controlled OAuth error.
+# =====================================================================
+
+
+def test_http_google_token_client_rejects_malformed_json(
+    monkeypatch,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, str]:
+            raise ValueError("Malformed JSON")
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
+
+
+# =====================================================================
+# Verifies that a Google token response without an access token is
+# rejected as invalid.
+# =====================================================================
+
+
+def test_http_google_token_client_rejects_missing_access_token(
+    monkeypatch,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, str]:
+            return {}
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
+
+
+# =====================================================================
+# Verifies that Google token responses containing an invalid access
+# token value are rejected.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "access_token",
+    [
+        None,
+        "",
+        "   ",
+        123,
+    ],
+)
+def test_http_google_token_client_rejects_invalid_access_token(
+    monkeypatch,
+    access_token,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, object]:
+            return {
+                "access_token": access_token,
+            }
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
