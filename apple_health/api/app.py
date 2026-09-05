@@ -19,7 +19,11 @@ from apple_health.exceptions import (
     InvalidArchiveError,
     MultipleExportXmlError,
 )
-from apple_health.google.oauth import GoogleOAuthService, HttpGoogleTokenClient
+from apple_health.google.oauth import (
+    GoogleOAuthService,
+    HttpGoogleIdentityClient,
+    HttpGoogleTokenClient,
+)
 from apple_health.google.sessions import SessionCookieSettings, SessionStore
 from apple_health.google.settings import GoogleSettings
 
@@ -39,6 +43,7 @@ app = FastAPI(
 
 session_store = SessionStore()
 google_token_client = HttpGoogleTokenClient()
+google_identity_client = HttpGoogleIdentityClient()
 
 
 def _copy_upload_to_file(
@@ -213,6 +218,7 @@ def google_oauth_callback(
         returned_state=state,
         code=code,
         token_client=google_token_client,
+        identity_client=google_identity_client,
     )
 
     return {

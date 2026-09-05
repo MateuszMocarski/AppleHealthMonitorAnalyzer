@@ -1718,10 +1718,30 @@ def test_google_oauth_callback_completes_backend_session(
         ) -> str:
             return "access-token"
 
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ) -> FakeIdentity:
+            assert access_token == "access-token"
+
+            return FakeIdentity()
+
     monkeypatch.setattr(
         api_app_module,
         "google_token_client",
         FakeTokenClient(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FakeIdentityClient(),
+        raising=False,
     )
 
     auth_client = TestClient(app)
@@ -1748,3 +1768,5 @@ def test_google_oauth_callback_completes_backend_session(
     assert session is not None
     assert session.oauth_state is None
     assert session.google_access_token == "access-token"
+    assert session.google_sub == "google-user-123"
+    assert session.google_email == "user@example.com"

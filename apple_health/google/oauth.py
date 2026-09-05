@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from secrets import token_urlsafe
 from typing import Protocol
 from urllib.parse import urlencode
@@ -19,6 +20,66 @@ class GoogleTokenClient(Protocol):
         client_secret: str,
         redirect_uri: str,
     ) -> str: ...
+
+
+@dataclass(frozen=True)
+class GoogleIdentity:
+    sub: str
+    email: str
+
+
+class GoogleIdentityClient(Protocol):
+    def get_identity(
+        self,
+        access_token: str,
+    ) -> GoogleIdentity: ...
+
+
+class HttpGoogleIdentityClient:
+    USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+    REQUEST_TIMEOUT = 10.0
+
+    def get_identity(
+        self,
+        access_token: str,
+    ) -> GoogleIdentity:
+        try:
+            response = httpx.get(
+                self.USERINFO_ENDPOINT,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                },
+                timeout=self.REQUEST_TIMEOUT,
+            )
+        except httpx.RequestError as exc:
+            raise GoogleOAuthError("Google identity request failed") from exc
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise GoogleOAuthError("Google identity request failed") from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise GoogleOAuthError("Google identity response is invalid") from exc
+
+        if not isinstance(payload, dict):
+            raise GoogleOAuthError("Google identity response is invalid")
+
+        sub = payload.get("sub")
+        email = payload.get("email")
+
+        if not isinstance(sub, str) or not sub.strip():
+            raise GoogleOAuthError("Google identity response is invalid")
+
+        if not isinstance(email, str) or not email.strip():
+            raise GoogleOAuthError("Google identity response is invalid")
+
+        return GoogleIdentity(
+            sub=sub,
+            email=email,
+        )
 
 
 class HttpGoogleTokenClient:
@@ -134,6 +195,7 @@ class GoogleOAuthService:
         returned_state: str,
         code: str,
         token_client: GoogleTokenClient,
+        identity_client: GoogleIdentityClient,
     ) -> None:
         self.validate_callback_state(
             sessions=sessions,
@@ -150,6 +212,15 @@ class GoogleOAuthService:
             client_secret=self._client_secret,
             redirect_uri=self._redirect_uri,
         )
+
+        if identity_client is not None:
+            identity = identity_client.get_identity(access_token)
+
+            sessions.set_google_identity(
+                session_id=session_id,
+                google_sub=identity.sub,
+                google_email=identity.email,
+            )
 
         sessions.set_google_access_token(
             session_id,

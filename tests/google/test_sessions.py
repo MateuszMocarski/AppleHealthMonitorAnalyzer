@@ -178,3 +178,26 @@ def test_session_cookie_settings_reject_unsupported_environment() -> None:
         match="environment",
     ):
         SessionCookieSettings.for_environment("banana")
+
+
+# =====================================================================
+# Verifies that verified Google identity is stored in the backend
+# session using sub as the technical identity and email for display.
+# =====================================================================
+
+
+def test_google_identity_can_be_stored_in_session() -> None:
+    store = SessionStore()
+    session_id = store.create()
+
+    store.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.google_sub == "google-user-123"
+    assert session.google_email == "user@example.com"

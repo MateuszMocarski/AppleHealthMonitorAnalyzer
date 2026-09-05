@@ -10,6 +10,8 @@ class Session:
     expires_at: datetime
     oauth_state: str | None = None
     google_access_token: str | None = None
+    google_sub: str | None = None
+    google_email: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,4 +109,21 @@ class SessionStore:
         self._sessions[session_id] = replace(
             session,
             google_access_token=access_token,
+        )
+
+    def set_google_identity(
+        self,
+        session_id: str,
+        google_sub: str,
+        google_email: str,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            google_sub=google_sub,
+            google_email=google_email,
         )
