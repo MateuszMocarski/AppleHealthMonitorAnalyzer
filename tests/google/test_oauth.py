@@ -1324,3 +1324,75 @@ def test_google_revocation_client_sends_expected_request(
         },
         "timeout": 10.0,
     }
+
+
+# =====================================================================
+# Verifies that Google OAuth accepts the canonical userinfo.email scope
+# as equivalent to the requested OpenID Connect email scope.
+# =====================================================================
+
+
+def test_complete_oauth_accepts_canonical_google_email_scope() -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    oauth = GoogleOAuthService(
+        client_id="dev-client-id",
+        client_secret="dev-client-secret",
+        redirect_uri="http://localhost:8000/auth/google/callback",
+    )
+
+    oauth.start(
+        sessions=sessions,
+        session_id=session_id,
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is not None
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(
+                    {
+                        "openid",
+                        "https://www.googleapis.com/auth/userinfo.email",
+                        "https://www.googleapis.com/auth/drive.file",
+                    }
+                ),
+            )
+
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ) -> FakeIdentity:
+            return FakeIdentity()
+
+    oauth.complete(
+        sessions=sessions,
+        session_id=session_id,
+        returned_state=session.oauth_state,
+        code="authorization-code",
+        token_client=FakeTokenClient(),
+        identity_client=FakeIdentityClient(),
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.google_access_token == "access-token"

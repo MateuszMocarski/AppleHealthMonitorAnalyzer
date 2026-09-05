@@ -272,9 +272,24 @@ class GoogleOAuthService:
             redirect_uri=self._redirect_uri,
         )
 
-        required_scopes = frozenset(self.SCOPES)
+        granted_scopes = set(
+            token_response.granted_scopes,
+        )
 
-        if not required_scopes.issubset(token_response.granted_scopes):
+        if "https://www.googleapis.com/auth/userinfo.email" in granted_scopes:
+            granted_scopes.add("email")
+
+        normalized_granted_scopes = frozenset(
+            granted_scopes,
+        )
+
+        required_scopes = frozenset(
+            self.SCOPES,
+        )
+
+        if not required_scopes.issubset(
+            normalized_granted_scopes,
+        ):
             raise GoogleOAuthError("Google OAuth required scope was not granted")
 
         identity = identity_client.get_identity(
@@ -290,6 +305,6 @@ class GoogleOAuthService:
         sessions.set_google_access_credentials(
             session_id=session_id,
             access_token=token_response.access_token,
-            granted_scopes=token_response.granted_scopes,
+            granted_scopes=normalized_granted_scopes,
             expires_in_seconds=token_response.expires_in_seconds,
         )

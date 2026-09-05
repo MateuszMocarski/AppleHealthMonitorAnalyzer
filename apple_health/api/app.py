@@ -141,6 +141,10 @@ def index() -> FileResponse:
     "/favicon.svg",
     include_in_schema=False,
 )
+@app.get(
+    "/favicon.ico",
+    include_in_schema=False,
+)
 def favicon() -> FileResponse:
     return FileResponse(
         WEB_DIRECTORY / "favicon.svg",
@@ -164,7 +168,9 @@ def example_config() -> FileResponse:
     "/auth/google/start",
     include_in_schema=False,
 )
-def google_oauth_start() -> RedirectResponse:
+def google_oauth_start(
+    ahm_session: str | None = Cookie(default=None),
+) -> RedirectResponse:
     settings = GoogleSettings.load()
 
     oauth = GoogleOAuthService(
@@ -173,7 +179,10 @@ def google_oauth_start() -> RedirectResponse:
         redirect_uri=settings.redirect_uri,
     )
 
-    session_id = session_store.create()
+    session_id = ahm_session
+
+    if session_id is None or session_store.get(session_id) is None:
+        session_id = session_store.create()
 
     authorization_url = oauth.start(
         sessions=session_store,
@@ -334,6 +343,47 @@ def disconnect_google(
 
     return {
         "status": "google_disconnected",
+    }
+
+
+@app.get(
+    "/auth/google/status",
+    include_in_schema=False,
+)
+def google_status(
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str]:
+    if ahm_session is None:
+        return {
+            "status": "disconnected",
+        }
+
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        return {
+            "status": "disconnected",
+        }
+
+    if not session_store.is_google_mode_ready(
+        ahm_session,
+        frozenset(GoogleOAuthService.SCOPES),
+    ):
+        if session.google_sub is not None and session.google_email is not None:
+            return {
+                "status": "reconnect_required",
+                "email": session.google_email,
+            }
+
+        return {
+            "status": "disconnected",
+        }
+
+    assert session.google_email is not None
+
+    return {
+        "status": "connected",
+        "email": session.google_email,
     }
 
 
