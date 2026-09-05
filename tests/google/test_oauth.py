@@ -10,6 +10,7 @@ from apple_health.google.oauth import (
     GoogleOAuthService,
     GoogleTokenResponse,
     HttpGoogleIdentityClient,
+    HttpGoogleRevocationClient,
     HttpGoogleTokenClient,
 )
 from apple_health.google.sessions import SessionStore
@@ -1185,3 +1186,141 @@ def test_complete_oauth_rejects_missing_required_scope(
             token_client=FakeTokenClient(),
             identity_client=FakeIdentityClient(),
         )
+
+
+# =====================================================================
+# Verifies that a network failure during Google token revocation is
+# mapped to a controlled GoogleOAuthError.
+# =====================================================================
+
+
+def test_google_revocation_client_maps_network_failure(
+    monkeypatch,
+) -> None:
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ):
+        request = httpx.Request(
+            "POST",
+            url,
+        )
+
+        raise httpx.RequestError(
+            "Network failure",
+            request=request,
+        )
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    revocation_client = HttpGoogleRevocationClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="revocation",
+    ):
+        revocation_client.revoke(
+            "access-token",
+        )
+
+
+# =====================================================================
+# Verifies that an HTTP failure during Google token revocation is
+# mapped to a controlled GoogleOAuthError.
+# =====================================================================
+
+
+def test_google_revocation_client_maps_http_failure(
+    monkeypatch,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            request = httpx.Request(
+                "POST",
+                "https://oauth2.googleapis.com/revoke",
+            )
+            response = httpx.Response(
+                400,
+                request=request,
+            )
+
+            raise httpx.HTTPStatusError(
+                "Google token revocation failed",
+                request=request,
+                response=response,
+            )
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    revocation_client = HttpGoogleRevocationClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="revocation",
+    ):
+        revocation_client.revoke(
+            "access-token",
+        )
+
+
+# =====================================================================
+# Verifies that Google token revocation sends the access token to the
+# configured revocation endpoint using the bounded request timeout.
+# =====================================================================
+
+
+def test_google_revocation_client_sends_expected_request(
+    monkeypatch,
+) -> None:
+    captured_request: dict[str, object] = {}
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        captured_request["url"] = url
+        captured_request["data"] = data
+        captured_request["timeout"] = timeout
+
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    revocation_client = HttpGoogleRevocationClient()
+
+    revocation_client.revoke(
+        "access-token",
+    )
+
+    assert captured_request == {
+        "url": "https://oauth2.googleapis.com/revoke",
+        "data": {
+            "token": "access-token",
+        },
+        "timeout": 10.0,
+    }

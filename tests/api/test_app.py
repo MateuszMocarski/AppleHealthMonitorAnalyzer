@@ -2315,3 +2315,379 @@ def test_google_oauth_callback_handles_missing_code(
     assert response.json() == {
         "detail": "Google OAuth callback is incomplete.",
     }
+
+
+# =====================================================================
+# Verifies that signing out deletes the backend session and expires the
+# local AHM session cookie without requiring Google configuration.
+# =====================================================================
+
+
+def test_sign_out_deletes_backend_session_and_cookie(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/sign-out",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "signed_out",
+    }
+    assert sessions.get(session_id) is None
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that signing out without an active backend session remains
+# successful and still expires the local AHM session cookie.
+# =====================================================================
+
+
+def test_sign_out_is_idempotent() -> None:
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        "missing-session-id",
+    )
+
+    response = auth_client.post(
+        "/auth/sign-out",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "signed_out",
+    }
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that disconnecting Google revokes the current access grant,
+# deletes the backend session, and expires the local AHM session cookie.
+# =====================================================================
+
+
+def test_disconnect_google_revokes_access_and_deletes_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeRevocationClient:
+        def __init__(self) -> None:
+            self.revoked_token: str | None = None
+
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            self.revoked_token = access_token
+
+    revocation_client = FakeRevocationClient()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        revocation_client,
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "google_disconnected",
+    }
+
+    assert revocation_client.revoked_token == "access-token"
+    assert sessions.get(session_id) is None
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that a Google revocation failure returns a controlled error
+# while still deleting the local session and expiring its cookie.
+# =====================================================================
+
+
+def test_disconnect_google_handles_revocation_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingRevocationClient:
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            raise GoogleOAuthError(
+                "Google token revocation failed",
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        FailingRevocationClient(),
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Google disconnect failed.",
+    }
+
+    assert sessions.get(session_id) is None
+
+    set_cookie = response.headers["set-cookie"]
+
+    assert "ahm_session=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+
+
+# =====================================================================
+# Verifies that disconnecting Google without an active backend session
+# returns a controlled error instead of FastAPI validation failure.
+# =====================================================================
+
+
+def test_disconnect_google_handles_missing_session() -> None:
+    auth_client = TestClient(app)
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google connection is not available.",
+    }
+
+
+# =====================================================================
+# Verifies that disconnecting Google with a stale session cookie
+# returns a controlled error.
+# =====================================================================
+
+
+def test_disconnect_google_handles_stale_session_cookie(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        "missing-session-id",
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google connection is not available.",
+    }
+
+
+# =====================================================================
+# Verifies that disconnecting Google without stored Google credentials
+# returns a controlled error and does not attempt token revocation.
+# =====================================================================
+
+
+def test_disconnect_google_without_credentials_does_not_revoke(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingIfCalledRevocationClient:
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            raise AssertionError("Revocation should not be called")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        FailingIfCalledRevocationClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/google/disconnect",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google connection is not available.",
+    }
+
+    assert sessions.get(session_id) is not None
+
+
+# =====================================================================
+# Verifies that signing out of an active Google-backed session deletes
+# only the local AHM session and does not revoke the Google OAuth grant.
+# =====================================================================
+
+
+def test_sign_out_does_not_revoke_google_access(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingIfCalledRevocationClient:
+        def revoke(
+            self,
+            access_token: str,
+        ) -> None:
+            raise AssertionError("Sign out must not revoke Google access")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_revocation_client",
+        FailingIfCalledRevocationClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/auth/sign-out",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "signed_out",
+    }
+    assert sessions.get(session_id) is None

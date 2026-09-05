@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from fastapi import Cookie, FastAPI, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from apple_health.api.models import (
     MonthlyReportResponse,
@@ -24,6 +24,7 @@ from apple_health.google.oauth import (
     GoogleOAuthService,
     GoogleOAuthStateError,
     HttpGoogleIdentityClient,
+    HttpGoogleRevocationClient,
     HttpGoogleTokenClient,
 )
 from apple_health.google.sessions import SessionCookieSettings, SessionStore
@@ -44,8 +45,10 @@ app = FastAPI(
 )
 
 session_store = SessionStore()
+
 google_token_client = HttpGoogleTokenClient()
 google_identity_client = HttpGoogleIdentityClient()
+google_revocation_client = HttpGoogleRevocationClient()
 
 
 def _copy_upload_to_file(
@@ -258,6 +261,79 @@ def google_oauth_callback(
 
     return {
         "status": "google_connected",
+    }
+
+
+@app.post(
+    "/auth/sign-out",
+    include_in_schema=False,
+)
+def sign_out(
+    response: Response,
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str]:
+    if ahm_session is not None:
+        session_store.delete(ahm_session)
+
+    response.delete_cookie(
+        key="ahm_session",
+    )
+
+    return {
+        "status": "signed_out",
+    }
+
+
+@app.post(
+    "/auth/google/disconnect",
+    include_in_schema=False,
+    response_model=None,
+)
+def disconnect_google(
+    response: Response,
+    ahm_session: str | None = Cookie(default=None),
+) -> dict[str, str] | JSONResponse:
+    if ahm_session is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google connection is not available.",
+        )
+
+    session = session_store.get(ahm_session)
+
+    if session is None or session.google_access_token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google connection is not available.",
+        )
+
+    try:
+        google_revocation_client.revoke(
+            session.google_access_token,
+        )
+    except GoogleOAuthError:
+        session_store.delete(ahm_session)
+
+        error_response = JSONResponse(
+            status_code=502,
+            content={
+                "detail": "Google disconnect failed.",
+            },
+        )
+        error_response.delete_cookie(
+            key="ahm_session",
+        )
+
+        return error_response
+
+    session_store.delete(ahm_session)
+
+    response.delete_cookie(
+        key="ahm_session",
+    )
+
+    return {
+        "status": "google_disconnected",
     }
 
 

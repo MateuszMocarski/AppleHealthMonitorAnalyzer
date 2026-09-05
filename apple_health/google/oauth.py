@@ -46,6 +46,42 @@ class GoogleIdentityClient(Protocol):
     ) -> GoogleIdentity: ...
 
 
+class GoogleRevocationClient(Protocol):
+    def revoke(
+        self,
+        access_token: str,
+    ) -> None: ...
+
+
+class HttpGoogleRevocationClient:
+    REVOCATION_ENDPOINT = "https://oauth2.googleapis.com/revoke"
+    REQUEST_TIMEOUT = 10.0
+
+    def revoke(
+        self,
+        access_token: str,
+    ) -> None:
+        try:
+            response = httpx.post(
+                self.REVOCATION_ENDPOINT,
+                data={
+                    "token": access_token,
+                },
+                timeout=self.REQUEST_TIMEOUT,
+            )
+        except httpx.RequestError as exc:
+            raise GoogleOAuthError(
+                "Google token revocation failed",
+            ) from exc
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise GoogleOAuthError(
+                "Google token revocation failed",
+            ) from exc
+
+
 class HttpGoogleIdentityClient:
     USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
     REQUEST_TIMEOUT = 10.0
