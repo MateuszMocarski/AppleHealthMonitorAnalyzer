@@ -18,6 +18,7 @@ from apple_health.exceptions import (
     HealthDataParseError,
     InvalidArchiveError,
 )
+from apple_health.google.oauth import GoogleOAuthService, GoogleTokenResponse
 from apple_health.google.sessions import SessionStore
 
 client = TestClient(app)
@@ -1715,8 +1716,12 @@ def test_google_oauth_callback_completes_backend_session(
             client_id: str,
             client_secret: str,
             redirect_uri: str,
-        ) -> str:
-            return "access-token"
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
 
     class FakeIdentity:
         sub = "google-user-123"

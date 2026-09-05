@@ -12,6 +12,8 @@ class Session:
     google_access_token: str | None = None
     google_sub: str | None = None
     google_email: str | None = None
+    google_granted_scopes: frozenset[str] | None = None
+    google_access_token_expires_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -96,21 +98,6 @@ class SessionStore:
             oauth_state=None,
         )
 
-    def set_google_access_token(
-        self,
-        session_id: str,
-        access_token: str,
-    ) -> None:
-        session = self.get(session_id)
-
-        if session is None:
-            raise ValueError("Session does not exist or has expired")
-
-        self._sessions[session_id] = replace(
-            session,
-            google_access_token=access_token,
-        )
-
     def set_google_identity(
         self,
         session_id: str,
@@ -127,3 +114,52 @@ class SessionStore:
             google_sub=google_sub,
             google_email=google_email,
         )
+
+    def set_google_access_credentials(
+        self,
+        session_id: str,
+        access_token: str,
+        granted_scopes: frozenset[str],
+        expires_in_seconds: int,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            google_access_token=access_token,
+            google_granted_scopes=granted_scopes,
+            google_access_token_expires_at=(self._clock() + timedelta(seconds=expires_in_seconds)),
+        )
+
+    def is_google_mode_ready(
+        self,
+        session_id: str,
+        required_scopes: frozenset[str],
+    ) -> bool:
+        session = self.get(session_id)
+
+        if session is None:
+            return False
+
+        if session.google_sub is None or session.google_email is None:
+            return False
+
+        if session.google_access_token is None:
+            return False
+
+        if session.google_granted_scopes is None:
+            return False
+
+        if session.google_access_token_expires_at is None:
+            return False
+
+        if not required_scopes.issubset(session.google_granted_scopes):
+            return False
+
+        if self._clock() >= session.google_access_token_expires_at:
+            return False
+
+        return True

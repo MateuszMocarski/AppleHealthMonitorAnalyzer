@@ -201,3 +201,141 @@ def test_google_identity_can_be_stored_in_session() -> None:
     assert session is not None
     assert session.google_sub == "google-user-123"
     assert session.google_email == "user@example.com"
+
+
+# =====================================================================
+# Verifies that Google access credentials are stored together with the
+# granted scopes and an absolute token expiration timestamp.
+# =====================================================================
+
+
+def test_google_access_credentials_can_be_stored_in_session() -> None:
+    current_time = datetime(
+        2026,
+        9,
+        5,
+        18,
+        0,
+        tzinfo=timezone.utc,
+    )
+    store = SessionStore(clock=lambda: current_time)
+    session_id = store.create()
+
+    granted_scopes = frozenset(
+        {
+            "openid",
+            "email",
+            "https://www.googleapis.com/auth/drive.file",
+        }
+    )
+
+    store.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=granted_scopes,
+        expires_in_seconds=3600,
+    )
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.google_access_token == "access-token"
+    assert session.google_granted_scopes == granted_scopes
+    assert session.google_access_token_expires_at == current_time + timedelta(
+        seconds=3600,
+    )
+
+
+# =====================================================================
+# Verifies that Google mode is ready only when the session contains
+# complete identity, required scopes, and a non-expired access token.
+# =====================================================================
+
+
+def test_google_mode_ready_requires_complete_valid_google_session() -> None:
+    current_time = datetime(
+        2026,
+        9,
+        5,
+        18,
+        0,
+        tzinfo=timezone.utc,
+    )
+    store = SessionStore(clock=lambda: current_time)
+
+    required_scopes = frozenset(
+        {
+            "openid",
+            "email",
+            "https://www.googleapis.com/auth/drive.file",
+        }
+    )
+
+    session_id = store.create()
+
+    assert (
+        store.is_google_mode_ready(
+            session_id=session_id,
+            required_scopes=required_scopes,
+        )
+        is False
+    )
+
+    store.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+
+    assert (
+        store.is_google_mode_ready(
+            session_id=session_id,
+            required_scopes=required_scopes,
+        )
+        is False
+    )
+
+    store.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(
+            {
+                "openid",
+                "email",
+            }
+        ),
+        expires_in_seconds=3600,
+    )
+
+    assert (
+        store.is_google_mode_ready(
+            session_id=session_id,
+            required_scopes=required_scopes,
+        )
+        is False
+    )
+
+    store.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=required_scopes,
+        expires_in_seconds=3600,
+    )
+
+    assert (
+        store.is_google_mode_ready(
+            session_id=session_id,
+            required_scopes=required_scopes,
+        )
+        is True
+    )
+
+    current_time += timedelta(hours=1)
+
+    assert (
+        store.is_google_mode_ready(
+            session_id=session_id,
+            required_scopes=required_scopes,
+        )
+        is False
+    )

@@ -12,6 +12,13 @@ class GoogleOAuthError(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class GoogleTokenResponse:
+    access_token: str
+    expires_in_seconds: int
+    granted_scopes: frozenset[str]
+
+
 class GoogleTokenClient(Protocol):
     def exchange_code(
         self,
@@ -19,7 +26,7 @@ class GoogleTokenClient(Protocol):
         client_id: str,
         client_secret: str,
         redirect_uri: str,
-    ) -> str: ...
+    ) -> GoogleTokenResponse: ...
 
 
 @dataclass(frozen=True)
@@ -92,7 +99,7 @@ class HttpGoogleTokenClient:
         client_id: str,
         client_secret: str,
         redirect_uri: str,
-    ) -> str:
+    ) -> GoogleTokenResponse:
         try:
             response = httpx.post(
                 self.TOKEN_ENDPOINT,
@@ -122,11 +129,23 @@ class HttpGoogleTokenClient:
             raise GoogleOAuthError("Google token response is invalid")
 
         access_token = payload.get("access_token")
+        expires_in_seconds = payload.get("expires_in")
+        scope = payload.get("scope")
 
         if not isinstance(access_token, str) or not access_token.strip():
             raise GoogleOAuthError("Google token response is invalid")
 
-        return access_token
+        if type(expires_in_seconds) is not int or expires_in_seconds <= 0:
+            raise GoogleOAuthError("Google token response is invalid")
+
+        if not isinstance(scope, str) or not scope.strip():
+            raise GoogleOAuthError("Google token response is invalid")
+
+        return GoogleTokenResponse(
+            access_token=access_token,
+            expires_in_seconds=expires_in_seconds,
+            granted_scopes=frozenset(scope.split()),
+        )
 
 
 class GoogleOAuthService:
@@ -206,23 +225,31 @@ class GoogleOAuthService:
         if self._client_secret is None:
             raise GoogleOAuthError("Google OAuth client secret is not configured")
 
-        access_token = token_client.exchange_code(
+        token_response = token_client.exchange_code(
             code=code,
             client_id=self._client_id,
             client_secret=self._client_secret,
             redirect_uri=self._redirect_uri,
         )
 
-        if identity_client is not None:
-            identity = identity_client.get_identity(access_token)
+        required_scopes = frozenset(self.SCOPES)
 
-            sessions.set_google_identity(
-                session_id=session_id,
-                google_sub=identity.sub,
-                google_email=identity.email,
-            )
+        if not required_scopes.issubset(token_response.granted_scopes):
+            raise GoogleOAuthError("Google OAuth required scope was not granted")
 
-        sessions.set_google_access_token(
-            session_id,
-            access_token,
+        identity = identity_client.get_identity(
+            token_response.access_token,
+        )
+
+        sessions.set_google_identity(
+            session_id=session_id,
+            google_sub=identity.sub,
+            google_email=identity.email,
+        )
+
+        sessions.set_google_access_credentials(
+            session_id=session_id,
+            access_token=token_response.access_token,
+            granted_scopes=token_response.granted_scopes,
+            expires_in_seconds=token_response.expires_in_seconds,
         )

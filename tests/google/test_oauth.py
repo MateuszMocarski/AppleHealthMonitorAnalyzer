@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -7,6 +8,7 @@ import pytest
 from apple_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
+    GoogleTokenResponse,
     HttpGoogleIdentityClient,
     HttpGoogleTokenClient,
 )
@@ -186,7 +188,11 @@ def test_complete_oauth_uses_google_oauth_configuration() -> None:
                 "client_secret": client_secret,
                 "redirect_uri": redirect_uri,
             }
-            return "access-token"
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
 
     class FakeIdentity:
         sub = "google-user-123"
@@ -225,8 +231,16 @@ def test_complete_oauth_uses_google_oauth_configuration() -> None:
 # =====================================================================
 
 
-def test_complete_oauth_stores_access_token_in_session() -> None:
-    sessions = SessionStore()
+def test_complete_oauth_stores_access_credentials_in_session() -> None:
+    current_time = datetime(
+        2026,
+        9,
+        5,
+        18,
+        0,
+        tzinfo=timezone.utc,
+    )
+    sessions = SessionStore(clock=lambda: current_time)
     session_id = sessions.create()
 
     oauth = GoogleOAuthService(
@@ -253,7 +267,11 @@ def test_complete_oauth_stores_access_token_in_session() -> None:
             client_secret: str,
             redirect_uri: str,
         ) -> str:
-            return "access-token"
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
 
     class FakeIdentity:
         sub = "google-user-123"
@@ -280,6 +298,10 @@ def test_complete_oauth_stores_access_token_in_session() -> None:
 
     assert session is not None
     assert session.google_access_token == "access-token"
+    assert session.google_granted_scopes == frozenset(GoogleOAuthService.SCOPES)
+    assert session.google_access_token_expires_at == current_time + timedelta(
+        seconds=3600,
+    )
 
 
 # =====================================================================
@@ -300,6 +322,8 @@ def test_http_google_token_client_exchanges_authorization_code(
         def json(self) -> dict[str, str]:
             return {
                 "access_token": "access-token",
+                "expires_in": 3600,
+                "scope": ("openid email " "https://www.googleapis.com/auth/drive.file"),
             }
 
     def fake_post(
@@ -323,14 +347,22 @@ def test_http_google_token_client_exchanges_authorization_code(
 
     token_client = HttpGoogleTokenClient()
 
-    access_token = token_client.exchange_code(
+    token_response = token_client.exchange_code(
         code="authorization-code",
         client_id="dev-client-id",
         client_secret="dev-client-secret",
         redirect_uri="http://localhost:8000/auth/google/callback",
     )
 
-    assert access_token == "access-token"
+    assert token_response.access_token == "access-token"
+    assert token_response.expires_in_seconds == 3600
+    assert token_response.granted_scopes == frozenset(
+        {
+            "openid",
+            "email",
+            "https://www.googleapis.com/auth/drive.file",
+        }
+    )
     assert captured_request == (
         "https://oauth2.googleapis.com/token",
         {
@@ -378,7 +410,11 @@ def test_complete_oauth_stores_google_identity_in_session() -> None:
             client_secret: str,
             redirect_uri: str,
         ) -> str:
-            return "access-token"
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
 
     @dataclass(frozen=True)
     class FakeIdentity:
@@ -894,4 +930,258 @@ def test_http_google_identity_client_rejects_malformed_json(
     ):
         identity_client.get_identity(
             access_token="access-token",
+        )
+
+
+# =====================================================================
+# Verifies that Google token responses containing an invalid token
+# lifetime are rejected.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "expires_in",
+    [
+        None,
+        0,
+        -1,
+        True,
+        "3600",
+        3600.0,
+    ],
+)
+def test_http_google_token_client_rejects_invalid_expires_in(
+    monkeypatch,
+    expires_in,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, object]:
+            return {
+                "access_token": "access-token",
+                "expires_in": expires_in,
+                "scope": ("openid email " "https://www.googleapis.com/auth/drive.file"),
+            }
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
+
+
+# =====================================================================
+# Verifies that Google token responses containing invalid granted scope
+# metadata are rejected.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        None,
+        "",
+        "   ",
+        123,
+        ["openid", "email"],
+    ],
+)
+def test_http_google_token_client_rejects_invalid_scope(
+    monkeypatch,
+    scope,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, object]:
+            return {
+                "access_token": "access-token",
+                "expires_in": 3600,
+                "scope": scope,
+            }
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
+
+
+# =====================================================================
+# Verifies that Google token responses missing required token metadata
+# are rejected.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "expires_in",
+        "scope",
+    ],
+)
+def test_http_google_token_client_rejects_missing_token_metadata(
+    monkeypatch,
+    missing_field: str,
+) -> None:
+    payload: dict[str, object] = {
+        "access_token": "access-token",
+        "expires_in": 3600,
+        "scope": ("openid email " "https://www.googleapis.com/auth/drive.file"),
+    }
+    payload.pop(missing_field)
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, object]:
+            return payload
+
+    def fake_post(
+        url: str,
+        *,
+        data: dict[str, str],
+        timeout: float,
+    ) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.oauth.httpx.post",
+        fake_post,
+    )
+
+    token_client = HttpGoogleTokenClient()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="token",
+    ):
+        token_client.exchange_code(
+            code="authorization-code",
+            client_id="dev-client-id",
+            client_secret="dev-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        )
+
+
+# =====================================================================
+# Verifies that OAuth completion rejects a token response when Google
+# did not grant every scope required by the application.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "missing_scope",
+    [
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/drive.file",
+    ],
+)
+def test_complete_oauth_rejects_missing_required_scope(
+    missing_scope: str,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    oauth = GoogleOAuthService(
+        client_id="dev-client-id",
+        client_secret="dev-client-secret",
+        redirect_uri="http://localhost:8000/auth/google/callback",
+    )
+
+    oauth.start(
+        sessions=sessions,
+        session_id=session_id,
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.oauth_state is not None
+
+    granted_scopes = frozenset(
+        scope for scope in GoogleOAuthService.SCOPES if scope != missing_scope
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=granted_scopes,
+            )
+
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token,
+        ) -> FakeIdentity:
+            return FakeIdentity()
+
+    with pytest.raises(
+        GoogleOAuthError,
+        match="scope",
+    ):
+        oauth.complete(
+            sessions=sessions,
+            session_id=session_id,
+            returned_state=session.oauth_state,
+            code="authorization-code",
+            token_client=FakeTokenClient(),
+            identity_client=FakeIdentityClient(),
         )
