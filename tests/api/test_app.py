@@ -1,5 +1,6 @@
 import json
 import zipfile
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -18,7 +19,11 @@ from apple_health.exceptions import (
     HealthDataParseError,
     InvalidArchiveError,
 )
-from apple_health.google.oauth import GoogleOAuthService, GoogleTokenResponse
+from apple_health.google.oauth import (
+    GoogleOAuthError,
+    GoogleOAuthService,
+    GoogleTokenResponse,
+)
 from apple_health.google.sessions import SessionStore
 
 client = TestClient(app)
@@ -1775,3 +1780,538 @@ def test_google_oauth_callback_completes_backend_session(
     assert session.google_access_token == "access-token"
     assert session.google_sub == "google-user-123"
     assert session.google_email == "user@example.com"
+
+
+# =====================================================================
+# Verifies that denying Google authorization returns a controlled OAuth
+# error instead of FastAPI validation failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_access_denied(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "error": "access_denied",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google authorization was denied.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback without a backend session
+# returns a controlled error instead of FastAPI validation failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_missing_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth session is missing or has expired.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback with an expired backend session
+# returns a controlled error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_expired_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    current_time = datetime(
+        2026,
+        9,
+        5,
+        18,
+        0,
+        tzinfo=timezone.utc,
+    )
+    sessions = SessionStore(clock=lambda: current_time)
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    current_time += timedelta(hours=8)
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth session is missing or has expired.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback with an invalid state returns
+# a controlled error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_invalid_state(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "different-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth callback is invalid.",
+    }
+
+
+# =====================================================================
+# Verifies that a consumed Google OAuth state cannot be reused and a
+# replayed callback returns a controlled error.
+# =====================================================================
+
+
+def test_google_oauth_callback_rejects_replayed_state(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
+
+    class FakeIdentity:
+        sub = "google-user-123"
+        email = "user@example.com"
+
+    class FakeIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ) -> FakeIdentity:
+            return FakeIdentity()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FakeIdentityClient(),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    first_response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    replayed_response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert replayed_response.status_code == 400
+    assert replayed_response.json() == {
+        "detail": "Google OAuth callback is invalid.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google token exchange failure returns a controlled
+# upstream error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_token_exchange_failure(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FailingTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            raise GoogleOAuthError(
+                "Google token exchange failed",
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FailingTokenClient(),
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Google OAuth connection failed.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google identity lookup failure returns a controlled
+# upstream error instead of an unhandled server failure.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_identity_failure(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    class FakeTokenClient:
+        def exchange_code(
+            self,
+            code: str,
+            client_id: str,
+            client_secret: str,
+            redirect_uri: str,
+        ) -> GoogleTokenResponse:
+            return GoogleTokenResponse(
+                access_token="access-token",
+                expires_in_seconds=3600,
+                granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+            )
+
+    class FailingIdentityClient:
+        def get_identity(
+            self,
+            access_token: str,
+        ):
+            raise GoogleOAuthError(
+                "Google identity request failed",
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "google_token_client",
+        FakeTokenClient(),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "google_identity_client",
+        FailingIdentityClient(),
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "code": "authorization-code",
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Google OAuth connection failed.",
+    }
+
+
+# =====================================================================
+# Verifies that a Google OAuth callback without an authorization code
+# returns a controlled error.
+# =====================================================================
+
+
+def test_google_oauth_callback_handles_missing_code(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_oauth_state(
+        session_id,
+        "expected-state",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/auth/google/callback",
+        params={
+            "state": "expected-state",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Google OAuth callback is incomplete.",
+    }

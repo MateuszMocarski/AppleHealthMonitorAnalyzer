@@ -12,6 +12,10 @@ class GoogleOAuthError(ValueError):
     pass
 
 
+class GoogleOAuthStateError(GoogleOAuthError):
+    pass
+
+
 @dataclass(frozen=True)
 class GoogleTokenResponse:
     access_token: str
@@ -203,7 +207,7 @@ class GoogleOAuthService:
             raise GoogleOAuthError("OAuth session does not exist or has expired")
 
         if session.oauth_state != returned_state:
-            raise GoogleOAuthError("OAuth state does not match")
+            raise GoogleOAuthStateError("OAuth state does not match")
 
         sessions.clear_oauth_state(session_id)
 

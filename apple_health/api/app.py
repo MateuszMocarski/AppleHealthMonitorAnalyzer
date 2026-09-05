@@ -20,7 +20,9 @@ from apple_health.exceptions import (
     MultipleExportXmlError,
 )
 from apple_health.google.oauth import (
+    GoogleOAuthError,
     GoogleOAuthService,
+    GoogleOAuthStateError,
     HttpGoogleIdentityClient,
     HttpGoogleTokenClient,
 )
@@ -200,10 +202,23 @@ def google_oauth_start() -> RedirectResponse:
     include_in_schema=False,
 )
 def google_oauth_callback(
-    code: str,
     state: str,
-    ahm_session: str = Cookie(),
+    code: str | None = None,
+    error: str | None = None,
+    ahm_session: str | None = Cookie(default=None),
 ) -> dict[str, str]:
+    if ahm_session is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth session is missing or has expired.",
+        )
+
+    if session_store.get(ahm_session) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth session is missing or has expired.",
+        )
+
     settings = GoogleSettings.load()
 
     oauth = GoogleOAuthService(
@@ -212,14 +227,34 @@ def google_oauth_callback(
         redirect_uri=settings.redirect_uri,
     )
 
-    oauth.complete(
-        sessions=session_store,
-        session_id=ahm_session,
-        returned_state=state,
-        code=code,
-        token_client=google_token_client,
-        identity_client=google_identity_client,
-    )
+    if error == "access_denied":
+        raise HTTPException(
+            status_code=400,
+            detail="Google authorization was denied.",
+        )
+
+    if code is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth callback is incomplete.",
+        )
+
+    try:
+        oauth.complete(
+            sessions=session_store,
+            session_id=ahm_session,
+            returned_state=state,
+            code=code,
+            token_client=google_token_client,
+            identity_client=google_identity_client,
+        )
+    except GoogleOAuthStateError:
+        raise HTTPException(status_code=400, detail="Google OAuth callback is invalid.")
+    except GoogleOAuthError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Google OAuth connection failed.",
+        ) from exc
 
     return {
         "status": "google_connected",
