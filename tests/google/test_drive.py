@@ -944,3 +944,247 @@ def test_http_drive_client_rejects_oversized_download(
         )
 
     assert not destination.exists()
+
+
+# =====================================================================
+# Verifies that transient Drive metadata failures are retried with a
+# bounded number of attempts before returning a successful response.
+# =====================================================================
+
+
+def test_http_drive_client_retries_transient_metadata_failure(
+    monkeypatch,
+) -> None:
+    attempts = 0
+
+    class SuccessfulResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, object]:
+            return {
+                "id": "file-123",
+                "name": "export.zip",
+                "mimeType": "application/zip",
+                "size": "123456",
+                "trashed": False,
+                "appProperties": {},
+            }
+
+    def fake_get(
+        *args,
+        **kwargs,
+    ):
+        nonlocal attempts
+        attempts += 1
+
+        if attempts == 1:
+            request = httpx.Request(
+                "GET",
+                "https://www.googleapis.com/drive/v3/files/file-123",
+            )
+            response = httpx.Response(
+                503,
+                request=request,
+            )
+
+            raise httpx.HTTPStatusError(
+                "Service unavailable",
+                request=request,
+                response=response,
+            )
+
+        return SuccessfulResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.httpx.get",
+        fake_get,
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    metadata = client.get_metadata(
+        "file-123",
+    )
+
+    assert attempts == 2
+    assert metadata.file_id == "file-123"
+
+
+# =====================================================================
+# Verifies that transient Drive search failures are retried because
+# search is a safe idempotent read operation.
+# =====================================================================
+
+
+def test_http_drive_client_retries_transient_search_failure(
+    monkeypatch,
+) -> None:
+    attempts = 0
+
+    class TransientResponse:
+        def raise_for_status(self) -> None:
+            request = httpx.Request(
+                "GET",
+                "https://www.googleapis.com/drive/v3/files",
+            )
+            response = httpx.Response(
+                503,
+                request=request,
+            )
+
+            raise httpx.HTTPStatusError(
+                "Service unavailable",
+                request=request,
+                response=response,
+            )
+
+    class SuccessfulResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def json(self) -> dict[str, object]:
+            return {
+                "files": [],
+            }
+
+    def fake_get(
+        *args,
+        **kwargs,
+    ):
+        nonlocal attempts
+        attempts += 1
+
+        if attempts == 1:
+            return TransientResponse()
+
+        return SuccessfulResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.httpx.get",
+        fake_get,
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    page = client.search(
+        query="trashed = false",
+    )
+
+    assert attempts == 2
+    assert page == DriveFilePage(
+        files=(),
+        next_page_token=None,
+    )
+
+
+# =====================================================================
+# Verifies that conflicting Drive writes are not retried and are mapped
+# into the stable Drive conflict error.
+# =====================================================================
+
+
+def test_http_drive_client_does_not_retry_conflicting_write(
+    monkeypatch,
+) -> None:
+    attempts = 0
+
+    class ConflictResponse:
+        def raise_for_status(self) -> None:
+            request = httpx.Request(
+                "POST",
+                "https://www.googleapis.com/drive/v3/files",
+            )
+            response = httpx.Response(
+                409,
+                request=request,
+            )
+
+            raise httpx.HTTPStatusError(
+                "Conflict",
+                request=request,
+                response=response,
+            )
+
+    def fake_post(
+        *args,
+        **kwargs,
+    ) -> ConflictResponse:
+        nonlocal attempts
+        attempts += 1
+
+        return ConflictResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.httpx.post",
+        fake_post,
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    with pytest.raises(DriveConflictError):
+        client.create_folder(
+            name="Apple Health Monitor",
+        )
+
+    assert attempts == 1
+
+
+# =====================================================================
+# Verifies that transient Drive read failures stop after the configured
+# maximum number of retry attempts.
+# =====================================================================
+
+
+def test_http_drive_client_stops_after_max_read_attempts(
+    monkeypatch,
+) -> None:
+    attempts = 0
+
+    class TransientResponse:
+        def raise_for_status(self) -> None:
+            request = httpx.Request(
+                "GET",
+                "https://www.googleapis.com/drive/v3/files/file-123",
+            )
+            response = httpx.Response(
+                503,
+                request=request,
+            )
+
+            raise httpx.HTTPStatusError(
+                "Service unavailable",
+                request=request,
+                response=response,
+            )
+
+    def fake_get(
+        *args,
+        **kwargs,
+    ) -> TransientResponse:
+        nonlocal attempts
+        attempts += 1
+
+        return TransientResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.httpx.get",
+        fake_get,
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    with pytest.raises(DriveTransientError):
+        client.get_metadata(
+            "file-123",
+        )
+
+    assert attempts == 3

@@ -89,6 +89,7 @@ class DriveClient(Protocol):
 class HttpGoogleDriveClient:
     API_BASE_URL = "https://www.googleapis.com/drive/v3"
     REQUEST_TIMEOUT = 10.0
+    READ_MAX_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -100,26 +101,12 @@ class HttpGoogleDriveClient:
         self,
         file_id: str,
     ) -> DriveFileMetadata:
-        try:
-            response = httpx.get(
-                f"{self.API_BASE_URL}/files/{file_id}",
-                headers={
-                    "Authorization": (f"Bearer {self._access_token}"),
-                },
-                params={
-                    "fields": ("id,name,mimeType,size,trashed," "appProperties"),
-                },
-                timeout=self.REQUEST_TIMEOUT,
-            )
-        except httpx.RequestError as exc:
-            raise DriveTransientError("Google Drive request failed temporarily") from exc
-
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            self._raise_http_error(
-                exc,
-            )
+        response = self._get_with_retry(
+            f"{self.API_BASE_URL}/files/{file_id}",
+            params={
+                "fields": ("id,name,mimeType,size,trashed," "appProperties"),
+            },
+        )
 
         try:
             payload = response.json()
@@ -143,24 +130,10 @@ class HttpGoogleDriveClient:
         if page_token is not None:
             params["pageToken"] = page_token
 
-        try:
-            response = httpx.get(
-                f"{self.API_BASE_URL}/files",
-                headers={
-                    "Authorization": (f"Bearer {self._access_token}"),
-                },
-                params=params,
-                timeout=self.REQUEST_TIMEOUT,
-            )
-        except httpx.RequestError as exc:
-            raise DriveTransientError("Google Drive request failed temporarily") from exc
-
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            self._raise_http_error(
-                exc,
-            )
+        response = self._get_with_retry(
+            f"{self.API_BASE_URL}/files",
+            params=params,
+        )
 
         try:
             payload = response.json()
@@ -511,6 +484,11 @@ class HttpGoogleDriveClient:
         if status_code == 404:
             raise DriveNotFoundError("Google Drive resource not found") from exc
 
+        if status_code == 409:
+            raise DriveConflictError(
+                "Google Drive operation conflicts with existing state"
+            ) from exc
+
         if status_code == 429 or status_code >= 500:
             raise DriveTransientError("Google Drive request failed temporarily") from exc
 
@@ -562,6 +540,60 @@ class HttpGoogleDriveClient:
             trashed=trashed,
             app_properties=app_properties,
         )
+
+    def _get_with_retry(
+        self,
+        url: str,
+        *,
+        params: dict[str, str],
+    ):
+        for attempt in range(
+            self.READ_MAX_ATTEMPTS,
+        ):
+            try:
+                response = httpx.get(
+                    url,
+                    headers={
+                        "Authorization": (f"Bearer {self._access_token}"),
+                    },
+                    params=params,
+                    timeout=self.REQUEST_TIMEOUT,
+                )
+
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as exc:
+                    status_code = exc.response.status_code
+
+                    if status_code == 429 or status_code >= 500:
+                        if attempt < self.READ_MAX_ATTEMPTS - 1:
+                            continue
+
+                    self._raise_http_error(
+                        exc,
+                    )
+
+                return response
+
+            except httpx.RequestError as exc:
+                if attempt < self.READ_MAX_ATTEMPTS - 1:
+                    continue
+
+                raise DriveTransientError("Google Drive request failed temporarily") from exc
+
+            except httpx.HTTPStatusError as exc:
+                status_code = exc.response.status_code
+
+                if (
+                    status_code == 429 or status_code >= 500
+                ) and attempt < self.READ_MAX_ATTEMPTS - 1:
+                    continue
+
+                self._raise_http_error(
+                    exc,
+                )
+
+        raise AssertionError("Unreachable Drive retry state")
 
 
 class DriveError(Exception):
