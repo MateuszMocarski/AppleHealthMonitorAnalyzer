@@ -211,3 +211,144 @@ def discover_report_month(
             return month
 
         page_token = page.next_page_token
+
+
+def discover_report_months(
+    drive_client: DriveClient,
+    *,
+    year_id: str,
+) -> tuple[DriveFileMetadata, ...]:
+    query = (
+        f"'{year_id}' in parents and "
+        "appProperties has "
+        f"{{ key='ahm_type' and value='{_AHM_REPORT_MONTH_TYPE}' }} and "
+        "trashed = false"
+    )
+
+    months: list[DriveFileMetadata] = []
+    periods: set[str] = set()
+    page_token: str | None = None
+
+    while True:
+        page = drive_client.search(
+            query,
+            page_token=page_token,
+        )
+
+        for month in page.files:
+            period = month.app_properties.get("ahm_period")
+
+            if period in periods:
+                raise DriveConflictError(f"Multiple active AHM report months found for {period}")
+
+            periods.add(period)
+            months.append(month)
+
+        if page.next_page_token is None:
+            return tuple(months)
+
+        page_token = page.next_page_token
+
+
+def discover_report_years(
+    drive_client: DriveClient,
+    *,
+    reports_id: str,
+) -> tuple[DriveFileMetadata, ...]:
+    query = (
+        f"'{reports_id}' in parents and "
+        "appProperties has "
+        f"{{ key='ahm_type' and value='{_AHM_YEAR_CONTAINER_TYPE}' }} and "
+        "trashed = false"
+    )
+
+    years: list[DriveFileMetadata] = []
+    year_values: set[str] = set()
+    page_token: str | None = None
+
+    while True:
+        page = drive_client.search(
+            query,
+            page_token=page_token,
+        )
+
+        for year in page.files:
+            year_value = year.app_properties.get("ahm_year")
+
+            if year_value in year_values:
+                raise DriveConflictError(f"Multiple active AHM report years found for {year_value}")
+
+            year_values.add(year_value)
+            years.append(year)
+
+        if page.next_page_token is None:
+            return tuple(years)
+
+        page_token = page.next_page_token
+
+
+def discover_reports_container(
+    drive_client: DriveClient,
+    *,
+    root_id: str,
+) -> DriveFileMetadata | None:
+    query = (
+        f"'{root_id}' in parents and "
+        "appProperties has "
+        "{ key='ahm_type' and value='reports_container' } and "
+        "trashed = false"
+    )
+
+    reports: DriveFileMetadata | None = None
+    page_token: str | None = None
+
+    while True:
+        page = drive_client.search(
+            query,
+            page_token=page_token,
+        )
+
+        for candidate in page.files:
+            if reports is not None:
+                raise DriveConflictError("Multiple active AHM reports containers found")
+
+            reports = candidate
+
+        if page.next_page_token is None:
+            return reports
+
+        page_token = page.next_page_token
+
+
+def discover_report_index(
+    drive_client: DriveClient,
+) -> dict[str, tuple[str, ...]]:
+    root = discover_ahm_root(drive_client)
+
+    if root is None:
+        return {}
+
+    reports = discover_reports_container(
+        drive_client,
+        root_id=root.file_id,
+    )
+
+    if reports is None:
+        return {}
+
+    index: dict[str, tuple[str, ...]] = {}
+
+    for year in discover_report_years(
+        drive_client,
+        reports_id=reports.file_id,
+    ):
+        year_value = year.app_properties["ahm_year"]
+
+        months = discover_report_months(
+            drive_client,
+            year_id=year.file_id,
+        )
+
+        index[year_value] = tuple(month.app_properties["ahm_period"] for month in months)
+
+    return index
