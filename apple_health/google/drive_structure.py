@@ -23,6 +23,7 @@ _AHM_REPORTS_CONTAINER_APP_PROPERTIES = {
     "ahm_type": "reports_container",
 }
 _AHM_YEAR_CONTAINER_TYPE = "year_container"
+_AHM_REPORT_MONTH_TYPE = "report_month"
 
 
 def discover_ahm_root(
@@ -174,3 +175,39 @@ def ensure_year_container(
         parent_id=reports_id,
         app_properties=app_properties,
     )
+
+
+def discover_report_month(
+    drive_client: DriveClient,
+    *,
+    year_id: str,
+    period: str,
+) -> DriveFileMetadata | None:
+    query = (
+        f"'{year_id}' in parents and "
+        "appProperties has "
+        f"{{ key='ahm_type' and value='{_AHM_REPORT_MONTH_TYPE}' }} and "
+        "appProperties has "
+        f"{{ key='ahm_period' and value='{period}' }} and "
+        "trashed = false"
+    )
+
+    month: DriveFileMetadata | None = None
+    page_token: str | None = None
+
+    while True:
+        page = drive_client.search(
+            query,
+            page_token=page_token,
+        )
+
+        for candidate in page.files:
+            if month is not None:
+                raise DriveConflictError(f"Multiple active AHM report months found for {period}")
+
+            month = candidate
+
+        if page.next_page_token is None:
+            return month
+
+        page_token = page.next_page_token

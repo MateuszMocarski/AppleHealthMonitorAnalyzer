@@ -7,6 +7,7 @@ from apple_health.google.drive import (
 )
 from apple_health.google.drive_structure import (
     discover_ahm_root,
+    discover_report_month,
     ensure_ahm_root,
     ensure_config_container,
     ensure_reports_container,
@@ -484,3 +485,157 @@ def test_ensure_year_container_finds_existing_container_on_later_page() -> None:
         )
         == existing_year
     )
+
+
+# =====================================================================
+# Verifies that report month discovery uses appProperties instead of
+# the visible Drive folder name.
+# =====================================================================
+
+
+def test_discover_report_month_uses_app_properties_not_visible_name() -> None:
+    report_month = DriveFileMetadata(
+        file_id="month-2026-08",
+        name="Renamed by user",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+        },
+    )
+
+    class FakeDriveClient:
+        def search(
+            self,
+            query: str,
+            page_token: str | None = None,
+        ) -> DriveFilePage:
+            assert page_token is None
+            assert "'year-2026' in parents" in query
+            assert "appProperties has " "{ key='ahm_type' and value='report_month' }" in query
+            assert "appProperties has " "{ key='ahm_period' and value='2026-08' }" in query
+            assert "trashed = false" in query
+            assert "name =" not in query
+            assert report_month.name not in query
+
+            return DriveFilePage(
+                files=(report_month,),
+                next_page_token=None,
+            )
+
+    assert (
+        discover_report_month(
+            FakeDriveClient(),
+            year_id="year-2026",
+            period="2026-08",
+        )
+        == report_month
+    )
+
+
+# =====================================================================
+# Verifies that duplicate active report month containers are reported
+# as a controlled conflict instead of selecting one automatically.
+# =====================================================================
+
+
+def test_discover_report_month_rejects_duplicate_active_months() -> None:
+    first_month = DriveFileMetadata(
+        file_id="month-1",
+        name="2026-08",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+        },
+    )
+    second_month = DriveFileMetadata(
+        file_id="month-2",
+        name="Renamed month",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+        },
+    )
+
+    class FakeDriveClient:
+        def search(
+            self,
+            query: str,
+            page_token: str | None = None,
+        ) -> DriveFilePage:
+            return DriveFilePage(
+                files=(first_month, second_month),
+                next_page_token=None,
+            )
+
+    with pytest.raises(DriveConflictError):
+        discover_report_month(
+            FakeDriveClient(),
+            year_id="year-2026",
+            period="2026-08",
+        )
+
+
+# =====================================================================
+# Verifies that report month discovery follows Drive pagination and
+# detects a duplicate active month returned on a later page.
+# =====================================================================
+
+
+def test_discover_report_month_rejects_duplicate_on_later_page() -> None:
+    first_month = DriveFileMetadata(
+        file_id="month-1",
+        name="2026-08",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+        },
+    )
+    second_month = DriveFileMetadata(
+        file_id="month-2",
+        name="Renamed month",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+        },
+    )
+
+    class FakeDriveClient:
+        def search(
+            self,
+            query: str,
+            page_token: str | None = None,
+        ) -> DriveFilePage:
+            if page_token is None:
+                return DriveFilePage(
+                    files=(first_month,),
+                    next_page_token="page-2",
+                )
+
+            assert page_token == "page-2"
+
+            return DriveFilePage(
+                files=(second_month,),
+                next_page_token=None,
+            )
+
+    with pytest.raises(DriveConflictError):
+        discover_report_month(
+            FakeDriveClient(),
+            year_id="year-2026",
+            period="2026-08",
+        )
