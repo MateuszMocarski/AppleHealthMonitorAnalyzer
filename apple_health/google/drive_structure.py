@@ -73,11 +73,11 @@ def ensure_ahm_root(
     )
 
 
-def ensure_config_container(
+def discover_config_container(
     drive_client: DriveClient,
     *,
     root_id: str,
-) -> DriveFileMetadata:
+) -> DriveFileMetadata | None:
     page_token: str | None = None
 
     while True:
@@ -86,13 +86,28 @@ def ensure_config_container(
             page_token=page_token,
         )
 
-        if page.files:
-            return page.files[0]
-
-        if page.next_page_token is None:
-            break
+        for file in page.files:
+            if not file.trashed:
+                return file
 
         page_token = page.next_page_token
+
+        if page_token is None:
+            return None
+
+
+def ensure_config_container(
+    drive_client: DriveClient,
+    *,
+    root_id: str,
+) -> DriveFileMetadata:
+    config_container = discover_config_container(
+        drive_client,
+        root_id=root_id,
+    )
+
+    if config_container is not None:
+        return config_container
 
     return drive_client.create_folder(
         name=_AHM_CONFIG_CONTAINER_NAME,
@@ -354,26 +369,3 @@ def discover_report_index(
         index[year_value] = tuple(month.app_properties["ahm_period"] for month in months)
 
     return index
-
-
-def discover_config_container(
-    drive_client: DriveClient,
-    *,
-    root_id: str,
-) -> DriveFileMetadata | None:
-    page_token: str | None = None
-
-    while True:
-        page = drive_client.search(
-            _build_config_container_query(root_id),
-            page_token=page_token,
-        )
-
-        for file in page.files:
-            if not file.trashed:
-                return file
-
-        page_token = page.next_page_token
-
-        if page_token is None:
-            return None

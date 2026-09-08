@@ -1,43 +1,20 @@
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Protocol
 
 from apple_health.config.app_config import AppConfig
 from apple_health.config.config_loader import ConfigLoader
+from apple_health.google.drive import (
+    DriveClient,
+    DriveDownloadTooLargeError,
+    DriveFileMetadata,
+)
+from apple_health.google.drive_structure import (
+    discover_ahm_root,
+    discover_config_container,
+)
 
 MAX_CONFIG_PROFILE_SIZE_BYTES = 1024 * 1024
-
-
-class _DriveFileMetadataLike(Protocol):
-    file_id: str
-    name: str
-    trashed: bool
-    app_properties: dict[str, str]
-
-
-class _DriveConfigDownloader(Protocol):
-    def download_file(
-        self,
-        file_id: str,
-        destination_path: Path,
-        *,
-        max_bytes: int,
-    ) -> None: ...
-
-
-class _DriveFilePageLike(Protocol):
-    files: tuple[_DriveFileMetadataLike, ...]
-    next_page_token: str | None
-
-
-class _DriveProfileLister(Protocol):
-    def list_children(
-        self,
-        parent_id: str,
-        *,
-        page_token: str | None = None,
-    ) -> _DriveFilePageLike: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +24,7 @@ class ConfigProfile:
 
 
 def discover_config_profiles(
-    files: tuple[_DriveFileMetadataLike, ...],
+    files: tuple[DriveFileMetadata, ...],
 ) -> tuple[ConfigProfile, ...]:
     return tuple(
         ConfigProfile(
@@ -60,9 +37,14 @@ def discover_config_profiles(
 
 
 def load_config_profile(
-    client: _DriveConfigDownloader,
+    client: DriveClient,
     profile: ConfigProfile,
 ) -> AppConfig:
+    metadata = client.get_metadata(profile.file_id)
+
+    if metadata.size_bytes is not None and metadata.size_bytes > MAX_CONFIG_PROFILE_SIZE_BYTES:
+        raise DriveDownloadTooLargeError("Drive config profile exceeds the maximum allowed size")
+
     with TemporaryDirectory() as temporary_directory:
         config_path = Path(temporary_directory) / "config.toml"
 
@@ -76,16 +58,27 @@ def load_config_profile(
 
 
 def discover_drive_config_profiles(
-    client: _DriveProfileLister,
-    *,
-    config_container_id: str,
+    client: DriveClient,
 ) -> tuple[ConfigProfile, ...]:
-    files: list[_DriveFileMetadataLike] = []
+    root = discover_ahm_root(client)
+
+    if root is None:
+        return ()
+
+    config_container = discover_config_container(
+        client,
+        root_id=root.file_id,
+    )
+
+    if config_container is None:
+        return ()
+
+    files: list[DriveFileMetadata] = []
     page_token: str | None = None
 
     while True:
         page = client.list_children(
-            config_container_id,
+            config_container.file_id,
             page_token=page_token,
         )
         files.extend(page.files)
