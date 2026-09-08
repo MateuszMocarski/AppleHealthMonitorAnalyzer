@@ -1,4 +1,7 @@
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
+from apple_health.application.effective_config_resolver import (
+    EffectiveConfigResolver,
+)
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
 from apple_health.application.run_options import RunOptions
@@ -60,8 +63,9 @@ class AppleHealthApplication:
         self,
         options: MultiMonthRunOptions,
     ) -> list[MonthlyReports]:
-        config = ConfigLoader.load(
-            options.config_path,
+        config = EffectiveConfigResolver.resolve(
+            uploaded_config_path=options.config_path,
+            selected_drive_config=options.selected_drive_config,
             apple_watch_source=options.apple_watch_source,
             apple_health_app_source=options.apple_health_app_source,
         )

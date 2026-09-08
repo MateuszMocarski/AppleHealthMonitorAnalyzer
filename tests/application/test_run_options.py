@@ -1,6 +1,9 @@
 from pathlib import Path
 
+from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_period import ReportPeriod
 from apple_health.application.run_options import RunOptions
+from apple_health.config.app_config import AppConfig
 
 # =====================================================================
 # Verifies that RunOptions preserves the complete resolved parameter
@@ -24,3 +27,27 @@ def test_run_options_stores_resolved_application_parameters() -> None:
     assert options.month_summary is True
     assert options.output_format == "json"
     assert options.config_path == Path("config.toml")
+
+
+# =====================================================================
+# Verifies that multi-month generation options can carry an already
+# validated selected Drive configuration into the application layer.
+# =====================================================================
+
+
+def test_multi_month_run_options_preserve_selected_drive_config() -> None:
+    selected_drive_config = AppConfig()
+
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+        ),
+        config_path=None,
+        selected_drive_config=selected_drive_config,
+    )
+
+    assert options.selected_drive_config is selected_drive_config
