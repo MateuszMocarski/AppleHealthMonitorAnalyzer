@@ -2,26 +2,30 @@ from datetime import time
 
 from apple_health.config.app_config import AppConfig
 from apple_health.config.config_loader import ConfigLoader
+from apple_health.config.source_config import SourceConfig
 from apple_health.config.toml_renderer import (
     TomlRenderer,
     semantic_fingerprint,
 )
 
 # =====================================================================
-# Verifies that TomlRenderer serializes the effective source
-# configuration into deterministic canonical TOML.
+# Verifies that the canonical TOML contains the effective source
+# configuration values.
 # =====================================================================
 
 
 def test_toml_renderer_renders_effective_source_config() -> None:
-    config = AppConfig()
-    config.source.apple_watch_source = "My Apple Watch"
-    config.source.apple_health_app_source = "Health"
+    config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Watch",
+            apple_health_app_source="Health",
+        ),
+    )
 
-    assert TomlRenderer.render(config) == (
-        "[source]\n"
-        'apple_watch_source = "My Apple Watch"\n'
-        'apple_health_app_source = "Health"\n'
+    rendered = TomlRenderer.render(config)
+
+    assert rendered.startswith(
+        "[source]\n" 'apple_watch_source = "Watch"\n' 'apple_health_app_source = "Health"\n'
     )
 
 

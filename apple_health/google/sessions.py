@@ -14,6 +14,7 @@ class Session:
     google_email: str | None = None
     google_granted_scopes: frozenset[str] | None = None
     google_access_token_expires_at: datetime | None = None
+    selected_config_profile_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -132,6 +133,35 @@ class SessionStore:
             google_access_token=access_token,
             google_granted_scopes=granted_scopes,
             google_access_token_expires_at=(self._clock() + timedelta(seconds=expires_in_seconds)),
+        )
+
+    def set_selected_config_profile(
+        self,
+        session_id: str,
+        profile_id: str,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            selected_config_profile_id=profile_id,
+        )
+
+    def clear_selected_config_profile(
+        self,
+        session_id: str,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            selected_config_profile_id=None,
         )
 
     def is_google_mode_ready(
