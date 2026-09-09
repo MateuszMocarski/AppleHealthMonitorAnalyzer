@@ -1067,6 +1067,7 @@
                     id="drive-archive-picker"
                     class="secondary-button"
                     type="button"
+                    hidden
                 >
                     Choose ZIP from Google Drive
                 </button>
@@ -1798,6 +1799,26 @@
             results.classList.add("visible");
         }
 
+        async function loadGoogleConnectionState() {
+            const response =
+                await fetch(
+                    "/auth/google/status",
+                );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const googleStatus =
+                await response.json();
+
+            if (
+                googleStatus.status === "connected"
+            ) {
+                driveArchivePicker.hidden = false;
+            }
+        }
+
         async function loadConfigProfileState() {
             const response =
                 await fetch("/config/profiles");
@@ -2193,6 +2214,7 @@
             },
         );
         loadConfigProfileState();
+        loadGoogleConnectionState();
     </script>
 </body>
 </html>

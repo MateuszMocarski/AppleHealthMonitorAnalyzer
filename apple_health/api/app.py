@@ -31,6 +31,7 @@ from apple_health.google.drive import (
     DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveNotFoundError,
+    DriveTransientError,
     HttpGoogleDriveClient,
 )
 from apple_health.google.drive_structure import (
@@ -249,7 +250,6 @@ def save_config_profile_for_session(
 
     existing_profiles = discover_drive_config_profiles(
         drive_client,
-        config_container_id=config_container.file_id,
     )
 
     save_config_profile(
@@ -335,6 +335,19 @@ def download_drive_archive(
         raise HTTPException(
             status_code=413,
             detail="Selected Google Drive archive is too large.",
+        ) from exc
+    except (
+        DriveAccessError,
+        DriveNotFoundError,
+    ) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is unavailable.",
+        ) from exc
+    except DriveTransientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Google Drive is temporarily unavailable.",
         ) from exc
 
 
