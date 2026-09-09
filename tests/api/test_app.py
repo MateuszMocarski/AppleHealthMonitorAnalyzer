@@ -7,10 +7,11 @@ from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import apple_health.api.app as api_app_module
-from apple_health.api.app import app
+from apple_health.api.app import app, verify_drive_archive
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_generation_result import (
@@ -25,6 +26,7 @@ from apple_health.exceptions import (
     InvalidArchiveError,
 )
 from apple_health.google.config_profiles import ConfigProfile
+from apple_health.google.drive import DriveAccessError, DriveFileMetadata
 from apple_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
@@ -4945,3 +4947,122 @@ def test_web_interface_keeps_only_selected_drive_file_id() -> None:
 
     assert "selectedDriveFileId" in html
     assert "data.docs[0].id" in html
+
+
+# =====================================================================
+# Verifies that a selected Google Drive archive is accepted only when
+# its server-side metadata describes an accessible ZIP within the limit.
+# =====================================================================
+
+
+def test_verify_drive_archive_accepts_valid_zip(
+    monkeypatch,
+) -> None:
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            assert file_id == "drive-file-id"
+
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    metadata = verify_drive_archive(
+        access_token="drive-token",
+        file_id="drive-file-id",
+    )
+
+    assert metadata.file_id == "drive-file-id"
+
+
+# =====================================================================
+# Verifies that Drive archive verification rejects a blank file ID
+# before attempting any Google Drive request.
+# =====================================================================
+
+
+def test_verify_drive_archive_rejects_blank_file_id(
+    monkeypatch,
+) -> None:
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            raise AssertionError("Drive client must not be created for a blank file ID")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        verify_drive_archive(
+            access_token="drive-token",
+            file_id="   ",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == ("Selected Google Drive file ID is invalid.")
+
+
+# =====================================================================
+# Verifies that inaccessible Google Drive files are exposed as a
+# controlled validation error instead of leaking Drive client errors.
+# =====================================================================
+
+
+def test_verify_drive_archive_rejects_inaccessible_file(
+    monkeypatch,
+) -> None:
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            raise DriveAccessError("Google Drive access denied")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        verify_drive_archive(
+            access_token="drive-token",
+            file_id="drive-file-id",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")

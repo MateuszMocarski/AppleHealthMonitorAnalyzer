@@ -26,7 +26,12 @@ from apple_health.google.config_profiles import (
     load_config_profile,
     save_config_profile,
 )
-from apple_health.google.drive import HttpGoogleDriveClient
+from apple_health.google.drive import (
+    DriveAccessError,
+    DriveFileMetadata,
+    DriveNotFoundError,
+    HttpGoogleDriveClient,
+)
 from apple_health.google.drive_structure import (
     discover_ahm_root,
     discover_config_container,
@@ -253,6 +258,55 @@ def save_config_profile_for_session(
         config=config,
         existing_profiles=existing_profiles,
     )
+
+
+def verify_drive_archive(
+    *,
+    access_token: str,
+    file_id: str,
+) -> DriveFileMetadata:
+    if not file_id.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file ID is invalid.",
+        )
+
+    drive_client = HttpGoogleDriveClient(
+        access_token,
+    )
+
+    try:
+        metadata = drive_client.get_metadata(
+            file_id,
+        )
+    except (
+        DriveAccessError,
+        DriveNotFoundError,
+    ) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is unavailable.",
+        ) from exc
+
+    if metadata.trashed:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is unavailable.",
+        )
+
+    if metadata.mime_type != "application/zip":
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is not a ZIP archive.",
+        )
+
+    if metadata.size_bytes is None or metadata.size_bytes > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="Selected Google Drive archive is too large.",
+        )
+
+    return metadata
 
 
 @app.get("/")
