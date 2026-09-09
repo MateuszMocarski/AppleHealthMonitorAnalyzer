@@ -666,14 +666,14 @@ def test_multi_month_report_generation_pipeline(
         config_path=None,
     )
 
-    reports = AppleHealthApplication().generate_reports(
+    result = AppleHealthApplication().generate_reports(
         options,
     )
 
-    assert len(reports) == 2
+    assert len(result.reports) == 2
 
-    august_report = reports[0]
-    september_report = reports[1]
+    august_report = result.reports[0]
+    september_report = result.reports[1]
 
     assert august_report.period == ReportPeriod(
         year=2026,

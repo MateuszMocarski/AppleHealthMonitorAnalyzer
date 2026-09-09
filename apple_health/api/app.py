@@ -11,6 +11,7 @@ from apple_health.api.models import (
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
 from apple_health.application.report_period import ReportPeriod
+from apple_health.config.app_config import AppConfig
 from apple_health.config.exceptions import ConfigurationError
 from apple_health.exceptions import (
     ExportXmlNotFoundError,
@@ -18,6 +19,19 @@ from apple_health.exceptions import (
     HealthDataParseError,
     InvalidArchiveError,
     MultipleExportXmlError,
+)
+from apple_health.google.config_profiles import (
+    ConfigProfile,
+    discover_drive_config_profiles,
+    load_config_profile,
+    save_config_profile,
+)
+from apple_health.google.drive import HttpGoogleDriveClient
+from apple_health.google.drive_structure import (
+    discover_ahm_root,
+    discover_config_container,
+    ensure_ahm_root,
+    ensure_config_container,
 )
 from apple_health.google.oauth import (
     GoogleOAuthError,
@@ -130,6 +144,117 @@ def _normalize_optional_source(
     return normalized or None
 
 
+def discover_config_profiles_for_session(
+    session,
+) -> tuple[ConfigProfile, ...]:
+    if session.google_access_token is None:
+        return ()
+
+    drive_client = HttpGoogleDriveClient(
+        session.google_access_token,
+    )
+
+    root = discover_ahm_root(
+        drive_client,
+    )
+
+    if root is None:
+        return ()
+
+    config_container = discover_config_container(
+        drive_client,
+        root_id=root.file_id,
+    )
+
+    if config_container is None:
+        return ()
+
+    return discover_drive_config_profiles(
+        drive_client,
+        config_container_id=config_container.file_id,
+    )
+
+
+def load_selected_config_for_session(
+    session,
+) -> AppConfig | None:
+    if session.selected_config_profile_id is None or session.google_access_token is None:
+        return None
+
+    drive_client = HttpGoogleDriveClient(
+        session.google_access_token,
+    )
+
+    root = discover_ahm_root(
+        drive_client,
+    )
+
+    if root is None:
+        raise ConfigurationError("Selected configuration profile is unavailable.")
+
+    config_container = discover_config_container(
+        drive_client,
+        root_id=root.file_id,
+    )
+
+    if config_container is None:
+        raise ConfigurationError("Selected configuration profile is unavailable.")
+
+    profiles = discover_drive_config_profiles(
+        drive_client,
+        config_container_id=config_container.file_id,
+    )
+
+    selected_profile = next(
+        (profile for profile in profiles if profile.file_id == session.selected_config_profile_id),
+        None,
+    )
+
+    if selected_profile is None:
+        raise ConfigurationError("Selected configuration profile is unavailable.")
+
+    return load_config_profile(
+        drive_client,
+        selected_profile,
+    )
+
+
+def save_config_profile_for_session(
+    session,
+    *,
+    name: str,
+    config: AppConfig,
+) -> None:
+    if session.google_access_token is None:
+        raise ConfigurationError("Google Drive session is unavailable.")
+
+    drive_client = HttpGoogleDriveClient(
+        session.google_access_token,
+    )
+
+    root = ensure_ahm_root(
+        drive_client,
+    )
+
+    config_container = ensure_config_container(
+        drive_client,
+        root_id=root.file_id,
+    )
+
+    existing_profiles = discover_drive_config_profiles(
+        drive_client,
+        config_container_id=config_container.file_id,
+    )
+
+    save_config_profile(
+        drive_client,
+        config_container_id=config_container.file_id,
+        name=name,
+        config=config,
+        existing_profiles=existing_profiles,
+    )
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(
@@ -162,6 +287,108 @@ def example_config() -> FileResponse:
         media_type="application/toml",
         filename="config.example.toml",
     )
+
+
+@app.get("/config/profiles")
+def get_config_profiles(
+    ahm_session: str = Cookie(),
+) -> dict:
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    profiles = discover_config_profiles_for_session(session)
+
+    return {
+        "profiles": [
+            {
+                "file_id": profile.file_id,
+                "name": profile.name,
+            }
+            for profile in profiles
+        ],
+        "selected_profile_id": session.selected_config_profile_id,
+        "autosave_enabled": session.config_autosave_enabled,
+    }
+
+
+@app.post("/config/profiles/select")
+def select_config_profile(
+    profile_id: str = Form(),
+    ahm_session: str = Cookie(),
+) -> dict[str, str]:
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    profiles = discover_config_profiles_for_session(session)
+
+    if not any(profile.file_id == profile_id for profile in profiles):
+        raise HTTPException(
+            status_code=404,
+            detail="Configuration profile not found.",
+        )
+
+    session_store.set_selected_config_profile(
+        session_id=ahm_session,
+        profile_id=profile_id,
+    )
+
+    return {
+        "selected_profile_id": profile_id,
+    }
+
+
+@app.post("/config/profiles/select-none")
+def clear_config_profile_selection(
+    ahm_session: str = Cookie(),
+) -> dict[str, str | None]:
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    session_store.clear_selected_config_profile(
+        session_id=ahm_session,
+    )
+
+    return {
+        "selected_profile_id": None,
+    }
+
+
+@app.post("/config/autosave")
+def set_config_autosave(
+    enabled: bool = Form(),
+    ahm_session: str = Cookie(),
+) -> dict[str, bool]:
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    session_store.set_config_autosave_enabled(
+        session_id=ahm_session,
+        enabled=enabled,
+    )
+
+    return {
+        "autosave_enabled": enabled,
+    }
 
 
 @app.get(
@@ -403,6 +630,8 @@ def generate_report(
     config: UploadFile | None = File(default=None),
     apple_watch_source: str | None = Form(default=None),
     apple_health_app_source: str | None = Form(default=None),
+    ahm_session: str | None = Cookie(default=None),
+    save_config_as: str | None = Form(default=None),
 ) -> MultiMonthReportResponse:
     response.headers["Cache-Control"] = "no-store"
 
@@ -431,11 +660,25 @@ def generate_report(
                     max_size=MAX_CONFIG_UPLOAD_SIZE,
                     too_large_detail="Uploaded configuration is too large.",
                 )
+            selected_drive_config = None
+
+            if ahm_session is not None:
+                session = session_store.get(ahm_session)
+
+                if (
+                    session is not None
+                    and session.selected_config_profile_id is not None
+                    and config_path is None
+                ):
+                    selected_drive_config = load_selected_config_for_session(
+                        session,
+                    )
 
             options = MultiMonthRunOptions(
                 archive_path=archive_path,
                 periods=parsed_periods,
                 config_path=config_path,
+                selected_drive_config=selected_drive_config,
                 apple_watch_source=_normalize_optional_source(
                     apple_watch_source,
                 ),
@@ -445,9 +688,32 @@ def generate_report(
             )
 
             try:
-                reports = AppleHealthApplication().generate_reports(
+                generation_result = AppleHealthApplication().generate_reports(
                     options,
                 )
+                if (
+                    save_config_as is not None
+                    and save_config_as.strip()
+                    and ahm_session is not None
+                ):
+                    session = session_store.get(ahm_session)
+
+                    if session is not None:
+                        save_config_profile_for_session(
+                            session,
+                            name=save_config_as.strip(),
+                            config=generation_result.effective_config,
+                        )
+
+                elif ahm_session is not None:
+                    session = session_store.get(ahm_session)
+
+                    if session is not None and session.config_autosave_enabled:
+                        save_config_profile_for_session(
+                            session,
+                            name="Autosave",
+                            config=generation_result.effective_config,
+                        )
             except ConfigurationError as exc:
                 raise HTTPException(
                     status_code=422,
@@ -489,7 +755,7 @@ def generate_report(
                     summary_text=report.summary_text,
                     summary_json=report.summary_json,
                 )
-                for report in reports
+                for report in generation_result.reports
             ]
         )
 

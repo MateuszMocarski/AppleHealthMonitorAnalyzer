@@ -7,6 +7,7 @@ from apple_health.google.drive import (
 )
 from apple_health.google.drive_structure import (
     discover_ahm_root,
+    discover_config_container,
     discover_report_index,
     discover_report_month,
     discover_report_months,
@@ -1272,3 +1273,42 @@ def test_discover_report_index_returns_available_years_and_months() -> None:
         "2025": ("2025-12",),
         "2026": ("2026-08", "2026-09"),
     }
+
+
+# =====================================================================
+# Verifies that config container discovery returns an existing
+# application-managed config folder without creating Drive state.
+# =====================================================================
+
+
+def test_discover_config_container_returns_existing_container() -> None:
+    config_container = DriveFileMetadata(
+        file_id="config-container-1",
+        name="config",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "config_container",
+        },
+    )
+
+    class FakeDriveClient:
+        def search(
+            self,
+            query: str,
+            *,
+            page_token: str | None = None,
+        ) -> DriveFilePage:
+            return DriveFilePage(
+                files=(config_container,),
+                next_page_token=None,
+            )
+
+    assert (
+        discover_config_container(
+            FakeDriveClient(),
+            root_id="root-1",
+        )
+        == config_container
+    )

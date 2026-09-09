@@ -26,6 +26,15 @@ _AHM_YEAR_CONTAINER_TYPE = "year_container"
 _AHM_REPORT_MONTH_TYPE = "report_month"
 
 
+def _build_config_container_query(root_id: str) -> str:
+    return (
+        f"'{root_id}' in parents and "
+        "appProperties has "
+        "{ key='ahm_type' and value='config_container' } and "
+        "trashed = false"
+    )
+
+
 def discover_ahm_root(
     drive_client: DriveClient,
 ) -> DriveFileMetadata | None:
@@ -64,33 +73,41 @@ def ensure_ahm_root(
     )
 
 
+def discover_config_container(
+    drive_client: DriveClient,
+    *,
+    root_id: str,
+) -> DriveFileMetadata | None:
+    page_token: str | None = None
+
+    while True:
+        page = drive_client.search(
+            _build_config_container_query(root_id),
+            page_token=page_token,
+        )
+
+        for file in page.files:
+            if not file.trashed:
+                return file
+
+        page_token = page.next_page_token
+
+        if page_token is None:
+            return None
+
+
 def ensure_config_container(
     drive_client: DriveClient,
     *,
     root_id: str,
 ) -> DriveFileMetadata:
-    query = (
-        f"'{root_id}' in parents and "
-        "appProperties has "
-        "{ key='ahm_type' and value='config_container' } and "
-        "trashed = false"
+    config_container = discover_config_container(
+        drive_client,
+        root_id=root_id,
     )
 
-    page_token: str | None = None
-
-    while True:
-        page = drive_client.search(
-            query,
-            page_token=page_token,
-        )
-
-        if page.files:
-            return page.files[0]
-
-        if page.next_page_token is None:
-            break
-
-        page_token = page.next_page_token
+    if config_container is not None:
+        return config_container
 
     return drive_client.create_folder(
         name=_AHM_CONFIG_CONTAINER_NAME,

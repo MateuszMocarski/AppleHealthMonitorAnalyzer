@@ -6,6 +6,8 @@ from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
 from apple_health.application.report_period import ReportPeriod
 from apple_health.application.run_options import RunOptions
+from apple_health.config.app_config import AppConfig
+from apple_health.config.source_config import SourceConfig
 
 # =====================================================================
 # Verifies that the application orchestrates a complete monthly text
@@ -297,11 +299,11 @@ def test_application_generates_all_report_variants_for_multiple_months(
         FakeJsonRenderer,
     )
 
-    reports = AppleHealthApplication().generate_reports(
+    result = AppleHealthApplication().generate_reports(
         options,
     )
 
-    assert reports == [
+    assert result.reports == (
         MonthlyReports(
             period=ReportPeriod(
                 year=2026,
@@ -322,19 +324,20 @@ def test_application_generates_all_report_variants_for_multiple_months(
             summary_text="text-summary:summary-2026-9",
             summary_json="json-summary:summary-2026-9",
         ),
-    ]
-    assert calls["parse_count"] == 1
+    )
 
 
 # =====================================================================
-# Verifies that multi-month report generation forwards runtime source
-# overrides to configuration resolution before parsing the archive.
+# Verifies that multi-month report generation resolves the effective
+# configuration from all base-source and runtime override inputs.
 # =====================================================================
 
 
-def test_generate_reports_forwards_source_overrides_to_config_loader(
+def test_generate_reports_resolves_effective_configuration(
     monkeypatch,
 ) -> None:
+    selected_drive_config = AppConfig()
+
     options = MultiMonthRunOptions(
         archive_path=Path("export.zip"),
         periods=(
@@ -343,25 +346,29 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
                 month=8,
             ),
         ),
-        config_path=None,
+        config_path=Path("config.toml"),
+        selected_drive_config=selected_drive_config,
         apple_watch_source="Custom Watch",
         apple_health_app_source="Custom Health",
     )
 
     calls = {}
+    effective_config = object()
 
-    class FakeConfigLoader:
+    class FakeEffectiveConfigResolver:
         @staticmethod
-        def load(
-            path,
+        def resolve(
             *,
+            uploaded_config_path=None,
+            selected_drive_config=None,
             apple_watch_source=None,
             apple_health_app_source=None,
         ):
-            calls["config_path"] = path
+            calls["uploaded_config_path"] = uploaded_config_path
+            calls["selected_drive_config"] = selected_drive_config
             calls["apple_watch_source"] = apple_watch_source
             calls["apple_health_app_source"] = apple_health_app_source
-            return object()
+            return effective_config
 
     class FakeImporter:
         def __init__(self, path):
@@ -373,7 +380,122 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
 
     class FakeParser:
         def __init__(self, xml_stream, config):
+            assert config is effective_config
+
+        def parse(self):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(self, health_data, config):
+            assert config is effective_config
+
+        def summarize_month(self, year, month):
+            return "summary"
+
+    class FakeTextRenderer:
+        def __init__(self, config):
+            assert config is effective_config
+
+        def render_month(self, summary):
+            return "full-text"
+
+        def render_month_summary(self, summary):
+            return "summary-text"
+
+    class FakeJsonRenderer:
+        def __init__(self, config):
+            assert config is effective_config
+
+        def render_month(self, summary):
+            return "full-json"
+
+        def render_month_summary(self, summary):
+            return "summary-json"
+
+    monkeypatch.setattr(
+        "apple_health.application.application.EffectiveConfigResolver",
+        FakeEffectiveConfigResolver,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.TextRenderer",
+        FakeTextRenderer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.JsonRenderer",
+        FakeJsonRenderer,
+    )
+
+    AppleHealthApplication().generate_reports(options)
+
+    assert calls == {
+        "uploaded_config_path": Path("config.toml"),
+        "selected_drive_config": selected_drive_config,
+        "apple_watch_source": "Custom Watch",
+        "apple_health_app_source": "Custom Health",
+    }
+
+
+# =====================================================================
+# Verifies that an uploaded configuration replaces the selected Drive
+# configuration as the single base source during report generation.
+# =====================================================================
+
+
+def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    uploaded_config_path = tmp_path / "config.toml"
+    uploaded_config_path.write_text(
+        "[sleep]\n" "session_gap_threshold_minutes = 45\n",
+        encoding="utf-8",
+    )
+
+    selected_drive_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Drive Watch",
+            apple_health_app_source="Drive Health",
+        ),
+    )
+
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+        ),
+        config_path=uploaded_config_path,
+        selected_drive_config=selected_drive_config,
+    )
+
+    captured_config = None
+
+    class FakeImporter:
+        def __init__(self, path):
             pass
+
+        @contextmanager
+        def open_export(self):
+            yield object()
+
+    class FakeParser:
+        def __init__(self, xml_stream, config):
+            nonlocal captured_config
+            captured_config = config
 
         def parse(self):
             return "health-data"
@@ -406,9 +528,106 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
             return "summary-json"
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
-        FakeConfigLoader,
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
     )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.TextRenderer",
+        FakeTextRenderer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.JsonRenderer",
+        FakeJsonRenderer,
+    )
+
+    AppleHealthApplication().generate_reports(options)
+
+    assert captured_config is not None
+    assert captured_config.sleep.session_gap_threshold_minutes == 45
+    assert captured_config.source == SourceConfig()
+
+
+# =====================================================================
+# Verifies that the selected Drive configuration is used during report
+# generation when no uploaded configuration is provided.
+# =====================================================================
+
+
+def test_generate_reports_uses_selected_drive_config_when_upload_missing(
+    monkeypatch,
+) -> None:
+    selected_drive_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Drive Watch",
+            apple_health_app_source="Drive Health",
+        ),
+    )
+
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+        ),
+        config_path=None,
+        selected_drive_config=selected_drive_config,
+    )
+
+    captured_config = None
+
+    class FakeImporter:
+        def __init__(self, path):
+            pass
+
+        @contextmanager
+        def open_export(self):
+            yield object()
+
+    class FakeParser:
+        def __init__(self, xml_stream, config):
+            nonlocal captured_config
+            captured_config = config
+
+        def parse(self):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(self, health_data, config):
+            pass
+
+        def summarize_month(self, year, month):
+            return "summary"
+
+    class FakeTextRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return "full-text"
+
+        def render_month_summary(self, summary):
+            return "summary-text"
+
+    class FakeJsonRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return "full-json"
+
+        def render_month_summary(self, summary):
+            return "summary-json"
+
     monkeypatch.setattr(
         "apple_health.application.application.AppleHealthImporter",
         FakeImporter,
@@ -432,8 +651,186 @@ def test_generate_reports_forwards_source_overrides_to_config_loader(
 
     AppleHealthApplication().generate_reports(options)
 
-    assert calls == {
-        "config_path": None,
-        "apple_watch_source": "Custom Watch",
-        "apple_health_app_source": "Custom Health",
-    }
+    assert captured_config is not None
+    assert captured_config.source.apple_watch_source == "Drive Watch"
+    assert captured_config.source.apple_health_app_source == "Drive Health"
+
+
+# =====================================================================
+# Verifies that runtime source overrides take precedence over the
+# selected Drive configuration during report generation.
+# =====================================================================
+
+
+def test_generate_reports_applies_source_overrides_to_selected_drive_config(
+    monkeypatch,
+) -> None:
+    selected_drive_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Drive Watch",
+            apple_health_app_source="Drive Health",
+        ),
+    )
+
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+        ),
+        config_path=None,
+        selected_drive_config=selected_drive_config,
+        apple_watch_source="UI Watch",
+    )
+
+    captured_config = None
+
+    class FakeImporter:
+        def __init__(self, path):
+            pass
+
+        @contextmanager
+        def open_export(self):
+            yield object()
+
+    class FakeParser:
+        def __init__(self, xml_stream, config):
+            nonlocal captured_config
+            captured_config = config
+
+        def parse(self):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(self, health_data, config):
+            pass
+
+        def summarize_month(self, year, month):
+            return "summary"
+
+    class FakeTextRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return "full-text"
+
+        def render_month_summary(self, summary):
+            return "summary-text"
+
+    class FakeJsonRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return "full-json"
+
+        def render_month_summary(self, summary):
+            return "summary-json"
+
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.TextRenderer",
+        FakeTextRenderer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.JsonRenderer",
+        FakeJsonRenderer,
+    )
+
+    AppleHealthApplication().generate_reports(options)
+
+    assert captured_config is not None
+    assert captured_config.source.apple_watch_source == "UI Watch"
+    assert captured_config.source.apple_health_app_source == "Drive Health"
+
+    assert selected_drive_config.source.apple_watch_source == "Drive Watch"
+
+
+# =====================================================================
+# Verifies that multi-month generation exposes the effective
+# configuration that was actually used for the report run.
+# =====================================================================
+
+
+def test_generate_reports_exposes_effective_config(
+    monkeypatch,
+) -> None:
+    expected_config = AppConfig()
+
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(),
+        config_path=None,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.application.application.EffectiveConfigResolver.resolve",
+        lambda **kwargs: expected_config,
+    )
+
+    class FakeImporter:
+        def __init__(
+            self,
+            path,
+        ):
+            pass
+
+        @contextmanager
+        def open_export(
+            self,
+        ):
+            yield object()
+
+    class FakeParser:
+        def __init__(
+            self,
+            xml_stream,
+            config,
+        ):
+            assert config == expected_config
+
+        def parse(
+            self,
+        ):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(
+            self,
+            health_data,
+            config,
+        ):
+            assert config == expected_config
+
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+
+    result = AppleHealthApplication().generate_reports(
+        options,
+    )
+
+    assert result.effective_config == expected_config

@@ -6,19 +6,25 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
+import pytest
 from fastapi.testclient import TestClient
 
 import apple_health.api.app as api_app_module
 from apple_health.api.app import app
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
+from apple_health.application.report_generation_result import (
+    ReportGenerationResult,
+)
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
+from apple_health.config.exceptions import ConfigurationError
 from apple_health.exceptions import (
     ExportXmlTooLargeError,
     HealthDataParseError,
     InvalidArchiveError,
 )
+from apple_health.google.config_profiles import ConfigProfile
 from apple_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
@@ -82,6 +88,15 @@ def _create_export_archive(
         )
 
     return archive_path
+
+
+def _generation_result(
+    reports=(),
+) -> ReportGenerationResult:
+    return ReportGenerationResult(
+        reports=tuple(reports),
+        effective_config=AppConfig(),
+    )
 
 
 # =====================================================================
@@ -165,28 +180,30 @@ def test_generate_reports_for_multiple_months(
             ),
         )
 
-        return [
-            MonthlyReports(
-                period=ReportPeriod(
-                    year=2026,
-                    month=8,
+        return _generation_result(
+            [
+                MonthlyReports(
+                    period=ReportPeriod(
+                        year=2026,
+                        month=8,
+                    ),
+                    full_text="august-full-text",
+                    full_json="august-full-json",
+                    summary_text="august-summary-text",
+                    summary_json="august-summary-json",
                 ),
-                full_text="august-full-text",
-                full_json="august-full-json",
-                summary_text="august-summary-text",
-                summary_json="august-summary-json",
-            ),
-            MonthlyReports(
-                period=ReportPeriod(
-                    year=2026,
-                    month=9,
+                MonthlyReports(
+                    period=ReportPeriod(
+                        year=2026,
+                        month=9,
+                    ),
+                    full_text="september-full-text",
+                    full_json="september-full-json",
+                    summary_text="september-summary-text",
+                    summary_json="september-summary-json",
                 ),
-                full_text="september-full-text",
-                full_json="september-full-json",
-                summary_text="september-summary-text",
-                summary_json="september-summary-json",
-            ),
-        ]
+            ]
+        )
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -375,7 +392,7 @@ def test_report_generation_accepts_whitespace_between_periods(
     ):
         nonlocal captured_periods
         captured_periods = options.periods
-        return []
+        return _generation_result()
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -685,7 +702,7 @@ def test_report_generation_does_not_trust_filename_or_mime_type(
     monkeypatch.setattr(
         AppleHealthApplication,
         "generate_reports",
-        lambda self, options: [],
+        lambda self, options: _generation_result(),
     )
 
     response = client.post(
@@ -742,7 +759,7 @@ def test_report_generation_deletes_temporary_archive_after_success(
 
         assert temporary_archive_path.exists()
 
-        return []
+        return _generation_result()
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1163,7 +1180,7 @@ def test_report_generation_disables_response_caching(
     monkeypatch.setattr(
         AppleHealthApplication,
         "generate_reports",
-        lambda self, options: [],
+        lambda self, options: _generation_result(),
     )
 
     response = client.post(
@@ -1200,7 +1217,7 @@ def test_report_generation_forwards_source_overrides(
         assert options.apple_watch_source == "Custom Watch"
         assert options.apple_health_app_source == "Custom Health"
 
-        return []
+        return _generation_result()
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1246,7 +1263,7 @@ def test_report_generation_ignores_blank_source_overrides(
         assert options.apple_watch_source is None
         assert options.apple_health_app_source is None
 
-        return []
+        return _generation_result()
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -1328,7 +1345,7 @@ apple_health_app_source = "Custom Health"
             == config_content
         )
 
-        return []
+        return _generation_result()
 
     monkeypatch.setattr(
         AppleHealthApplication,
@@ -3167,3 +3184,1548 @@ def test_google_oauth_reconnect_preserves_session_expiry(
 
     assert session is not None
     assert session.expires_at == original_expires_at
+
+
+# =====================================================================
+# Verifies that the configuration profile API exposes saved profiles,
+# the current selection, and the session autosave preference.
+# =====================================================================
+
+
+def test_config_profiles_endpoint_exposes_session_state(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-2",
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+        ConfigProfile(
+            file_id="config-2",
+            name="Maintenance",
+        ),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_profiles_for_session",
+        lambda session: profiles,
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get("/config/profiles")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "profiles": [
+            {
+                "file_id": "config-1",
+                "name": "Cutting",
+            },
+            {
+                "file_id": "config-2",
+                "name": "Maintenance",
+            },
+        ],
+        "selected_profile_id": "config-2",
+        "autosave_enabled": False,
+    }
+
+
+# =====================================================================
+# Verifies that the configuration profile API selects an existing Drive
+# profile for the current session.
+# =====================================================================
+
+
+def test_config_profile_can_be_selected(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+        ConfigProfile(
+            file_id="config-2",
+            name="Maintenance",
+        ),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_profiles_for_session",
+        lambda session: profiles,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/config/profiles/select",
+        data={
+            "profile_id": "config-2",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "selected_profile_id": "config-2",
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.selected_config_profile_id == "config-2"
+
+
+# =====================================================================
+# Verifies that the configuration profile API can explicitly clear the
+# current Drive profile selection without deleting any saved profile.
+# =====================================================================
+
+
+def test_config_profile_selection_can_be_cleared(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-2",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/config/profiles/select-none",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "selected_profile_id": None,
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.selected_config_profile_id is None
+
+
+# =====================================================================
+# Verifies that the configuration autosave preference can be updated
+# through the API for the current session.
+# =====================================================================
+
+
+def test_config_autosave_preference_can_be_updated(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/config/autosave",
+        data={
+            "enabled": "false",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "autosave_enabled": False,
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.config_autosave_enabled is False
+
+
+# =====================================================================
+# Verifies that report generation forwards the selected Drive
+# configuration into the application run options.
+# =====================================================================
+
+
+def test_report_generation_uses_selected_drive_config(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-1",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    selected_config = AppConfig()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "load_selected_config_for_session",
+        lambda session: selected_config,
+        raising=False,
+    )
+
+    captured_options = None
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            nonlocal captured_options
+            captured_options = options
+            return _generation_result()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_options is not None
+    assert captured_options.selected_drive_config == selected_config
+
+
+# =====================================================================
+# Verifies that an uploaded configuration replaces the selected Drive
+# profile as the base configuration source for the current request.
+# =====================================================================
+
+
+def test_uploaded_config_replaces_selected_drive_config(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-1",
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    def fail_if_selected_drive_config_is_loaded(session):
+        raise AssertionError("Selected Drive config must not be loaded when a config is uploaded")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "load_selected_config_for_session",
+        fail_if_selected_drive_config_is_loaded,
+    )
+
+    captured_options = None
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            nonlocal captured_options
+            captured_options = options
+            return _generation_result()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b'[source]\napple_watch_source = "Uploaded Watch"\n',
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_options is not None
+    assert captured_options.config_path is not None
+    assert captured_options.selected_drive_config is None
+
+
+# =====================================================================
+# Verifies that the selected Drive configuration is discovered and
+# loaded through the authenticated user's Drive session.
+# =====================================================================
+
+
+def test_load_selected_config_for_session_loads_selected_profile(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-2",
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+
+    calls = {}
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token,
+        ):
+            calls["access_token"] = access_token
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+        raising=False,
+    )
+
+    class FakeRoot:
+        file_id = "root-id"
+
+    class FakeConfigContainer:
+        file_id = "config-container-id"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_ahm_root",
+        lambda client: FakeRoot(),
+        raising=False,
+    )
+
+    def fake_discover_config_container(
+        client,
+        *,
+        root_id,
+    ):
+        assert root_id == "root-id"
+        return FakeConfigContainer()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_container",
+        fake_discover_config_container,
+        raising=False,
+    )
+
+    profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+        ConfigProfile(
+            file_id="config-2",
+            name="Maintenance",
+        ),
+    )
+
+    def fake_discover_drive_config_profiles(
+        client,
+        *,
+        config_container_id,
+    ):
+        assert config_container_id == "config-container-id"
+        return profiles
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_drive_config_profiles",
+        fake_discover_drive_config_profiles,
+        raising=False,
+    )
+
+    expected_config = AppConfig()
+
+    def fake_load_config_profile(
+        client,
+        profile,
+    ):
+        assert profile == profiles[1]
+        return expected_config
+
+    monkeypatch.setattr(
+        api_app_module,
+        "load_config_profile",
+        fake_load_config_profile,
+        raising=False,
+    )
+
+    result = api_app_module.load_selected_config_for_session(
+        session,
+    )
+
+    assert calls["access_token"] == "access-token"
+    assert result == expected_config
+
+
+# =====================================================================
+# Verifies that a missing explicitly selected Drive configuration does
+# not silently fall back to application defaults.
+# =====================================================================
+
+
+def test_load_selected_config_for_session_rejects_missing_selected_profile(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="missing-config",
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token,
+        ):
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    class FakeRoot:
+        file_id = "root-id"
+
+    class FakeConfigContainer:
+        file_id = "config-container-id"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_ahm_root",
+        lambda client: FakeRoot(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_container",
+        lambda client, *, root_id: FakeConfigContainer(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_drive_config_profiles",
+        lambda client, *, config_container_id: (
+            ConfigProfile(
+                file_id="config-1",
+                name="Cutting",
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match="Selected configuration profile is unavailable",
+    ):
+        api_app_module.load_selected_config_for_session(
+            session,
+        )
+
+
+# =====================================================================
+# Verifies that an explicitly selected Drive configuration does not
+# silently fall back when the AHM Drive root is unavailable.
+# =====================================================================
+
+
+def test_load_selected_config_for_session_rejects_missing_drive_root(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-1",
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token,
+        ):
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_ahm_root",
+        lambda client: None,
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match="Selected configuration profile is unavailable",
+    ):
+        api_app_module.load_selected_config_for_session(
+            session,
+        )
+
+
+# =====================================================================
+# Verifies that an explicitly selected Drive configuration does not
+# silently fall back when the config container is unavailable.
+# =====================================================================
+
+
+def test_load_selected_config_for_session_rejects_missing_config_container(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_selected_config_profile(
+        session_id=session_id,
+        profile_id="config-1",
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token,
+        ):
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    class FakeRoot:
+        file_id = "root-id"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_ahm_root",
+        lambda client: FakeRoot(),
+    )
+
+    def fake_discover_config_container(
+        client,
+        *,
+        root_id,
+    ):
+        assert root_id == "root-id"
+        return None
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_container",
+        fake_discover_config_container,
+    )
+
+    with pytest.raises(
+        ConfigurationError,
+        match="Selected configuration profile is unavailable",
+    ):
+        api_app_module.load_selected_config_for_session(
+            session,
+        )
+
+
+# =====================================================================
+# Verifies that configuration profile discovery uses the authenticated
+# user's Drive and returns profiles from the existing config container.
+# =====================================================================
+
+
+def test_discover_config_profiles_for_session_reads_drive_profiles(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+
+    calls = {}
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token,
+        ):
+            calls["access_token"] = access_token
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    class FakeRoot:
+        file_id = "root-id"
+
+    class FakeConfigContainer:
+        file_id = "config-container-id"
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_ahm_root",
+        lambda client: FakeRoot(),
+    )
+
+    def fake_discover_config_container(
+        client,
+        *,
+        root_id,
+    ):
+        assert root_id == "root-id"
+        return FakeConfigContainer()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_container",
+        fake_discover_config_container,
+    )
+
+    expected_profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+        ConfigProfile(
+            file_id="config-2",
+            name="Maintenance",
+        ),
+    )
+
+    def fake_discover_drive_config_profiles(
+        client,
+        *,
+        config_container_id,
+    ):
+        assert config_container_id == "config-container-id"
+        return expected_profiles
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_drive_config_profiles",
+        fake_discover_drive_config_profiles,
+    )
+
+    result = api_app_module.discover_config_profiles_for_session(
+        session,
+    )
+
+    assert calls["access_token"] == "access-token"
+    assert result == expected_profiles
+
+
+# =====================================================================
+# Verifies that saving a named configuration profile lazily ensures the
+# AHM Drive structure and delegates canonical persistence.
+# =====================================================================
+
+
+def test_save_config_profile_for_session_uses_lazy_drive_write_path(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+
+    calls = {}
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token,
+        ):
+            calls["access_token"] = access_token
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    class FakeRoot:
+        file_id = "root-id"
+
+    class FakeConfigContainer:
+        file_id = "config-container-id"
+
+    def fake_ensure_ahm_root(
+        client,
+    ):
+        calls["root"] = True
+        return FakeRoot()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "ensure_ahm_root",
+        fake_ensure_ahm_root,
+    )
+
+    def fake_ensure_config_container(
+        client,
+        *,
+        root_id,
+    ):
+        assert root_id == "root-id"
+        calls["config_container"] = True
+        return FakeConfigContainer()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "ensure_config_container",
+        fake_ensure_config_container,
+    )
+
+    existing_profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+    )
+
+    def fake_discover_drive_config_profiles(
+        client,
+        *,
+        config_container_id,
+    ):
+        assert config_container_id == "config-container-id"
+        return existing_profiles
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_drive_config_profiles",
+        fake_discover_drive_config_profiles,
+    )
+
+    config = AppConfig()
+
+    def fake_save_config_profile(
+        client,
+        *,
+        config_container_id,
+        name,
+        config,
+        existing_profiles,
+    ):
+        calls["save"] = {
+            "config_container_id": config_container_id,
+            "name": name,
+            "config": config,
+            "existing_profiles": existing_profiles,
+        }
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_config_profile",
+        fake_save_config_profile,
+    )
+
+    api_app_module.save_config_profile_for_session(
+        session,
+        name="Maintenance",
+        config=config,
+    )
+
+    assert calls["access_token"] == "access-token"
+    assert calls["root"] is True
+    assert calls["config_container"] is True
+    assert calls["save"] == {
+        "config_container_id": "config-container-id",
+        "name": "Maintenance",
+        "config": config,
+        "existing_profiles": existing_profiles,
+    }
+
+
+# =====================================================================
+# Verifies that the report API serializes reports from the application
+# generation result instead of treating the result itself as a list.
+# =====================================================================
+
+
+def test_report_generation_serializes_generation_result(
+    monkeypatch,
+) -> None:
+    class FakeGenerationResult:
+        reports = ()
+        effective_config = AppConfig()
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return FakeGenerationResult()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    auth_client = TestClient(app)
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [],
+    }
+
+
+# =====================================================================
+# Verifies that an explicit Save configuration as request persists the
+# effective configuration even when automatic config saving is disabled.
+# =====================================================================
+
+
+def test_report_generation_can_explicitly_save_effective_config(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    effective_config = AppConfig()
+
+    class FakeGenerationResult:
+        def __init__(
+            self,
+            effective_config,
+        ):
+            self.reports = ()
+            self.effective_config = effective_config
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return FakeGenerationResult(
+                effective_config,
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    saved_configs = []
+
+    def fake_save_config_profile_for_session(
+        session,
+        *,
+        name,
+        config,
+    ):
+        saved_configs.append(
+            (
+                session.session_id,
+                name,
+                config,
+            )
+        )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_config_profile_for_session",
+        fake_save_config_profile_for_session,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "save_config_as": "Maintenance",
+        },
+    )
+
+    assert response.status_code == 200
+    assert saved_configs == [
+        (
+            session_id,
+            "Maintenance",
+            effective_config,
+        )
+    ]
+
+
+# =====================================================================
+# Verifies that successful report generation automatically persists the
+# effective configuration when config autosave is enabled.
+# =====================================================================
+
+
+def test_report_generation_autosaves_effective_config(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    effective_config = AppConfig()
+
+    class FakeGenerationResult:
+        def __init__(
+            self,
+            effective_config,
+        ):
+            self.reports = ()
+            self.effective_config = effective_config
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return FakeGenerationResult(
+                effective_config,
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    saved_configs = []
+
+    def fake_save_config_profile_for_session(
+        session,
+        *,
+        name,
+        config,
+    ):
+        saved_configs.append(
+            (
+                session.session_id,
+                name,
+                config,
+            )
+        )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_config_profile_for_session",
+        fake_save_config_profile_for_session,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(saved_configs) == 1
+    assert saved_configs[0][0] == session_id
+    assert saved_configs[0][2] == effective_config
+
+
+# =====================================================================
+# Verifies that successful report generation does not persist the
+# effective configuration when config autosave is disabled.
+# =====================================================================
+
+
+def test_report_generation_does_not_autosave_when_disabled(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    effective_config = AppConfig()
+
+    class FakeGenerationResult:
+        def __init__(
+            self,
+            effective_config,
+        ):
+            self.reports = ()
+            self.effective_config = effective_config
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return FakeGenerationResult(
+                effective_config,
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    def fail_if_saved(
+        session,
+        *,
+        name,
+        config,
+    ):
+        raise AssertionError("Configuration must not be autosaved when autosave is disabled")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_config_profile_for_session",
+        fail_if_saved,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+
+
+# =====================================================================
+# Verifies that an explicit configuration save takes precedence over
+# autosave and does not cause two profile saves in one request.
+# =====================================================================
+
+
+def test_explicit_config_save_takes_precedence_over_autosave(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    effective_config = AppConfig()
+
+    class FakeGenerationResult:
+        def __init__(
+            self,
+            effective_config,
+        ):
+            self.reports = ()
+            self.effective_config = effective_config
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return FakeGenerationResult(
+                effective_config,
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    saved_configs = []
+
+    def fake_save_config_profile_for_session(
+        session,
+        *,
+        name,
+        config,
+    ):
+        saved_configs.append(
+            (
+                name,
+                config,
+            )
+        )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_config_profile_for_session",
+        fake_save_config_profile_for_session,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "save_config_as": "Maintenance",
+        },
+    )
+
+    assert response.status_code == 200
+    assert saved_configs == [
+        (
+            "Maintenance",
+            effective_config,
+        )
+    ]
+
+
+# =====================================================================
+# Verifies that the web interface exposes configuration profile controls
+# for selection, defaults, explicit save, and autosave preference.
+# =====================================================================
+
+
+def test_web_interface_exposes_config_profile_controls() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="config-profile-select"' in html
+    assert 'id="config-profile-none"' in html
+    assert 'id="save-config-as"' in html
+    assert 'id="config-autosave"' in html
+
+
+# =====================================================================
+# Verifies that the web interface loads saved configuration profiles
+# and restores the current selection plus autosave preference.
+# =====================================================================
+
+
+def test_web_interface_loads_config_profile_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'fetch("/config/profiles")' in html
+    assert "payload.profiles" in html
+    assert "payload.selected_profile_id" in html
+    assert "payload.autosave_enabled" in html
+
+
+# =====================================================================
+# Verifies that the web interface persists Drive profile selection and
+# explicitly clears the selection when application defaults are chosen.
+# =====================================================================
+
+
+def test_web_interface_updates_config_profile_selection() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"/config/profiles/select"' in html
+    assert '"/config/profiles/select-none"' in html
+    assert "configProfileSelect.addEventListener(" in html
+    assert "configProfileNone.addEventListener(" in html
+
+
+# =====================================================================
+# Verifies that the web interface persists the configuration autosave
+# preference when the checkbox state changes.
+# =====================================================================
+
+
+def test_web_interface_updates_config_autosave_preference() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"/config/autosave"' in html
+    assert "configAutosave.addEventListener(" in html
+    assert '"enabled"' in html
+
+
+# =====================================================================
+# Verifies that the web interface forwards the explicit configuration
+# profile name with the report generation request.
+# =====================================================================
+
+
+def test_web_interface_forwards_save_config_as() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"save-config-as"' in html
+    assert '"save_config_as"' in html
+    assert "saveConfigAs.value" in html
+
+
+# =====================================================================
+# Verifies that the web interface explains configuration precedence
+# including the selected Drive profile and uploaded configuration.
+# =====================================================================
+
+
+def test_web_interface_explains_config_profile_precedence() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "selected Drive profile" in html
+    assert "uploaded config.toml" in html
+
+
+# =====================================================================
+# Verifies that successful report generation refreshes configuration
+# profile state so newly saved profiles become visible immediately.
+# =====================================================================
+
+
+def test_web_interface_refreshes_config_profiles_after_generation() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "await loadConfigProfileState();" in html

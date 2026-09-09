@@ -339,3 +339,99 @@ def test_google_mode_ready_requires_complete_valid_google_session() -> None:
         )
         is False
     )
+
+
+# =====================================================================
+# Verifies that a new application session starts without any selected
+# Drive config profile.
+# =====================================================================
+
+
+def test_new_session_has_no_selected_config_profile() -> None:
+    store = SessionStore()
+
+    session_id = store.create()
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.selected_config_profile_id is None
+
+
+# =====================================================================
+# Verifies that a Drive config profile becomes selected only after an
+# explicit session update.
+# =====================================================================
+
+
+def test_session_can_select_config_profile() -> None:
+    store = SessionStore()
+    session_id = store.create()
+
+    store.set_selected_config_profile(
+        session_id,
+        "config-1",
+    )
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.selected_config_profile_id == "config-1"
+
+
+# =====================================================================
+# Verifies that the selected Drive config profile can be cleared so the
+# session returns to having no active Drive configuration.
+# =====================================================================
+
+
+def test_session_can_clear_selected_config_profile() -> None:
+    store = SessionStore()
+    session_id = store.create()
+
+    store.set_selected_config_profile(
+        session_id,
+        "config-1",
+    )
+    store.clear_selected_config_profile(session_id)
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.selected_config_profile_id is None
+
+
+# =====================================================================
+# Verifies that configuration autosave is enabled by default for a new
+# session.
+# =====================================================================
+
+
+def test_new_session_has_config_autosave_enabled() -> None:
+    store = SessionStore()
+
+    session_id = store.create()
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.config_autosave_enabled is True
+
+
+# =====================================================================
+# Verifies that configuration autosave can be explicitly disabled for
+# an existing session.
+# =====================================================================
+
+
+def test_config_autosave_can_be_disabled() -> None:
+    store = SessionStore()
+    session_id = store.create()
+
+    store.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.config_autosave_enabled is False

@@ -419,6 +419,83 @@
             line-height: 1.55;
         }
 
+        .config-profile-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+
+            margin-bottom: 18px;
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .config-profile-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .config-profile-field {
+            flex: 1 1 0;
+
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .config-profile-select {
+            width: 100%;
+            height: 44px;
+            padding: 0 13px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 14px;
+
+            outline: none;
+        }
+
+        .config-profile-select:focus {
+            border-color: rgba(255, 55, 95, 0.55);
+        }
+
+        .config-defaults-button {
+            flex: 0 0 auto;
+        }
+
+        .config-autosave-control {
+            min-height: 44px;
+
+            display: flex;
+            align-items: center;
+            gap: 9px;
+
+            padding: 0 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+
+            cursor: pointer;
+        }
+
+        .config-autosave-control input {
+            margin: 0;
+        }
+
         .source-warning {
             margin-bottom: 18px;
             padding: 11px 13px;
@@ -907,6 +984,15 @@
             .guide-grid {
                 grid-template-columns: 1fr;
             }
+
+            .config-profile-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .config-defaults-button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -1026,6 +1112,60 @@
                             Optional. Upload a custom configuration file or
                             override source names for this report generation.
                         </p>
+                        <div class="config-profile-controls">
+                            <div class="config-profile-row">
+                                <label class="config-profile-field">
+                                    <span class="field-label">
+                                        Saved configuration
+                                    </span>
+
+                                    <select
+                                        id="config-profile-select"
+                                        class="config-profile-select"
+                                    >
+                                        <option value="">
+                                            Application defaults
+                                        </option>
+                                    </select>
+                                </label>
+
+                                <button
+                                    class="secondary-button config-defaults-button"
+                                    id="config-profile-none"
+                                    type="button"
+                                >
+                                    Use application defaults
+                                </button>
+                            </div>
+
+                            <div class="config-profile-row">
+                                <label class="config-profile-field">
+                                    <span class="field-label">
+                                        Save configuration as
+                                    </span>
+
+                                    <input
+                                        id="save-config-as"
+                                        class="text-input"
+                                        type="text"
+                                        autocomplete="off"
+                                        placeholder="Profile name"
+                                    >
+                                </label>
+
+                                <label class="config-autosave-control">
+                                    <input
+                                        id="config-autosave"
+                                        type="checkbox"
+                                        checked
+                                    >
+
+                                    <span>
+                                        Automatically save configurations
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
 
                         <div class="config-tools">
                             <div class="config-upload">
@@ -1067,11 +1207,13 @@
                             Configuration precedence:
                             <code>UI overrides</code>
                             &gt;
-                            <code>config.toml</code>
+                            <code>uploaded config.toml</code>
                             &gt;
-                            <code>defaults</code>.
-                            Leave source fields blank to keep the value from
-                            config.toml or the built-in defaults.
+                            <code>selected Drive profile</code>
+                            &gt;
+                            <code>built-in defaults</code>.
+                            An uploaded config replaces the selected Drive profile for that
+                            generation request rather than being layered on top of it.
                         </p>
 
                         <div class="source-warning">
@@ -1131,7 +1273,6 @@
                     </div>
                 </details>
             </div>
-
             <div class="section">
                 <details class="guide">
                     <summary>
@@ -1258,12 +1399,13 @@
                             Configuration precedence:
                             <code>UI overrides</code>
                             &gt;
-                            <code>config.toml</code>
+                            <code>uploaded config.toml</code>
+                            &gt;
+                            <code>selected Drive profile</code>
                             &gt;
                             <code>built-in defaults</code>.
-                            The app starts with defaults, applies values from
-                            the uploaded TOML file, then applies non-empty
-                            source overrides from the UI.
+                            An uploaded config replaces the selected Drive profile for that
+                            generation request.
                         </div>
 
                         <p class="guide-note">
@@ -1360,6 +1502,26 @@
             document.getElementById("result-list");
 
         const selectedMonths = new Set();
+
+        const configProfileSelect =
+            document.getElementById(
+                "config-profile-select",
+            );
+
+        const configAutosave =
+            document.getElementById(
+                "config-autosave",
+            );
+
+        const configProfileNone =
+            document.getElementById(
+                "config-profile-none",
+            );
+
+        const saveConfigAs =
+            document.getElementById(
+                "save-config-as",
+            );
 
         archiveInput.addEventListener(
             "change",
@@ -1617,6 +1779,135 @@
             results.classList.add("visible");
         }
 
+        async function loadConfigProfileState() {
+            const response =
+                await fetch("/config/profiles");
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload =
+                await response.json();
+
+            configProfileSelect.innerHTML =
+                '<option value="">Application defaults</option>';
+
+            payload.profiles.forEach(
+                (profile) => {
+                    const option =
+                        document.createElement("option");
+
+                    option.value = profile.file_id;
+                    option.textContent = profile.name;
+
+                    configProfileSelect.appendChild(
+                        option,
+                    );
+                },
+            );
+
+            configProfileSelect.value =
+                payload.selected_profile_id ?? "";
+
+            configAutosave.checked =
+                payload.autosave_enabled;
+        }
+
+        async function selectConfigProfile(
+            profileId,
+        ) {
+            const formData =
+                new FormData();
+
+            formData.append(
+                "profile_id",
+                profileId,
+            );
+
+            const response =
+                await fetch(
+                    "/config/profiles/select",
+                    {
+                        method: "POST",
+                        body: formData,
+                    },
+                );
+
+            if (!response.ok) {
+                return;
+            }
+
+            configProfileSelect.value =
+                profileId;
+        }
+
+        async function clearConfigProfileSelection() {
+            const response =
+                await fetch(
+                    "/config/profiles/select-none",
+                    {
+                        method: "POST",
+                    },
+                );
+
+            if (!response.ok) {
+                return;
+            }
+
+            configProfileSelect.value = "";
+        }
+
+        configProfileSelect.addEventListener(
+            "change",
+            () => {
+                const profileId =
+                    configProfileSelect.value;
+
+                if (profileId) {
+                    selectConfigProfile(
+                        profileId,
+                    );
+                } else {
+                    clearConfigProfileSelection();
+                }
+            },
+        );
+
+        configProfileNone.addEventListener(
+            "click",
+            () => {
+                clearConfigProfileSelection();
+            },
+        );
+
+        configAutosave.addEventListener(
+            "change",
+            async () => {
+                const formData =
+                    new FormData();
+
+                formData.append(
+                    "enabled",
+                    String(configAutosave.checked),
+                );
+
+                const response =
+                    await fetch(
+                        "/config/autosave",
+                        {
+                            method: "POST",
+                            body: formData,
+                        },
+                    );
+
+                if (!response.ok) {
+                    configAutosave.checked =
+                        !configAutosave.checked;
+                }
+            },
+        );
+
         generateButton.addEventListener(
             "click",
             async () => {
@@ -1675,6 +1966,16 @@
                     appleHealthAppSource.value,
                 );
 
+                const saveConfigName =
+                    saveConfigAs.value.trim();
+
+                if (saveConfigName) {
+                    formData.append(
+                        "save_config_as",
+                        saveConfigName,
+                    );
+                }
+
                 generateButton.disabled = true;
                 generateButton.textContent =
                     "Generating…";
@@ -1721,6 +2022,8 @@
                         payload.reports,
                     );
 
+                    await loadConfigProfileState();
+
                     showStatus(
                         `Generated ${payload.reports.length} monthly report set(s).`,
                         "success",
@@ -1737,6 +2040,7 @@
                 }
             },
         );
+        loadConfigProfileState();
     </script>
 </body>
 </html>
