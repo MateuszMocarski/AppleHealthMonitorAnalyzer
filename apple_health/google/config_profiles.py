@@ -105,21 +105,31 @@ def has_semantic_duplicate(
 
 
 def resolve_config_profile_name(
-    requested_name: str,
+    name: str,
     *,
     existing_profiles: tuple[ConfigProfile, ...],
 ) -> str:
     existing_names = {profile.name for profile in existing_profiles}
 
-    if requested_name not in existing_names:
-        return requested_name
+    if name not in existing_names:
+        return name
+
+    if name.lower().endswith(".toml"):
+        base_name = name[:-5]
+        extension = name[-5:]
+    else:
+        base_name = name
+        extension = ""
 
     suffix = 2
 
-    while f"{requested_name}_{suffix}" in existing_names:
-        suffix += 1
+    while True:
+        candidate = f"{base_name}_{suffix}{extension}"
 
-    return f"{requested_name}_{suffix}"
+        if candidate not in existing_names:
+            return candidate
+
+        suffix += 1
 
 
 def render_config_profile(config: AppConfig) -> str:
@@ -142,8 +152,10 @@ def save_config_profile(
     ):
         return
 
+    normalized_name = name if name.lower().endswith(".toml") else f"{name}.toml"
+
     resolved_name = resolve_config_profile_name(
-        name,
+        normalized_name,
         existing_profiles=existing_profiles,
     )
 

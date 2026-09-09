@@ -869,7 +869,7 @@ def test_http_drive_client_downloads_file(
         assert params == {
             "alt": "media",
         }
-        assert timeout == 10.0
+        assert timeout == client.DOWNLOAD_TIMEOUT
 
         return FakeStream()
 

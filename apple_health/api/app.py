@@ -35,8 +35,6 @@ from apple_health.google.drive import (
     HttpGoogleDriveClient,
 )
 from apple_health.google.drive_structure import (
-    discover_ahm_root,
-    discover_config_container,
     ensure_ahm_root,
     ensure_config_container,
 )
@@ -161,24 +159,8 @@ def discover_config_profiles_for_session(
         session.google_access_token,
     )
 
-    root = discover_ahm_root(
-        drive_client,
-    )
-
-    if root is None:
-        return ()
-
-    config_container = discover_config_container(
-        drive_client,
-        root_id=root.file_id,
-    )
-
-    if config_container is None:
-        return ()
-
     return discover_drive_config_profiles(
         drive_client,
-        config_container_id=config_container.file_id,
     )
 
 
@@ -192,24 +174,8 @@ def load_selected_config_for_session(
         session.google_access_token,
     )
 
-    root = discover_ahm_root(
-        drive_client,
-    )
-
-    if root is None:
-        raise ConfigurationError("Selected configuration profile is unavailable.")
-
-    config_container = discover_config_container(
-        drive_client,
-        root_id=root.file_id,
-    )
-
-    if config_container is None:
-        raise ConfigurationError("Selected configuration profile is unavailable.")
-
     profiles = discover_drive_config_profiles(
         drive_client,
-        config_container_id=config_container.file_id,
     )
 
     selected_profile = next(

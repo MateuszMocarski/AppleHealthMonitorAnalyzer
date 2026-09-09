@@ -3696,10 +3696,7 @@ def test_load_selected_config_for_session_loads_selected_profile(
 
     def fake_discover_drive_config_profiles(
         client,
-        *,
-        config_container_id,
     ):
-        assert config_container_id == "config-container-id"
         return profiles
 
     monkeypatch.setattr(
@@ -3781,20 +3778,8 @@ def test_load_selected_config_for_session_rejects_missing_selected_profile(
 
     monkeypatch.setattr(
         api_app_module,
-        "discover_ahm_root",
-        lambda client: FakeRoot(),
-    )
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_config_container",
-        lambda client, *, root_id: FakeConfigContainer(),
-    )
-
-    monkeypatch.setattr(
-        api_app_module,
         "discover_drive_config_profiles",
-        lambda client, *, config_container_id: (
+        lambda client: (
             ConfigProfile(
                 file_id="config-1",
                 name="Cutting",
@@ -3813,11 +3798,11 @@ def test_load_selected_config_for_session_rejects_missing_selected_profile(
 
 # =====================================================================
 # Verifies that an explicitly selected Drive configuration does not
-# silently fall back when the AHM Drive root is unavailable.
+# silently fall back when no Drive configuration profiles are available.
 # =====================================================================
 
 
-def test_load_selected_config_for_session_rejects_missing_drive_root(
+def test_load_selected_config_for_session_rejects_missing_drive_profiles(
     monkeypatch,
 ) -> None:
     sessions = SessionStore()
@@ -3853,80 +3838,8 @@ def test_load_selected_config_for_session_rejects_missing_drive_root(
 
     monkeypatch.setattr(
         api_app_module,
-        "discover_ahm_root",
-        lambda client: None,
-    )
-
-    with pytest.raises(
-        ConfigurationError,
-        match="Selected configuration profile is unavailable",
-    ):
-        api_app_module.load_selected_config_for_session(
-            session,
-        )
-
-
-# =====================================================================
-# Verifies that an explicitly selected Drive configuration does not
-# silently fall back when the config container is unavailable.
-# =====================================================================
-
-
-def test_load_selected_config_for_session_rejects_missing_config_container(
-    monkeypatch,
-) -> None:
-    sessions = SessionStore()
-    session_id = sessions.create()
-
-    sessions.set_google_access_credentials(
-        session_id=session_id,
-        access_token="access-token",
-        granted_scopes=frozenset(),
-        expires_in_seconds=3600,
-    )
-    sessions.set_selected_config_profile(
-        session_id=session_id,
-        profile_id="config-1",
-    )
-
-    session = sessions.get(session_id)
-
-    assert session is not None
-
-    class FakeDriveClient:
-        def __init__(
-            self,
-            access_token,
-        ):
-            assert access_token == "access-token"
-
-    monkeypatch.setattr(
-        api_app_module,
-        "HttpGoogleDriveClient",
-        FakeDriveClient,
-    )
-
-    class FakeRoot:
-        file_id = "root-id"
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_ahm_root",
-        lambda client: FakeRoot(),
-    )
-
-    def fake_discover_config_container(
-        client,
-        *,
-        root_id,
-    ):
-        assert root_id == "root-id"
-        return None
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_config_container",
-        fake_discover_config_container,
+        "discover_drive_config_profiles",
+        lambda client: (),
     )
 
     with pytest.raises(
@@ -3982,12 +3895,6 @@ def test_discover_config_profiles_for_session_reads_drive_profiles(
     class FakeConfigContainer:
         file_id = "config-container-id"
 
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_ahm_root",
-        lambda client: FakeRoot(),
-    )
-
     def fake_discover_config_container(
         client,
         *,
@@ -3995,12 +3902,6 @@ def test_discover_config_profiles_for_session_reads_drive_profiles(
     ):
         assert root_id == "root-id"
         return FakeConfigContainer()
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_config_container",
-        fake_discover_config_container,
-    )
 
     expected_profiles = (
         ConfigProfile(
@@ -4015,10 +3916,7 @@ def test_discover_config_profiles_for_session_reads_drive_profiles(
 
     def fake_discover_drive_config_profiles(
         client,
-        *,
-        config_container_id,
     ):
-        assert config_container_id == "config-container-id"
         return expected_profiles
 
     monkeypatch.setattr(
@@ -5520,9 +5418,7 @@ def test_download_drive_archive_rejects_inaccessible_download(
             destination,
             max_bytes,
         ):
-            raise DriveAccessError(
-                "Google Drive access denied"
-            )
+            raise DriveAccessError("Google Drive access denied")
 
     monkeypatch.setattr(
         api_app_module,
@@ -5540,11 +5436,9 @@ def test_download_drive_archive_rejects_inaccessible_download(
         )
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == (
-        "Selected Google Drive file is unavailable."
-    )
-    
-    
+    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+
+
 # =====================================================================
 # Verifies that malformed Google Drive ZIP input is rejected by the
 # existing archive validation pipeline.
@@ -5618,8 +5512,8 @@ def test_report_generation_rejects_malformed_drive_archive(
     assert response.json() == {
         "detail": "Invalid Apple Health export archive.",
     }
-    
-    
+
+
 # =====================================================================
 # Verifies that the Google Picker access token is kept only in
 # JavaScript memory and is never persisted in browser storage.
@@ -5636,8 +5530,8 @@ def test_web_interface_keeps_picker_token_in_memory_only() -> None:
     assert "pickerAccessToken" in html
     assert "localStorage" not in html
     assert "sessionStorage" not in html
-    
-    
+
+
 # =====================================================================
 # Verifies that cancelling the Google Picker exits the callback without
 # changing the selected archive state.
@@ -5651,18 +5545,13 @@ def test_web_interface_picker_cancel_is_noop() -> None:
 
     html = response.text
 
-    cancel_index = html.index(
-        "google.picker.Action.CANCEL"
-    )
+    cancel_index = html.index("google.picker.Action.CANCEL")
 
-    callback_tail = html[
-        cancel_index:
-        cancel_index + 200
-    ]
+    callback_tail = html[cancel_index : cancel_index + 200]
 
     assert "return;" in callback_tail
-    
-    
+
+
 # =====================================================================
 # Verifies that the Google Picker is restricted to a single ZIP file
 # and clears any previously selected local archive after Drive selection.
@@ -5683,8 +5572,8 @@ def test_web_interface_picker_is_zip_only_and_single_file() -> None:
 
     assert "selectedDriveFileId" in html
     assert 'archiveInput.value = "";' in html
-    
-    
+
+
 # =====================================================================
 # Verifies that the Google Drive ZIP picker is hidden by default until
 # Google mode is confirmed as connected.
@@ -5700,12 +5589,16 @@ def test_web_interface_hides_drive_picker_until_google_connected() -> None:
 
     assert 'id="drive-archive-picker"' in html
     assert 'id="drive-archive-picker"' in html
-    assert "hidden" in html[
-        html.index('id="drive-archive-picker"') - 100:
-        html.index('id="drive-archive-picker"') + 200
-    ]
-    
-    
+    assert (
+        "hidden"
+        in html[
+            html.index('id="drive-archive-picker"')
+            - 100 : html.index('id="drive-archive-picker"')
+            + 200
+        ]
+    )
+
+
 # =====================================================================
 # Verifies that the Drive ZIP picker is shown only after the frontend
 # confirms that Google mode is connected.
@@ -5722,8 +5615,8 @@ def test_web_interface_shows_drive_picker_only_when_google_connected() -> None:
     assert "/auth/google/status" in html
     assert 'googleStatus.status === "connected"' in html
     assert "driveArchivePicker.hidden = false;" in html
-    
-    
+
+
 # =====================================================================
 # Verifies that a temporary Google Drive download failure is exposed as
 # a controlled HTTP error instead of an unhandled server exception.
@@ -5757,9 +5650,7 @@ def test_download_drive_archive_rejects_transient_download_failure(
             destination: Path,
             max_bytes: int,
         ) -> int:
-            raise DriveTransientError(
-                "Google Drive request failed temporarily"
-            )
+            raise DriveTransientError("Google Drive request failed temporarily")
 
     monkeypatch.setattr(
         api_app_module,
@@ -5775,12 +5666,9 @@ def test_download_drive_archive_rejects_transient_download_failure(
         )
 
     assert exc_info.value.status_code == 502
-    assert (
-        exc_info.value.detail
-        == "Google Drive is temporarily unavailable."
-    )
-    
-    
+    assert exc_info.value.detail == "Google Drive is temporarily unavailable."
+
+
 # =====================================================================
 # Verifies that saving a Drive config profile uses the current profile
 # discovery API without passing an obsolete config container argument.
