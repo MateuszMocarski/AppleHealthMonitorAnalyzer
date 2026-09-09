@@ -1,14 +1,23 @@
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from apple_health.config.app_config import AppConfig
 from apple_health.config.exceptions import ConfigurationError
+from apple_health.config.source_config import SourceConfig
+from apple_health.config.toml_renderer import TomlRenderer
 from apple_health.google.config_profiles import (
     ConfigProfile,
+    autosave_config_profile,
     discover_config_profiles,
     discover_drive_config_profiles,
+    has_semantic_duplicate,
     load_config_profile,
+    render_config_profile,
+    resolve_config_profile_name,
+    save_config_profile,
 )
 from apple_health.google.drive import (
     DriveDownloadTooLargeError,
@@ -394,3 +403,371 @@ def test_discover_drive_config_profiles_returns_empty_when_config_container_miss
         )
         == ()
     )
+
+
+# =====================================================================
+# Verifies that semantically identical effective configurations are
+# detected as duplicates regardless of their object identity.
+# =====================================================================
+
+
+def test_semantically_identical_config_is_detected_as_duplicate() -> None:
+    effective_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Custom Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+    existing_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Custom Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+
+    assert has_semantic_duplicate(
+        effective_config,
+        existing_configs=(existing_config,),
+    )
+
+
+# =====================================================================
+# Verifies that genuinely different effective configurations are not
+# treated as semantic duplicates.
+# =====================================================================
+
+
+def test_different_config_is_not_detected_as_duplicate() -> None:
+    effective_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Custom Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+    existing_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Different Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+
+    assert not has_semantic_duplicate(
+        effective_config,
+        existing_configs=(existing_config,),
+    )
+
+
+# =====================================================================
+# Verifies that a colliding configuration profile name receives the
+# next deterministic human-readable numeric suffix.
+# =====================================================================
+
+
+def test_config_profile_name_collision_receives_next_suffix() -> None:
+    existing_profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+        ConfigProfile(
+            file_id="config-2",
+            name="Cutting_2",
+        ),
+    )
+
+    resolved_name = resolve_config_profile_name(
+        "Cutting",
+        existing_profiles=existing_profiles,
+    )
+
+    assert resolved_name == "Cutting_3"
+
+
+# =====================================================================
+# Verifies that a non-colliding configuration profile name is preserved
+# unchanged.
+# =====================================================================
+
+
+def test_config_profile_name_without_collision_is_preserved() -> None:
+    existing_profiles = (
+        ConfigProfile(
+            file_id="config-1",
+            name="Cutting",
+        ),
+    )
+
+    resolved_name = resolve_config_profile_name(
+        "Maintenance",
+        existing_profiles=existing_profiles,
+    )
+
+    assert resolved_name == "Maintenance"
+
+
+# =====================================================================
+# Verifies that a configuration profile is serialized using the
+# canonical TOML representation of the effective AppConfig.
+# =====================================================================
+
+
+def test_config_profile_is_rendered_as_canonical_toml() -> None:
+    config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Custom Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+
+    rendered = render_config_profile(config)
+
+    assert rendered == TomlRenderer.render(config)
+
+
+# =====================================================================
+# Verifies that saving a configuration profile uploads its canonical
+# TOML content into the config container with profile metadata.
+# =====================================================================
+
+
+def test_save_config_profile_uploads_canonical_toml() -> None:
+    calls = {}
+
+    class FakeDriveClient:
+        def upload_file(
+            self,
+            name,
+            content,
+            mime_type,
+            parent_id=None,
+            app_properties=None,
+        ):
+            calls["name"] = name
+            calls["content"] = content
+            calls["mime_type"] = mime_type
+            calls["parent_id"] = parent_id
+            calls["app_properties"] = app_properties
+
+    config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Custom Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+
+    save_config_profile(
+        FakeDriveClient(),
+        config_container_id="config-container",
+        name="Cutting",
+        config=config,
+    )
+
+    assert calls == {
+        "name": "Cutting",
+        "content": TomlRenderer.render(config).encode("utf-8"),
+        "mime_type": "application/toml",
+        "parent_id": "config-container",
+        "app_properties": {
+            "ahm_type": "config_profile",
+        },
+    }
+
+
+# =====================================================================
+# Verifies that saving a semantically duplicate configuration profile
+# does not create another Drive file.
+# =====================================================================
+
+
+def test_save_config_profile_skips_semantic_duplicate(tmp_path) -> None:
+    config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Custom Watch",
+            apple_health_app_source="Custom Health",
+        ),
+    )
+
+    existing_profile = ConfigProfile(
+        file_id="existing-config",
+        name="Existing",
+    )
+
+    class FakeDriveClient:
+        def download_file(
+            self,
+            file_id,
+            destination_path,
+            *,
+            max_bytes,
+        ):
+            assert file_id == "existing-config"
+            destination_path.write_text(
+                TomlRenderer.render(config),
+                encoding="utf-8",
+            )
+
+        def upload_file(self, *args, **kwargs):
+            raise AssertionError("Duplicate config must not be uploaded")
+
+    save_config_profile(
+        FakeDriveClient(),
+        config_container_id="config-container",
+        name="Cutting",
+        config=config,
+        existing_profiles=(existing_profile,),
+    )
+
+
+# =====================================================================
+# Verifies that saving a different configuration with a colliding
+# profile name uses the next deterministic numeric suffix.
+# =====================================================================
+
+
+def test_save_config_profile_resolves_name_collision() -> None:
+    existing_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="Existing Watch",
+            apple_health_app_source="Existing Health",
+        ),
+    )
+    new_config = AppConfig(
+        source=SourceConfig(
+            apple_watch_source="New Watch",
+            apple_health_app_source="New Health",
+        ),
+    )
+
+    existing_profile = ConfigProfile(
+        file_id="existing-config",
+        name="Cutting",
+    )
+
+    uploaded_name = None
+
+    class FakeDriveClient:
+        def get_metadata(self, file_id):
+            assert file_id == "existing-config"
+
+            return SimpleNamespace(
+                size_bytes=len(TomlRenderer.render(existing_config).encode("utf-8")),
+            )
+
+        def download_file(
+            self,
+            file_id,
+            destination_path,
+            *,
+            max_bytes,
+        ):
+            assert file_id == "existing-config"
+
+            destination_path.write_text(
+                TomlRenderer.render(existing_config),
+                encoding="utf-8",
+            )
+
+        def upload_file(
+            self,
+            name,
+            content,
+            mime_type,
+            parent_id=None,
+            app_properties=None,
+        ):
+            nonlocal uploaded_name
+            uploaded_name = name
+
+    save_config_profile(
+        FakeDriveClient(),
+        config_container_id="config-container",
+        name="Cutting",
+        config=new_config,
+        existing_profiles=(existing_profile,),
+    )
+
+    assert uploaded_name == "Cutting_2"
+
+
+# =====================================================================
+# Verifies that configuration autosave performs no Drive operations when
+# the session autosave preference is disabled.
+# =====================================================================
+
+
+def test_config_autosave_does_nothing_when_disabled() -> None:
+    class FakeDriveClient:
+        def __getattr__(self, name):
+            raise AssertionError(
+                f"Drive must not be accessed when config autosave is disabled: {name}"
+            )
+
+    autosave_config_profile(
+        FakeDriveClient(),
+        enabled=False,
+        config_container_id="config-container",
+        name="Autosaved config",
+        config=AppConfig(),
+        existing_profiles=(),
+    )
+
+
+# =====================================================================
+# Verifies that enabled configuration autosave delegates to the normal
+# configuration profile save flow.
+# =====================================================================
+
+
+def test_config_autosave_saves_when_enabled(monkeypatch) -> None:
+    calls = []
+
+    def fake_save_config_profile(
+        client,
+        *,
+        config_container_id,
+        name,
+        config,
+        existing_profiles=(),
+    ):
+        calls.append(
+            (
+                client,
+                config_container_id,
+                name,
+                config,
+                existing_profiles,
+            )
+        )
+
+    monkeypatch.setattr(
+        "apple_health.google.config_profiles.save_config_profile",
+        fake_save_config_profile,
+    )
+
+    client = object()
+    config = AppConfig()
+    existing_profiles = (
+        ConfigProfile(
+            file_id="existing-config",
+            name="Existing",
+        ),
+    )
+
+    autosave_config_profile(
+        client,
+        enabled=True,
+        config_container_id="config-container",
+        name="Autosaved config",
+        config=config,
+        existing_profiles=existing_profiles,
+    )
+
+    assert calls == [
+        (
+            client,
+            "config-container",
+            "Autosaved config",
+            config,
+            existing_profiles,
+        )
+    ]

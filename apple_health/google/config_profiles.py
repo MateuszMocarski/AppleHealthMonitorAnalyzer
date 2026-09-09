@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 
 from apple_health.config.app_config import AppConfig
 from apple_health.config.config_loader import ConfigLoader
+from apple_health.config.toml_renderer import TomlRenderer, semantic_fingerprint
 from apple_health.google.drive import (
     DriveClient,
     DriveDownloadTooLargeError,
@@ -89,3 +90,90 @@ def discover_drive_config_profiles(
             break
 
     return discover_config_profiles(tuple(files))
+
+
+def has_semantic_duplicate(
+    config: AppConfig,
+    *,
+    existing_configs: tuple[AppConfig, ...],
+) -> bool:
+    fingerprint = semantic_fingerprint(config)
+
+    return any(
+        semantic_fingerprint(existing_config) == fingerprint for existing_config in existing_configs
+    )
+
+
+def resolve_config_profile_name(
+    requested_name: str,
+    *,
+    existing_profiles: tuple[ConfigProfile, ...],
+) -> str:
+    existing_names = {profile.name for profile in existing_profiles}
+
+    if requested_name not in existing_names:
+        return requested_name
+
+    suffix = 2
+
+    while f"{requested_name}_{suffix}" in existing_names:
+        suffix += 1
+
+    return f"{requested_name}_{suffix}"
+
+
+def render_config_profile(config: AppConfig) -> str:
+    return TomlRenderer.render(config)
+
+
+def save_config_profile(
+    client: DriveClient,
+    *,
+    config_container_id: str,
+    name: str,
+    config: AppConfig,
+    existing_profiles: tuple[ConfigProfile, ...] = (),
+) -> None:
+    existing_configs = tuple(load_config_profile(client, profile) for profile in existing_profiles)
+
+    if has_semantic_duplicate(
+        config,
+        existing_configs=existing_configs,
+    ):
+        return
+
+    resolved_name = resolve_config_profile_name(
+        name,
+        existing_profiles=existing_profiles,
+    )
+
+    client.upload_file(
+        name=resolved_name,
+        content=render_config_profile(config).encode("utf-8"),
+        mime_type="application/toml",
+        parent_id=config_container_id,
+        app_properties={
+            "ahm_type": "config_profile",
+        },
+    )
+
+
+def autosave_config_profile(
+    client: DriveClient,
+    *,
+    enabled: bool,
+    config_container_id: str,
+    name: str,
+    config: AppConfig,
+    existing_profiles: tuple[ConfigProfile, ...] = (),
+) -> None:
+    if not enabled:
+        return
+
+    save_config_profile(
+        client,
+        config_container_id=config_container_id,
+        name=name,
+        config=config,
+        existing_profiles=existing_profiles,
+    )
