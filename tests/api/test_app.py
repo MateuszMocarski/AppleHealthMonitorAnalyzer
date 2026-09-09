@@ -4729,3 +4729,219 @@ def test_web_interface_refreshes_config_profiles_after_generation() -> None:
     html = response.text
 
     assert "await loadConfigProfileState();" in html
+
+
+# =====================================================================
+# Verifies that the browser can obtain only the public Google Picker
+# configuration required to initialize the Drive file picker.
+# =====================================================================
+
+
+def test_google_picker_config_exposes_browser_safe_values(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "AHM_ENV",
+        "development",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_CLIENT_ID",
+        "dev-client-id",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_CLIENT_SECRET",
+        "dev-client-secret",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_PICKER_API_KEY",
+        "dev-picker-key",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_CLOUD_PROJECT_NUMBER",
+        "123456789",
+    )
+    monkeypatch.setenv(
+        "AHM_SESSION_SECRET",
+        "dev-session-secret",
+    )
+
+    response = client.get(
+        "/google/picker/config",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "api_key": "dev-picker-key",
+        "app_id": "123456789",
+    }
+
+
+# =====================================================================
+# Verifies that an authenticated Google session can obtain the current
+# OAuth access token required to initialize the Google Picker.
+# =====================================================================
+
+
+def test_google_picker_token_returns_active_session_token(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="picker-access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/google/picker/token",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "access_token": "picker-access-token",
+    }
+
+
+# =====================================================================
+# Verifies that the Google Picker OAuth token response is explicitly
+# non-cacheable because it contains a short-lived access credential.
+# =====================================================================
+
+
+def test_google_picker_token_disables_response_caching(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="picker-access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/google/picker/token",
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+
+
+# =====================================================================
+# Verifies that the web interface exposes Google Drive ZIP selection
+# and loads the Google API required by the Drive Picker.
+# =====================================================================
+
+
+def test_web_interface_exposes_google_drive_picker() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="drive-archive-picker"' in html
+    assert "https://apis.google.com/js/api.js" in html
+    assert '"drive-archive-picker"' in html
+
+
+# =====================================================================
+# Verifies that the Drive Picker entry point obtains its public config
+# and OAuth token without persisting the token in browser storage.
+# =====================================================================
+
+
+def test_web_interface_loads_google_picker_credentials_in_memory() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"/google/picker/config"' in html
+    assert '"/google/picker/token"' in html
+    assert "driveArchivePicker.addEventListener(" in html
+    assert "pickerAccessToken" in html
+
+
+# =====================================================================
+# Verifies that the web interface builds a single-file Google Drive
+# Picker restricted to ZIP archives and handles Picker cancellation.
+# =====================================================================
+
+
+def test_web_interface_builds_zip_only_google_drive_picker() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "google.picker.PickerBuilder()" in html
+    assert "application/zip" in html
+    assert "google.picker.Action.PICKED" in html
+    assert "google.picker.Action.CANCEL" in html
+
+
+# =====================================================================
+# Verifies that the web interface keeps only the selected Drive file ID
+# after a successful Google Picker selection.
+# =====================================================================
+
+
+def test_web_interface_keeps_only_selected_drive_file_id() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "selectedDriveFileId" in html
+    assert "data.docs[0].id" in html

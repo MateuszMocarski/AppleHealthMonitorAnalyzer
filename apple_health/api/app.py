@@ -614,6 +614,55 @@ def google_status(
     }
 
 
+@app.get(
+    "/google/picker/config",
+    include_in_schema=False,
+)
+def google_picker_config() -> dict[str, str]:
+    settings = GoogleSettings.load()
+
+    return {
+        "api_key": settings.picker_api_key,
+        "app_id": settings.cloud_project_number,
+    }
+
+
+@app.get(
+    "/google/picker/token",
+    include_in_schema=False,
+)
+def google_picker_token(
+    response: Response,
+    ahm_session: str = Cookie(),
+) -> dict[str, str]:
+    session = session_store.get(
+        ahm_session,
+    )
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    if not session_store.is_google_mode_ready(
+        ahm_session,
+        frozenset(GoogleOAuthService.SCOPES),
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        )
+
+    assert session.google_access_token is not None
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return {
+        "access_token": session.google_access_token,
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
