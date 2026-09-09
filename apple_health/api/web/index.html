@@ -468,6 +468,11 @@
             border-color: rgba(255, 55, 95, 0.55);
         }
 
+        .config-profile-select option {
+            background: #12151c;
+            color: var(--text);
+        }
+
         .config-defaults-button {
             flex: 0 0 auto;
         }
@@ -1063,6 +1068,14 @@
                         accept=".zip,application/zip"
                     >
                 </label>
+                <button
+                    id="drive-archive-picker"
+                    class="secondary-button"
+                    type="button"
+                    hidden
+                >
+                    Choose ZIP from Google Drive
+                </button>
             </div>
 
             <div class="section">
@@ -1450,7 +1463,7 @@
             <div id="result-list"></div>
         </section>
     </main>
-
+    <script src="https://apis.google.com/js/api.js"></script>
     <script>
         const archiveInput =
             document.getElementById("archive");
@@ -1460,6 +1473,12 @@
 
         const dropZone =
             document.getElementById("drop-zone");
+
+        const driveArchivePicker =
+            document.getElementById(
+                "drive-archive-picker",
+            );
+        let selectedDriveFileId = null;
 
         const monthInput =
             document.getElementById("month-input");
@@ -1528,6 +1547,10 @@
             () => {
                 const file = archiveInput.files[0];
 
+                if (file) {
+                    selectedDriveFileId = null;
+                }
+
                 fileName.textContent =
                     file
                         ? file.name
@@ -1581,6 +1604,8 @@
 
                 transfer.items.add(file);
                 archiveInput.files = transfer.files;
+
+                selectedDriveFileId = null;
 
                 fileName.textContent = file.name;
             },
@@ -1779,6 +1804,26 @@
             results.classList.add("visible");
         }
 
+        async function loadGoogleConnectionState() {
+            const response =
+                await fetch(
+                    "/auth/google/status",
+                );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const googleStatus =
+                await response.json();
+
+            if (
+                googleStatus.status === "connected"
+            ) {
+                driveArchivePicker.hidden = false;
+            }
+        }
+
         async function loadConfigProfileState() {
             const response =
                 await fetch("/config/profiles");
@@ -1858,6 +1903,115 @@
             configProfileSelect.value = "";
         }
 
+        async function loadGooglePickerCredentials() {
+            const configResponse =
+                await fetch(
+                    "/google/picker/config",
+                );
+
+            const tokenResponse =
+                await fetch(
+                    "/google/picker/token",
+                );
+
+            if (
+                !configResponse.ok
+                || !tokenResponse.ok
+            ) {
+                throw new Error(
+                    "Google Picker credentials are unavailable.",
+                );
+            }
+
+            const pickerConfig =
+                await configResponse.json();
+
+            const tokenPayload =
+                await tokenResponse.json();
+
+            const pickerAccessToken =
+                tokenPayload.access_token;
+
+            return {
+                pickerConfig,
+                pickerAccessToken,
+            };
+        }
+
+        async function openGoogleDrivePicker() {
+            const {
+                pickerConfig,
+                pickerAccessToken,
+            } = await loadGooglePickerCredentials();
+
+            await new Promise(
+                (resolve) => {
+                    gapi.load(
+                        "picker",
+                        {
+                            callback: resolve,
+                        },
+                    );
+                },
+            );
+
+            const driveView =
+                new google.picker.DocsView(
+                    google.picker.ViewId.DOCS,
+                );
+
+            driveView.setMimeTypes(
+                "application/zip",
+            );
+
+            driveView.setMode(
+                google.picker.DocsViewMode.LIST,
+            );
+
+            const picker =
+                new google.picker.PickerBuilder()
+                    .addView(driveView)
+                    .setOAuthToken(
+                        pickerAccessToken,
+                    )
+                    .setDeveloperKey(
+                        pickerConfig.api_key,
+                    )
+                    .setAppId(
+                        pickerConfig.app_id,
+                    )
+                    .setCallback(
+                        (data) => {
+                            if (
+                                data.action
+                                === google.picker.Action.PICKED
+                            ) {
+                                selectedDriveFileId =
+                                    data.docs[0].id;
+
+                                archiveInput.value = "";
+
+                                showStatus(
+                                    "Google Drive ZIP selected.",
+                                    "success",
+                                );
+
+                                return;
+                            }
+
+                            if (
+                                data.action
+                                === google.picker.Action.CANCEL
+                            ) {
+                                return;
+                            }
+                        },
+                    )
+                    .build();
+
+            picker.setVisible(true);
+        }
+
         configProfileSelect.addEventListener(
             "change",
             () => {
@@ -1908,13 +2062,30 @@
             },
         );
 
+        driveArchivePicker.addEventListener(
+            "click",
+            async () => {
+                try {
+                    await openGoogleDrivePicker();
+                } catch (error) {
+                    showStatus(
+                        error.message,
+                        "error",
+                    );
+                }
+            },
+        );
+
         generateButton.addEventListener(
             "click",
             async () => {
                 const file =
                     archiveInput.files[0];
 
-                if (!file) {
+                if (
+                    !file
+                    && !selectedDriveFileId
+                ) {
                     showStatus(
                         "Choose an Apple Health ZIP archive first.",
                         "error",
@@ -1933,10 +2104,17 @@
                 const formData =
                     new FormData();
 
-                formData.append(
-                    "archive",
-                    file,
-                );
+                if (selectedDriveFileId) {
+                    formData.append(
+                        "drive_file_id",
+                        selectedDriveFileId,
+                    );
+                } else {
+                    formData.append(
+                        "archive",
+                        file,
+                    );
+                }
 
                 formData.append(
                     "periods",
@@ -2041,6 +2219,7 @@
             },
         );
         loadConfigProfileState();
+        loadGoogleConnectionState();
     </script>
 </body>
 </html>

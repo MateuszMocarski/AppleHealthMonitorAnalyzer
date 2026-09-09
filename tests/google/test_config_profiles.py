@@ -458,29 +458,25 @@ def test_different_config_is_not_detected_as_duplicate() -> None:
 
 
 # =====================================================================
-# Verifies that a colliding configuration profile name receives the
-# next deterministic human-readable numeric suffix.
+# Verifies that config profile collision suffixes are inserted before
+# the TOML extension.
 # =====================================================================
 
 
-def test_config_profile_name_collision_receives_next_suffix() -> None:
+def test_resolve_config_profile_name_preserves_toml_extension() -> None:
     existing_profiles = (
         ConfigProfile(
             file_id="config-1",
-            name="Cutting",
-        ),
-        ConfigProfile(
-            file_id="config-2",
-            name="Cutting_2",
+            name="Cutting.toml",
         ),
     )
 
-    resolved_name = resolve_config_profile_name(
-        "Cutting",
+    result = resolve_config_profile_name(
+        "Cutting.toml",
         existing_profiles=existing_profiles,
     )
 
-    assert resolved_name == "Cutting_3"
+    assert result == "Cutting_2.toml"
 
 
 # =====================================================================
@@ -563,7 +559,7 @@ def test_save_config_profile_uploads_canonical_toml() -> None:
     )
 
     assert calls == {
-        "name": "Cutting",
+        "name": "Cutting.toml",
         "content": TomlRenderer.render(config).encode("utf-8"),
         "mime_type": "application/toml",
         "parent_id": "config-container",
@@ -661,7 +657,7 @@ def test_save_config_profile_resolves_name_collision() -> None:
 
     existing_profile = ConfigProfile(
         file_id="existing-config",
-        name="Cutting",
+        name="Cutting.toml",
     )
 
     uploaded_name = None
@@ -707,7 +703,7 @@ def test_save_config_profile_resolves_name_collision() -> None:
         existing_profiles=(existing_profile,),
     )
 
-    assert uploaded_name == "Cutting_2"
+    assert uploaded_name == "Cutting_2.toml"
 
 
 # =====================================================================

@@ -89,6 +89,7 @@ class DriveClient(Protocol):
 class HttpGoogleDriveClient:
     API_BASE_URL = "https://www.googleapis.com/drive/v3"
     REQUEST_TIMEOUT = 10.0
+    DOWNLOAD_TIMEOUT = 60.0
     READ_MAX_ATTEMPTS = 3
 
     def __init__(
@@ -433,7 +434,7 @@ class HttpGoogleDriveClient:
                 params={
                     "alt": "media",
                 },
-                timeout=self.REQUEST_TIMEOUT,
+                timeout=self.DOWNLOAD_TIMEOUT,
             ) as response:
                 try:
                     response.raise_for_status()

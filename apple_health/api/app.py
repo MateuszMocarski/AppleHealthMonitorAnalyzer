@@ -26,10 +26,15 @@ from apple_health.google.config_profiles import (
     load_config_profile,
     save_config_profile,
 )
-from apple_health.google.drive import HttpGoogleDriveClient
+from apple_health.google.drive import (
+    DriveAccessError,
+    DriveDownloadTooLargeError,
+    DriveFileMetadata,
+    DriveNotFoundError,
+    DriveTransientError,
+    HttpGoogleDriveClient,
+)
 from apple_health.google.drive_structure import (
-    discover_ahm_root,
-    discover_config_container,
     ensure_ahm_root,
     ensure_config_container,
 )
@@ -154,24 +159,8 @@ def discover_config_profiles_for_session(
         session.google_access_token,
     )
 
-    root = discover_ahm_root(
-        drive_client,
-    )
-
-    if root is None:
-        return ()
-
-    config_container = discover_config_container(
-        drive_client,
-        root_id=root.file_id,
-    )
-
-    if config_container is None:
-        return ()
-
     return discover_drive_config_profiles(
         drive_client,
-        config_container_id=config_container.file_id,
     )
 
 
@@ -185,24 +174,8 @@ def load_selected_config_for_session(
         session.google_access_token,
     )
 
-    root = discover_ahm_root(
-        drive_client,
-    )
-
-    if root is None:
-        raise ConfigurationError("Selected configuration profile is unavailable.")
-
-    config_container = discover_config_container(
-        drive_client,
-        root_id=root.file_id,
-    )
-
-    if config_container is None:
-        raise ConfigurationError("Selected configuration profile is unavailable.")
-
     profiles = discover_drive_config_profiles(
         drive_client,
-        config_container_id=config_container.file_id,
     )
 
     selected_profile = next(
@@ -243,7 +216,6 @@ def save_config_profile_for_session(
 
     existing_profiles = discover_drive_config_profiles(
         drive_client,
-        config_container_id=config_container.file_id,
     )
 
     save_config_profile(
@@ -253,6 +225,96 @@ def save_config_profile_for_session(
         config=config,
         existing_profiles=existing_profiles,
     )
+
+
+def verify_drive_archive(
+    *,
+    access_token: str,
+    file_id: str,
+) -> DriveFileMetadata:
+    if not file_id.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file ID is invalid.",
+        )
+
+    drive_client = HttpGoogleDriveClient(
+        access_token,
+    )
+
+    try:
+        metadata = drive_client.get_metadata(
+            file_id,
+        )
+    except (
+        DriveAccessError,
+        DriveNotFoundError,
+    ) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is unavailable.",
+        ) from exc
+
+    if metadata.trashed:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is unavailable.",
+        )
+
+    if metadata.mime_type != "application/zip":
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is not a ZIP archive.",
+        )
+
+    if metadata.size_bytes is None or metadata.size_bytes > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="Selected Google Drive archive is too large.",
+        )
+
+    return metadata
+
+
+def download_drive_archive(
+    *,
+    access_token: str,
+    file_id: str,
+    destination: Path,
+) -> None:
+    verify_drive_archive(
+        access_token=access_token,
+        file_id=file_id,
+    )
+
+    drive_client = HttpGoogleDriveClient(
+        access_token,
+    )
+
+    try:
+        drive_client.download_file(
+            file_id,
+            destination,
+            MAX_UPLOAD_SIZE,
+        )
+    except DriveDownloadTooLargeError as exc:
+        raise HTTPException(
+            status_code=413,
+            detail="Selected Google Drive archive is too large.",
+        ) from exc
+    except (
+        DriveAccessError,
+        DriveNotFoundError,
+    ) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Google Drive file is unavailable.",
+        ) from exc
+    except DriveTransientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Google Drive is temporarily unavailable.",
+        ) from exc
 
 
 @app.get("/")
@@ -614,6 +676,55 @@ def google_status(
     }
 
 
+@app.get(
+    "/google/picker/config",
+    include_in_schema=False,
+)
+def google_picker_config() -> dict[str, str]:
+    settings = GoogleSettings.load()
+
+    return {
+        "api_key": settings.picker_api_key,
+        "app_id": settings.cloud_project_number,
+    }
+
+
+@app.get(
+    "/google/picker/token",
+    include_in_schema=False,
+)
+def google_picker_token(
+    response: Response,
+    ahm_session: str = Cookie(),
+) -> dict[str, str]:
+    session = session_store.get(
+        ahm_session,
+    )
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    if not session_store.is_google_mode_ready(
+        ahm_session,
+        frozenset(GoogleOAuthService.SCOPES),
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        )
+
+    assert session.google_access_token is not None
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return {
+        "access_token": session.google_access_token,
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -625,29 +736,69 @@ def health() -> dict[str, str]:
 )
 def generate_report(
     response: Response,
-    archive: UploadFile = File(),
+    archive: UploadFile | None = File(default=None),
     periods: str = Form(),
     config: UploadFile | None = File(default=None),
     apple_watch_source: str | None = Form(default=None),
     apple_health_app_source: str | None = Form(default=None),
     ahm_session: str | None = Cookie(default=None),
     save_config_as: str | None = Form(default=None),
+    drive_file_id: str | None = Form(default=None),
 ) -> MultiMonthReportResponse:
     response.headers["Cache-Control"] = "no-store"
 
     try:
         parsed_periods = _parse_periods(periods)
 
-        with TemporaryDirectory() as temporary_directory:
-            temporary_directory_path = Path(temporary_directory)
-            archive_path = temporary_directory_path / "export.zip"
-
-            _copy_upload_to_path(
-                archive,
-                archive_path,
-                max_size=MAX_UPLOAD_SIZE,
-                too_large_detail="Uploaded archive is too large.",
+        if archive is not None and drive_file_id is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="Choose exactly one Apple Health archive source.",
             )
+
+        with TemporaryDirectory() as temporary_directory:
+            temporary_directory_path = Path(
+                temporary_directory,
+            )
+
+            archive_path = temporary_directory_path / "archive.zip"
+
+            if drive_file_id is not None:
+                if ahm_session is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Google session is unavailable.",
+                    )
+
+                session = session_store.get(
+                    ahm_session,
+                )
+
+                if session is None or session.google_access_token is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Google session is unavailable.",
+                    )
+
+                download_drive_archive(
+                    access_token=session.google_access_token,
+                    file_id=drive_file_id,
+                    destination=archive_path,
+                )
+
+            elif archive is not None:
+                _copy_upload_to_path(
+                    archive,
+                    archive_path,
+                    max_size=MAX_UPLOAD_SIZE,
+                    too_large_detail="Uploaded archive is too large.",
+                )
+
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Apple Health archive is required.",
+                )
 
             config_path: Path | None = None
 
@@ -760,7 +911,8 @@ def generate_report(
         )
 
     finally:
-        archive.file.close()
+        if archive is not None:
+            archive.file.close()
 
         if config is not None:
             config.file.close()

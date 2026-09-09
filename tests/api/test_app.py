@@ -7,10 +7,11 @@ from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import apple_health.api.app as api_app_module
-from apple_health.api.app import app
+from apple_health.api.app import MAX_UPLOAD_SIZE, app, download_drive_archive, verify_drive_archive
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_generation_result import (
@@ -25,6 +26,12 @@ from apple_health.exceptions import (
     InvalidArchiveError,
 )
 from apple_health.google.config_profiles import ConfigProfile
+from apple_health.google.drive import (
+    DriveAccessError,
+    DriveDownloadTooLargeError,
+    DriveFileMetadata,
+    DriveTransientError,
+)
 from apple_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
@@ -3689,10 +3696,7 @@ def test_load_selected_config_for_session_loads_selected_profile(
 
     def fake_discover_drive_config_profiles(
         client,
-        *,
-        config_container_id,
     ):
-        assert config_container_id == "config-container-id"
         return profiles
 
     monkeypatch.setattr(
@@ -3774,20 +3778,8 @@ def test_load_selected_config_for_session_rejects_missing_selected_profile(
 
     monkeypatch.setattr(
         api_app_module,
-        "discover_ahm_root",
-        lambda client: FakeRoot(),
-    )
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_config_container",
-        lambda client, *, root_id: FakeConfigContainer(),
-    )
-
-    monkeypatch.setattr(
-        api_app_module,
         "discover_drive_config_profiles",
-        lambda client, *, config_container_id: (
+        lambda client: (
             ConfigProfile(
                 file_id="config-1",
                 name="Cutting",
@@ -3806,11 +3798,11 @@ def test_load_selected_config_for_session_rejects_missing_selected_profile(
 
 # =====================================================================
 # Verifies that an explicitly selected Drive configuration does not
-# silently fall back when the AHM Drive root is unavailable.
+# silently fall back when no Drive configuration profiles are available.
 # =====================================================================
 
 
-def test_load_selected_config_for_session_rejects_missing_drive_root(
+def test_load_selected_config_for_session_rejects_missing_drive_profiles(
     monkeypatch,
 ) -> None:
     sessions = SessionStore()
@@ -3846,80 +3838,8 @@ def test_load_selected_config_for_session_rejects_missing_drive_root(
 
     monkeypatch.setattr(
         api_app_module,
-        "discover_ahm_root",
-        lambda client: None,
-    )
-
-    with pytest.raises(
-        ConfigurationError,
-        match="Selected configuration profile is unavailable",
-    ):
-        api_app_module.load_selected_config_for_session(
-            session,
-        )
-
-
-# =====================================================================
-# Verifies that an explicitly selected Drive configuration does not
-# silently fall back when the config container is unavailable.
-# =====================================================================
-
-
-def test_load_selected_config_for_session_rejects_missing_config_container(
-    monkeypatch,
-) -> None:
-    sessions = SessionStore()
-    session_id = sessions.create()
-
-    sessions.set_google_access_credentials(
-        session_id=session_id,
-        access_token="access-token",
-        granted_scopes=frozenset(),
-        expires_in_seconds=3600,
-    )
-    sessions.set_selected_config_profile(
-        session_id=session_id,
-        profile_id="config-1",
-    )
-
-    session = sessions.get(session_id)
-
-    assert session is not None
-
-    class FakeDriveClient:
-        def __init__(
-            self,
-            access_token,
-        ):
-            assert access_token == "access-token"
-
-    monkeypatch.setattr(
-        api_app_module,
-        "HttpGoogleDriveClient",
-        FakeDriveClient,
-    )
-
-    class FakeRoot:
-        file_id = "root-id"
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_ahm_root",
-        lambda client: FakeRoot(),
-    )
-
-    def fake_discover_config_container(
-        client,
-        *,
-        root_id,
-    ):
-        assert root_id == "root-id"
-        return None
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_config_container",
-        fake_discover_config_container,
+        "discover_drive_config_profiles",
+        lambda client: (),
     )
 
     with pytest.raises(
@@ -3975,12 +3895,6 @@ def test_discover_config_profiles_for_session_reads_drive_profiles(
     class FakeConfigContainer:
         file_id = "config-container-id"
 
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_ahm_root",
-        lambda client: FakeRoot(),
-    )
-
     def fake_discover_config_container(
         client,
         *,
@@ -3988,12 +3902,6 @@ def test_discover_config_profiles_for_session_reads_drive_profiles(
     ):
         assert root_id == "root-id"
         return FakeConfigContainer()
-
-    monkeypatch.setattr(
-        api_app_module,
-        "discover_config_container",
-        fake_discover_config_container,
-    )
 
     expected_profiles = (
         ConfigProfile(
@@ -4008,10 +3916,7 @@ def test_discover_config_profiles_for_session_reads_drive_profiles(
 
     def fake_discover_drive_config_profiles(
         client,
-        *,
-        config_container_id,
     ):
-        assert config_container_id == "config-container-id"
         return expected_profiles
 
     monkeypatch.setattr(
@@ -4108,10 +4013,7 @@ def test_save_config_profile_for_session_uses_lazy_drive_write_path(
 
     def fake_discover_drive_config_profiles(
         client,
-        *,
-        config_container_id,
     ):
-        assert config_container_id == "config-container-id"
         return existing_profiles
 
     monkeypatch.setattr(
@@ -4729,3 +4631,1064 @@ def test_web_interface_refreshes_config_profiles_after_generation() -> None:
     html = response.text
 
     assert "await loadConfigProfileState();" in html
+
+
+# =====================================================================
+# Verifies that the browser can obtain only the public Google Picker
+# configuration required to initialize the Drive file picker.
+# =====================================================================
+
+
+def test_google_picker_config_exposes_browser_safe_values(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "AHM_ENV",
+        "development",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_CLIENT_ID",
+        "dev-client-id",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_CLIENT_SECRET",
+        "dev-client-secret",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_PICKER_API_KEY",
+        "dev-picker-key",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_CLOUD_PROJECT_NUMBER",
+        "123456789",
+    )
+    monkeypatch.setenv(
+        "AHM_SESSION_SECRET",
+        "dev-session-secret",
+    )
+
+    response = client.get(
+        "/google/picker/config",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "api_key": "dev-picker-key",
+        "app_id": "123456789",
+    }
+
+
+# =====================================================================
+# Verifies that an authenticated Google session can obtain the current
+# OAuth access token required to initialize the Google Picker.
+# =====================================================================
+
+
+def test_google_picker_token_returns_active_session_token(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="picker-access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/google/picker/token",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "access_token": "picker-access-token",
+    }
+
+
+# =====================================================================
+# Verifies that the Google Picker OAuth token response is explicitly
+# non-cacheable because it contains a short-lived access credential.
+# =====================================================================
+
+
+def test_google_picker_token_disables_response_caching(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="picker-access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/google/picker/token",
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+
+
+# =====================================================================
+# Verifies that the web interface exposes Google Drive ZIP selection
+# and loads the Google API required by the Drive Picker.
+# =====================================================================
+
+
+def test_web_interface_exposes_google_drive_picker() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="drive-archive-picker"' in html
+    assert "https://apis.google.com/js/api.js" in html
+    assert '"drive-archive-picker"' in html
+
+
+# =====================================================================
+# Verifies that the Drive Picker entry point obtains its public config
+# and OAuth token without persisting the token in browser storage.
+# =====================================================================
+
+
+def test_web_interface_loads_google_picker_credentials_in_memory() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"/google/picker/config"' in html
+    assert '"/google/picker/token"' in html
+    assert "driveArchivePicker.addEventListener(" in html
+    assert "pickerAccessToken" in html
+
+
+# =====================================================================
+# Verifies that the web interface builds a single-file Google Drive
+# Picker restricted to ZIP archives and handles Picker cancellation.
+# =====================================================================
+
+
+def test_web_interface_builds_zip_only_google_drive_picker() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "google.picker.PickerBuilder()" in html
+    assert "application/zip" in html
+    assert "google.picker.Action.PICKED" in html
+    assert "google.picker.Action.CANCEL" in html
+
+
+# =====================================================================
+# Verifies that the web interface keeps only the selected Drive file ID
+# after a successful Google Picker selection.
+# =====================================================================
+
+
+def test_web_interface_keeps_only_selected_drive_file_id() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "selectedDriveFileId" in html
+    assert "data.docs[0].id" in html
+
+
+# =====================================================================
+# Verifies that a selected Google Drive archive is accepted only when
+# its server-side metadata describes an accessible ZIP within the limit.
+# =====================================================================
+
+
+def test_verify_drive_archive_accepts_valid_zip(
+    monkeypatch,
+) -> None:
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            assert file_id == "drive-file-id"
+
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    metadata = verify_drive_archive(
+        access_token="drive-token",
+        file_id="drive-file-id",
+    )
+
+    assert metadata.file_id == "drive-file-id"
+
+
+# =====================================================================
+# Verifies that Drive archive verification rejects a blank file ID
+# before attempting any Google Drive request.
+# =====================================================================
+
+
+def test_verify_drive_archive_rejects_blank_file_id(
+    monkeypatch,
+) -> None:
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            raise AssertionError("Drive client must not be created for a blank file ID")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        verify_drive_archive(
+            access_token="drive-token",
+            file_id="   ",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == ("Selected Google Drive file ID is invalid.")
+
+
+# =====================================================================
+# Verifies that inaccessible Google Drive files are exposed as a
+# controlled validation error instead of leaking Drive client errors.
+# =====================================================================
+
+
+def test_verify_drive_archive_rejects_inaccessible_file(
+    monkeypatch,
+) -> None:
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            raise DriveAccessError("Google Drive access denied")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        verify_drive_archive(
+            access_token="drive-token",
+            file_id="drive-file-id",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+
+
+# =====================================================================
+# Verifies that a selected Google Drive archive is downloaded through
+# the bounded Drive client into the requested temporary path.
+# =====================================================================
+
+
+def test_download_drive_archive_uses_bounded_drive_download(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    destination = tmp_path / "archive.zip"
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            assert file_id == "drive-file-id"
+
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+        def download_file(
+            self,
+            file_id,
+            destination,
+            max_bytes,
+        ):
+            assert file_id == "drive-file-id"
+            assert max_bytes == MAX_UPLOAD_SIZE
+
+            destination.write_bytes(
+                b"fake-zip",
+            )
+
+            return 8
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    download_drive_archive(
+        access_token="drive-token",
+        file_id="drive-file-id",
+        destination=destination,
+    )
+
+    assert destination.read_bytes() == b"fake-zip"
+
+
+# =====================================================================
+# Verifies that report generation can use a selected Google Drive ZIP
+# as the archive source and pass its temporary path into the application.
+# =====================================================================
+
+
+def test_report_generation_uses_google_drive_archive(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    captured_archive_path = None
+
+    def fake_download_drive_archive(
+        *,
+        access_token,
+        file_id,
+        destination,
+    ):
+        assert access_token == "drive-token"
+        assert file_id == "drive-file-id"
+
+        destination.write_bytes(
+            b"fake-drive-zip",
+        )
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_archive_path
+
+        captured_archive_path = options.archive_path
+
+        assert captured_archive_path.exists()
+        assert captured_archive_path.read_bytes() == (b"fake-drive-zip")
+
+        return _generation_result()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "download_drive_archive",
+        fake_download_drive_archive,
+    )
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_archive_path is not None
+    assert not captured_archive_path.exists()
+
+
+# =====================================================================
+# Verifies that report generation rejects requests containing both a
+# local archive upload and a selected Google Drive archive.
+# =====================================================================
+
+
+def test_report_generation_rejects_multiple_archive_sources(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"local-zip",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Choose exactly one Apple Health archive source.",
+    }
+
+
+# =====================================================================
+# Verifies that report generation submits the selected Drive file ID
+# instead of a local archive when Google Drive is the active ZIP source.
+# =====================================================================
+
+
+def test_web_interface_submits_selected_drive_archive() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"drive_file_id"' in html
+    assert "selectedDriveFileId" in html
+
+
+# =====================================================================
+# Verifies that dropping a local ZIP clears any previously selected
+# Google Drive archive before report generation.
+# =====================================================================
+
+
+def test_web_interface_clears_drive_selection_on_local_drop() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert (
+        "archiveInput.files = transfer.files;" "\n\n" "                selectedDriveFileId = null;"
+    ) in html
+
+
+# =====================================================================
+# Verifies that an oversized Google Drive download is exposed as a
+# controlled HTTP 413 error.
+# =====================================================================
+
+
+def test_download_drive_archive_rejects_oversized_download(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    destination = tmp_path / "archive.zip"
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+        def download_file(
+            self,
+            file_id,
+            destination,
+            max_bytes,
+        ):
+            raise DriveDownloadTooLargeError("Google Drive download exceeds size limit")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        download_drive_archive(
+            access_token="drive-token",
+            file_id="drive-file-id",
+            destination=destination,
+        )
+
+    assert exc_info.value.status_code == 413
+    assert exc_info.value.detail == ("Selected Google Drive archive is too large.")
+
+
+# =====================================================================
+# Verifies that a temporary Google Drive archive is removed when report
+# generation fails inside the existing archive processing pipeline.
+# =====================================================================
+
+
+def test_report_generation_cleans_up_drive_archive_after_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    captured_archive_path = None
+
+    def fake_download_drive_archive(
+        *,
+        access_token,
+        file_id,
+        destination,
+    ):
+        assert access_token == "drive-token"
+        assert file_id == "drive-file-id"
+
+        destination.write_bytes(
+            b"fake-drive-zip",
+        )
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_archive_path
+
+        captured_archive_path = options.archive_path
+
+        assert captured_archive_path.exists()
+
+        raise InvalidArchiveError("invalid archive")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "download_drive_archive",
+        fake_download_drive_archive,
+    )
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export archive.",
+    }
+
+    assert captured_archive_path is not None
+    assert not captured_archive_path.exists()
+
+
+# =====================================================================
+# Verifies that a Drive file becoming inaccessible during download is
+# exposed as a controlled validation error.
+# =====================================================================
+
+
+def test_download_drive_archive_rejects_inaccessible_download(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    destination = tmp_path / "archive.zip"
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+        def download_file(
+            self,
+            file_id,
+            destination,
+            max_bytes,
+        ):
+            raise DriveAccessError("Google Drive access denied")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        download_drive_archive(
+            access_token="drive-token",
+            file_id="drive-file-id",
+            destination=destination,
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+
+
+# =====================================================================
+# Verifies that malformed Google Drive ZIP input is rejected by the
+# existing archive validation pipeline.
+# =====================================================================
+
+
+def test_report_generation_rejects_malformed_drive_archive(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    def fake_download_drive_archive(
+        *,
+        access_token,
+        file_id,
+        destination,
+    ):
+        assert access_token == "drive-token"
+        assert file_id == "drive-file-id"
+
+        destination.write_bytes(
+            b"not-a-zip",
+        )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "download_drive_archive",
+        fake_download_drive_archive,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export archive.",
+    }
+
+
+# =====================================================================
+# Verifies that the Google Picker access token is kept only in
+# JavaScript memory and is never persisted in browser storage.
+# =====================================================================
+
+
+def test_web_interface_keeps_picker_token_in_memory_only() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "pickerAccessToken" in html
+    assert "localStorage" not in html
+    assert "sessionStorage" not in html
+
+
+# =====================================================================
+# Verifies that cancelling the Google Picker exits the callback without
+# changing the selected archive state.
+# =====================================================================
+
+
+def test_web_interface_picker_cancel_is_noop() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    cancel_index = html.index("google.picker.Action.CANCEL")
+
+    callback_tail = html[cancel_index : cancel_index + 200]
+
+    assert "return;" in callback_tail
+
+
+# =====================================================================
+# Verifies that the Google Picker is restricted to a single ZIP file
+# and clears any previously selected local archive after Drive selection.
+# =====================================================================
+
+
+def test_web_interface_picker_is_zip_only_and_single_file() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"application/zip"' in html
+    assert "setMimeTypes" in html
+
+    assert "MULTISELECT_ENABLED" not in html
+
+    assert "selectedDriveFileId" in html
+    assert 'archiveInput.value = "";' in html
+
+
+# =====================================================================
+# Verifies that the Google Drive ZIP picker is hidden by default until
+# Google mode is confirmed as connected.
+# =====================================================================
+
+
+def test_web_interface_hides_drive_picker_until_google_connected() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="drive-archive-picker"' in html
+    assert 'id="drive-archive-picker"' in html
+    assert (
+        "hidden"
+        in html[
+            html.index('id="drive-archive-picker"')
+            - 100 : html.index('id="drive-archive-picker"')
+            + 200
+        ]
+    )
+
+
+# =====================================================================
+# Verifies that the Drive ZIP picker is shown only after the frontend
+# confirms that Google mode is connected.
+# =====================================================================
+
+
+def test_web_interface_shows_drive_picker_only_when_google_connected() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "/auth/google/status" in html
+    assert 'googleStatus.status === "connected"' in html
+    assert "driveArchivePicker.hidden = false;" in html
+
+
+# =====================================================================
+# Verifies that a temporary Google Drive download failure is exposed as
+# a controlled HTTP error instead of an unhandled server exception.
+# =====================================================================
+
+
+def test_download_drive_archive_rejects_transient_download_failure(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class FakeDriveClient:
+        def __init__(self, access_token: str) -> None:
+            assert access_token == "access-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ) -> DriveFileMetadata:
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+        def download_file(
+            self,
+            file_id: str,
+            destination: Path,
+            max_bytes: int,
+        ) -> int:
+            raise DriveTransientError("Google Drive request failed temporarily")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        download_drive_archive(
+            access_token="access-token",
+            file_id="drive-file-id",
+            destination=tmp_path / "archive.zip",
+        )
+
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.detail == "Google Drive is temporarily unavailable."
+
+
+# =====================================================================
+# Verifies that saving a Drive config profile uses the current profile
+# discovery API without passing an obsolete config container argument.
+# =====================================================================
+
+
+def test_save_config_profile_uses_current_discovery_api(
+    monkeypatch,
+) -> None:
+    calls = []
+
+    def fake_discover_drive_config_profiles(client):
+        calls.append(client)
+        return ()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_drive_config_profiles",
+        fake_discover_drive_config_profiles,
+    )
+
+    # use the existing helper setup from the nearest
+    # save_config_profile_for_session test

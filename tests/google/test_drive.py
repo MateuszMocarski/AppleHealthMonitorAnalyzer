@@ -869,7 +869,7 @@ def test_http_drive_client_downloads_file(
         assert params == {
             "alt": "media",
         }
-        assert timeout == 10.0
+        assert timeout == client.DOWNLOAD_TIMEOUT
 
         return FakeStream()
 
@@ -1188,3 +1188,64 @@ def test_http_drive_client_stops_after_max_read_attempts(
         )
 
     assert attempts == 3
+
+
+# =====================================================================
+# Verifies that Drive file downloads use a longer read timeout than
+# ordinary metadata requests.
+# =====================================================================
+
+
+def test_download_file_uses_extended_timeout(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    captured_timeout = None
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(
+            self,
+            exc_type,
+            exc,
+            traceback,
+        ):
+            return False
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def iter_bytes(self):
+            yield b"zip-data"
+
+    def fake_stream(
+        method,
+        url,
+        *,
+        headers,
+        params,
+        timeout,
+    ):
+        nonlocal captured_timeout
+        captured_timeout = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        httpx,
+        "stream",
+        fake_stream,
+    )
+
+    client = HttpGoogleDriveClient(
+        "access-token",
+    )
+
+    client.download_file(
+        "file-id",
+        tmp_path / "archive.zip",
+        1024,
+    )
+
+    assert captured_timeout == client.DOWNLOAD_TIMEOUT
