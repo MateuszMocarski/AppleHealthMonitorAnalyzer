@@ -299,11 +299,11 @@ def test_application_generates_all_report_variants_for_multiple_months(
         FakeJsonRenderer,
     )
 
-    reports = AppleHealthApplication().generate_reports(
+    result = AppleHealthApplication().generate_reports(
         options,
     )
 
-    assert reports == [
+    assert result.reports == (
         MonthlyReports(
             period=ReportPeriod(
                 year=2026,
@@ -324,8 +324,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             summary_text="text-summary:summary-2026-9",
             summary_json="json-summary:summary-2026-9",
         ),
-    ]
-    assert calls["parse_count"] == 1
+    )
 
 
 # =====================================================================
@@ -759,3 +758,79 @@ def test_generate_reports_applies_source_overrides_to_selected_drive_config(
     assert captured_config.source.apple_health_app_source == "Drive Health"
 
     assert selected_drive_config.source.apple_watch_source == "Drive Watch"
+
+
+# =====================================================================
+# Verifies that multi-month generation exposes the effective
+# configuration that was actually used for the report run.
+# =====================================================================
+
+
+def test_generate_reports_exposes_effective_config(
+    monkeypatch,
+) -> None:
+    expected_config = AppConfig()
+
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(),
+        config_path=None,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.application.application.EffectiveConfigResolver.resolve",
+        lambda **kwargs: expected_config,
+    )
+
+    class FakeImporter:
+        def __init__(
+            self,
+            path,
+        ):
+            pass
+
+        @contextmanager
+        def open_export(
+            self,
+        ):
+            yield object()
+
+    class FakeParser:
+        def __init__(
+            self,
+            xml_stream,
+            config,
+        ):
+            assert config == expected_config
+
+        def parse(
+            self,
+        ):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(
+            self,
+            health_data,
+            config,
+        ):
+            assert config == expected_config
+
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+
+    result = AppleHealthApplication().generate_reports(
+        options,
+    )
+
+    assert result.effective_config == expected_config

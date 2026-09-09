@@ -609,6 +609,27 @@ def test_save_config_profile_skips_semantic_duplicate(tmp_path) -> None:
         def upload_file(self, *args, **kwargs):
             raise AssertionError("Duplicate config must not be uploaded")
 
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            assert file_id == "existing-config"
+
+            rendered_config = TomlRenderer.render(config)
+
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="Existing",
+                mime_type="application/toml",
+                size_bytes=len(
+                    rendered_config.encode("utf-8"),
+                ),
+                trashed=False,
+                app_properties={
+                    "ahm_type": "config_profile",
+                },
+            )
+
     save_config_profile(
         FakeDriveClient(),
         config_container_id="config-container",
