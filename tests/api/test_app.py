@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import apple_health.api.app as api_app_module
-from apple_health.api.app import app, verify_drive_archive
+from apple_health.api.app import MAX_UPLOAD_SIZE, app, download_drive_archive, verify_drive_archive
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_generation_result import (
@@ -26,7 +26,11 @@ from apple_health.exceptions import (
     InvalidArchiveError,
 )
 from apple_health.google.config_profiles import ConfigProfile
-from apple_health.google.drive import DriveAccessError, DriveFileMetadata
+from apple_health.google.drive import (
+    DriveAccessError,
+    DriveDownloadTooLargeError,
+    DriveFileMetadata,
+)
 from apple_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
@@ -5066,3 +5070,415 @@ def test_verify_drive_archive_rejects_inaccessible_file(
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+
+
+# =====================================================================
+# Verifies that a selected Google Drive archive is downloaded through
+# the bounded Drive client into the requested temporary path.
+# =====================================================================
+
+
+def test_download_drive_archive_uses_bounded_drive_download(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    destination = tmp_path / "archive.zip"
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            assert file_id == "drive-file-id"
+
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+        def download_file(
+            self,
+            file_id,
+            destination,
+            max_bytes,
+        ):
+            assert file_id == "drive-file-id"
+            assert max_bytes == MAX_UPLOAD_SIZE
+
+            destination.write_bytes(
+                b"fake-zip",
+            )
+
+            return 8
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    download_drive_archive(
+        access_token="drive-token",
+        file_id="drive-file-id",
+        destination=destination,
+    )
+
+    assert destination.read_bytes() == b"fake-zip"
+
+
+# =====================================================================
+# Verifies that report generation can use a selected Google Drive ZIP
+# as the archive source and pass its temporary path into the application.
+# =====================================================================
+
+
+def test_report_generation_uses_google_drive_archive(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    captured_archive_path = None
+
+    def fake_download_drive_archive(
+        *,
+        access_token,
+        file_id,
+        destination,
+    ):
+        assert access_token == "drive-token"
+        assert file_id == "drive-file-id"
+
+        destination.write_bytes(
+            b"fake-drive-zip",
+        )
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_archive_path
+
+        captured_archive_path = options.archive_path
+
+        assert captured_archive_path.exists()
+        assert captured_archive_path.read_bytes() == (b"fake-drive-zip")
+
+        return _generation_result()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "download_drive_archive",
+        fake_download_drive_archive,
+    )
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_archive_path is not None
+    assert not captured_archive_path.exists()
+
+
+# =====================================================================
+# Verifies that report generation rejects requests containing both a
+# local archive upload and a selected Google Drive archive.
+# =====================================================================
+
+
+def test_report_generation_rejects_multiple_archive_sources(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"local-zip",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Choose exactly one Apple Health archive source.",
+    }
+
+
+# =====================================================================
+# Verifies that report generation submits the selected Drive file ID
+# instead of a local archive when Google Drive is the active ZIP source.
+# =====================================================================
+
+
+def test_web_interface_submits_selected_drive_archive() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert '"drive_file_id"' in html
+    assert "selectedDriveFileId" in html
+
+
+# =====================================================================
+# Verifies that dropping a local ZIP clears any previously selected
+# Google Drive archive before report generation.
+# =====================================================================
+
+
+def test_web_interface_clears_drive_selection_on_local_drop() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert (
+        "archiveInput.files = transfer.files;" "\n\n" "                selectedDriveFileId = null;"
+    ) in html
+
+
+# =====================================================================
+# Verifies that an oversized Google Drive download is exposed as a
+# controlled HTTP 413 error.
+# =====================================================================
+
+
+def test_download_drive_archive_rejects_oversized_download(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    destination = tmp_path / "archive.zip"
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+        def get_metadata(
+            self,
+            file_id: str,
+        ):
+            return DriveFileMetadata(
+                file_id=file_id,
+                name="export.zip",
+                mime_type="application/zip",
+                size_bytes=1024,
+                trashed=False,
+                app_properties={},
+            )
+
+        def download_file(
+            self,
+            file_id,
+            destination,
+            max_bytes,
+        ):
+            raise DriveDownloadTooLargeError("Google Drive download exceeds size limit")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    with pytest.raises(
+        HTTPException,
+    ) as exc_info:
+        download_drive_archive(
+            access_token="drive-token",
+            file_id="drive-file-id",
+            destination=destination,
+        )
+
+    assert exc_info.value.status_code == 413
+    assert exc_info.value.detail == ("Selected Google Drive archive is too large.")
+
+
+# =====================================================================
+# Verifies that a temporary Google Drive archive is removed when report
+# generation fails inside the existing archive processing pipeline.
+# =====================================================================
+
+
+def test_report_generation_cleans_up_drive_archive_after_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="drive-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    captured_archive_path = None
+
+    def fake_download_drive_archive(
+        *,
+        access_token,
+        file_id,
+        destination,
+    ):
+        assert access_token == "drive-token"
+        assert file_id == "drive-file-id"
+
+        destination.write_bytes(
+            b"fake-drive-zip",
+        )
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal captured_archive_path
+
+        captured_archive_path = options.archive_path
+
+        assert captured_archive_path.exists()
+
+        raise InvalidArchiveError("invalid archive")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "download_drive_archive",
+        fake_download_drive_archive,
+    )
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "drive_file_id": "drive-file-id",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "Invalid Apple Health export archive.",
+    }
+
+    assert captured_archive_path is not None
+    assert not captured_archive_path.exists()

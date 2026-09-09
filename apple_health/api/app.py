@@ -28,6 +28,7 @@ from apple_health.google.config_profiles import (
 )
 from apple_health.google.drive import (
     DriveAccessError,
+    DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveNotFoundError,
     HttpGoogleDriveClient,
@@ -307,6 +308,34 @@ def verify_drive_archive(
         )
 
     return metadata
+
+
+def download_drive_archive(
+    *,
+    access_token: str,
+    file_id: str,
+    destination: Path,
+) -> None:
+    verify_drive_archive(
+        access_token=access_token,
+        file_id=file_id,
+    )
+
+    drive_client = HttpGoogleDriveClient(
+        access_token,
+    )
+
+    try:
+        drive_client.download_file(
+            file_id,
+            destination,
+            MAX_UPLOAD_SIZE,
+        )
+    except DriveDownloadTooLargeError as exc:
+        raise HTTPException(
+            status_code=413,
+            detail="Selected Google Drive archive is too large.",
+        ) from exc
 
 
 @app.get("/")
@@ -728,29 +757,69 @@ def health() -> dict[str, str]:
 )
 def generate_report(
     response: Response,
-    archive: UploadFile = File(),
+    archive: UploadFile | None = File(default=None),
     periods: str = Form(),
     config: UploadFile | None = File(default=None),
     apple_watch_source: str | None = Form(default=None),
     apple_health_app_source: str | None = Form(default=None),
     ahm_session: str | None = Cookie(default=None),
     save_config_as: str | None = Form(default=None),
+    drive_file_id: str | None = Form(default=None),
 ) -> MultiMonthReportResponse:
     response.headers["Cache-Control"] = "no-store"
 
     try:
         parsed_periods = _parse_periods(periods)
 
-        with TemporaryDirectory() as temporary_directory:
-            temporary_directory_path = Path(temporary_directory)
-            archive_path = temporary_directory_path / "export.zip"
-
-            _copy_upload_to_path(
-                archive,
-                archive_path,
-                max_size=MAX_UPLOAD_SIZE,
-                too_large_detail="Uploaded archive is too large.",
+        if archive is not None and drive_file_id is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="Choose exactly one Apple Health archive source.",
             )
+
+        with TemporaryDirectory() as temporary_directory:
+            temporary_directory_path = Path(
+                temporary_directory,
+            )
+
+            archive_path = temporary_directory_path / "archive.zip"
+
+            if drive_file_id is not None:
+                if ahm_session is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Google session is unavailable.",
+                    )
+
+                session = session_store.get(
+                    ahm_session,
+                )
+
+                if session is None or session.google_access_token is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Google session is unavailable.",
+                    )
+
+                download_drive_archive(
+                    access_token=session.google_access_token,
+                    file_id=drive_file_id,
+                    destination=archive_path,
+                )
+
+            elif archive is not None:
+                _copy_upload_to_path(
+                    archive,
+                    archive_path,
+                    max_size=MAX_UPLOAD_SIZE,
+                    too_large_detail="Uploaded archive is too large.",
+                )
+
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Apple Health archive is required.",
+                )
 
             config_path: Path | None = None
 
@@ -863,7 +932,8 @@ def generate_report(
         )
 
     finally:
-        archive.file.close()
+        if archive is not None:
+            archive.file.close()
 
         if config is not None:
             config.file.close()

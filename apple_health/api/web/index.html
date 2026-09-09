@@ -1541,6 +1541,10 @@
             () => {
                 const file = archiveInput.files[0];
 
+                if (file) {
+                    selectedDriveFileId = null;
+                }
+
                 fileName.textContent =
                     file
                         ? file.name
@@ -1594,6 +1598,8 @@
 
                 transfer.items.add(file);
                 archiveInput.files = transfer.files;
+
+                selectedDriveFileId = null;
 
                 fileName.textContent = file.name;
             },
@@ -2050,7 +2056,10 @@
                 const file =
                     archiveInput.files[0];
 
-                if (!file) {
+                if (
+                    !file
+                    && !selectedDriveFileId
+                ) {
                     showStatus(
                         "Choose an Apple Health ZIP archive first.",
                         "error",
@@ -2069,10 +2078,17 @@
                 const formData =
                     new FormData();
 
-                formData.append(
-                    "archive",
-                    file,
-                );
+                if (selectedDriveFileId) {
+                    formData.append(
+                        "drive_file_id",
+                        selectedDriveFileId,
+                    );
+                } else {
+                    formData.append(
+                        "archive",
+                        file,
+                    );
+                }
 
                 formData.append(
                     "periods",
