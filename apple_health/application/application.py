@@ -106,17 +106,21 @@ class AppleHealthApplication:
             reports.append(
                 MonthlyReports(
                     period=period,
-                    full_text=text_renderer.render_month(
-                        summary,
+                    full_text=(
+                        text_renderer.render_month(summary) if options.outputs.full_text else None
                     ),
-                    full_json=json_renderer.render_month(
-                        summary,
+                    full_json=(
+                        json_renderer.render_month(summary) if options.outputs.full_json else None
                     ),
-                    summary_text=text_renderer.render_month_summary(
-                        summary,
+                    summary_text=(
+                        text_renderer.render_month_summary(summary)
+                        if options.outputs.summary_text
+                        else None
                     ),
-                    summary_json=json_renderer.render_month_summary(
-                        summary,
+                    summary_json=(
+                        json_renderer.render_month_summary(summary)
+                        if options.outputs.summary_json
+                        else None
                     ),
                 )
             )

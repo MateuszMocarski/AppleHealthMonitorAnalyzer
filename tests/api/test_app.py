@@ -1,4 +1,5 @@
 import json
+import re
 import zipfile
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -18,6 +19,7 @@ from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.report_generation_result import (
     ReportGenerationResult,
 )
+from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
 from apple_health.config.exceptions import ConfigurationError
@@ -1791,12 +1793,11 @@ def test_google_oauth_callback_completes_backend_session(
             "code": "authorization-code",
             "state": "expected-state",
         },
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "google_connected",
-    }
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
     session = sessions.get(session_id)
 
@@ -3109,12 +3110,11 @@ def test_google_oauth_callback_refreshes_existing_session_credentials(
             "code": "authorization-code",
             "state": "expected-state",
         },
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "google_connected",
-    }
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
     session = sessions.get(session_id)
 
@@ -5764,7 +5764,7 @@ def test_web_interface_shows_google_reconnect_state() -> None:
     html = response.text
 
     assert 'googleStatus.status === "reconnect_required"' in html
-    assert "googleConnect.textContent" in html
+    assert "googleConnectLabel.textContent" in html
     assert '"Reconnect Google"' in html
     assert "googleConnect.hidden = false;" in html
     assert "googleConnectionStatus.hidden = true;" in html
@@ -5842,3 +5842,259 @@ def test_web_interface_loads_config_profiles_only_when_google_connected() -> Non
     assert "await loadConfigProfileState();" in google_state_function
 
     assert "loadConfigProfileState();\n" "        loadGoogleConnectionState();" not in html
+
+
+# =====================================================================
+# Verifies that the reports API can serialize unselected report outputs
+# as missing values while returning the selected Full JSON output.
+# =====================================================================
+
+
+def test_reports_api_serializes_unselected_outputs_as_none(
+    monkeypatch,
+) -> None:
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return _generation_result(
+                reports=(
+                    MonthlyReports(
+                        period=ReportPeriod(
+                            year=2026,
+                            month=8,
+                        ),
+                        full_text=None,
+                        full_json='{"status":"ok"}',
+                        summary_text=None,
+                        summary_json=None,
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [
+            {
+                "year": 2026,
+                "month": 8,
+                "full_text": None,
+                "full_json": '{"status":"ok"}',
+                "summary_text": None,
+                "summary_json": None,
+            },
+        ],
+    }
+
+
+# =====================================================================
+# Verifies that the reports API passes the selected report outputs to
+# the application generation options.
+# =====================================================================
+
+
+def test_reports_api_passes_selected_outputs_to_generation(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        assert options.outputs == ReportOutputs(
+            full_text=True,
+            full_json=False,
+            summary_text=True,
+            summary_json=False,
+        )
+
+        return _generation_result()
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "full_text": "true",
+            "full_json": "false",
+            "summary_text": "true",
+            "summary_json": "false",
+        },
+    )
+
+    assert response.status_code == 200
+
+
+# =====================================================================
+# Verifies that report generation rejects requests with every report
+# output disabled.
+# =====================================================================
+
+
+def test_reports_api_rejects_all_outputs_disabled() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "full_text": "false",
+            "full_json": "false",
+            "summary_text": "false",
+            "summary_json": "false",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "At least one report output must be selected.",
+    }
+
+
+# =====================================================================
+# Verifies that the web interface exposes selectable report outputs
+# with Full JSON selected by default.
+# =====================================================================
+
+
+def test_web_interface_exposes_report_output_controls() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="output-full-text"' in html
+    assert 'id="output-full-json"' in html
+    assert 'id="output-summary-text"' in html
+    assert 'id="output-summary-json"' in html
+
+    assert re.search(
+        r'<input[^>]*id="output-full-json"[^>]*checked[^>]*>',
+        html,
+        re.DOTALL,
+    )
+
+
+# =====================================================================
+# Verifies that the web interface submits the selected report outputs
+# with the report generation request.
+# =====================================================================
+
+
+def test_web_interface_submits_selected_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'document.getElementById("output-full-text")' in html
+    assert 'document.getElementById("output-full-json")' in html
+    assert 'document.getElementById("output-summary-text")' in html
+    assert 'document.getElementById("output-summary-json")' in html
+
+    assert '"full_text"' in html
+    assert '"full_json"' in html
+    assert '"summary_text"' in html
+    assert '"summary_json"' in html
+
+    assert "outputFullText.checked" in html
+    assert "outputFullJson.checked" in html
+    assert "outputSummaryText.checked" in html
+    assert "outputSummaryJson.checked" in html
+
+
+# =====================================================================
+# Verifies that the web interface blocks report generation when no
+# report output is selected.
+# =====================================================================
+
+
+def test_web_interface_rejects_no_selected_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = " ".join(response.text.split())
+
+    assert "const hasSelectedOutput =" in html
+    assert "outputFullText.checked" in html
+    assert "outputFullJson.checked" in html
+    assert "outputSummaryText.checked" in html
+    assert "outputSummaryJson.checked" in html
+    assert "if (!hasSelectedOutput)" in html
+    assert "Select at least one report output." in html
+
+
+# =====================================================================
+# Verifies that the web interface renders download controls only for
+# report outputs actually returned by the backend.
+# =====================================================================
+
+
+def test_web_interface_renders_only_available_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = " ".join(response.text.split())
+
+    assert "if (report.full_text !== null)" in html
+    assert "if (report.full_json !== null)" in html
+    assert "if (report.summary_text !== null)" in html
+    assert "if (report.summary_json !== null)" in html
+
+
+# =====================================================================
+# Verifies that the web interface documents selectable report outputs
+# instead of claiming that every report format is always generated.
+# =====================================================================
+
+
+def test_web_interface_documents_selectable_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = " ".join(response.text.split())
+
+    assert "Selected report outputs are generated for every chosen month." in html
+    assert "Every selected month produces" not in html

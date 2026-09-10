@@ -4,6 +4,7 @@ from pathlib import Path
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.application.run_options import RunOptions
 from apple_health.config.app_config import AppConfig
@@ -215,6 +216,12 @@ def test_application_generates_all_report_variants_for_multiple_months(
             ),
         ),
         config_path=None,
+        outputs=ReportOutputs(
+            full_text=True,
+            full_json=True,
+            summary_text=True,
+            summary_json=True,
+        ),
     )
 
     calls = {
@@ -834,3 +841,116 @@ def test_generate_reports_exposes_effective_config(
     )
 
     assert result.effective_config == expected_config
+
+
+# =====================================================================
+# Verifies that multi-month report generation renders only the report
+# outputs selected in the run options.
+# =====================================================================
+
+
+def test_generate_reports_renders_only_selected_outputs(
+    monkeypatch,
+) -> None:
+    options = MultiMonthRunOptions(
+        archive_path=Path("export.zip"),
+        periods=(
+            ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+        ),
+        config_path=None,
+    )
+
+    calls = {
+        "full_text": 0,
+        "full_json": 0,
+        "summary_text": 0,
+        "summary_json": 0,
+    }
+
+    class FakeImporter:
+        def __init__(self, path):
+            pass
+
+        @contextmanager
+        def open_export(self):
+            yield object()
+
+    class FakeParser:
+        def __init__(self, xml_stream, config):
+            pass
+
+        def parse(self):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(self, health_data, config):
+            pass
+
+        def summarize_month(self, year, month):
+            return f"summary-{year}-{month}"
+
+    class FakeTextRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            calls["full_text"] += 1
+            return f"text-full:{summary}"
+
+        def render_month_summary(self, summary):
+            calls["summary_text"] += 1
+            return f"text-summary:{summary}"
+
+    class FakeJsonRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            calls["full_json"] += 1
+            return f"json-full:{summary}"
+
+        def render_month_summary(self, summary):
+            calls["summary_json"] += 1
+            return f"json-summary:{summary}"
+
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.TextRenderer",
+        FakeTextRenderer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.JsonRenderer",
+        FakeJsonRenderer,
+    )
+
+    result = AppleHealthApplication().generate_reports(
+        options,
+    )
+
+    report = result.reports[0]
+
+    assert report.full_text is None
+    assert report.full_json == "json-full:summary-2026-8"
+    assert report.summary_text is None
+    assert report.summary_json is None
+
+    assert calls == {
+        "full_text": 0,
+        "full_json": 1,
+        "summary_text": 0,
+        "summary_json": 0,
+    }

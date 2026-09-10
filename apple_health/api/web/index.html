@@ -1499,14 +1499,13 @@
                                 </div>
 
                                 <p class="guide-card-text">
-                                    Every selected month produces
+                                    Selected report outputs are generated for every chosen month.
+                                    You can choose between
                                     <code>full.txt</code>,
                                     <code>full.json</code>,
                                     <code>summary.txt</code>, and
                                     <code>summary.json</code>.
-                                    The JSON files preserve missing values
-                                    and coverage information for future
-                                    viewers and integrations.
+                                    Full JSON is selected by default.
                                 </p>
                             </div>
 
@@ -1554,7 +1553,52 @@
                     </div>
                 </details>
             </div>
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">
+                        Report outputs
+                    </div>
 
+                    <div class="section-hint">
+                        Select at least one
+                    </div>
+                </div>
+
+                <div class="output-options">
+                    <label>
+                        <input
+                            id="output-full-text"
+                            type="checkbox"
+                        >
+                        Full TXT
+                    </label>
+
+                    <label>
+                        <input
+                            id="output-full-json"
+                            type="checkbox"
+                            checked
+                        >
+                        Full JSON
+                    </label>
+
+                    <label>
+                        <input
+                            id="output-summary-text"
+                            type="checkbox"
+                        >
+                        Summary TXT
+                    </label>
+
+                    <label>
+                        <input
+                            id="output-summary-json"
+                            type="checkbox"
+                        >
+                        Summary JSON
+                    </label>
+                </div>
+            </div>
             <div class="generate-row">
                 <div class="privacy-note">
                     The uploaded archive is used only to generate the selected
@@ -1685,6 +1729,18 @@
             document.getElementById(
                 "google-connection-label",
             );
+
+        const outputFullText =
+            document.getElementById("output-full-text");
+
+        const outputFullJson =
+            document.getElementById("output-full-json");
+
+        const outputSummaryText =
+            document.getElementById("output-summary-text");
+
+        const outputSummaryJson =
+            document.getElementById("output-summary-json");
 
         archiveInput.addEventListener(
             "change",
@@ -1867,40 +1923,20 @@
                         ${period}
                     </div>
 
-                    <div class="result-files">
-                        <button
-                            class="download-button"
-                            data-file="full_text"
-                        >
-                            full.txt
-                        </button>
-
-                        <button
-                            class="download-button"
-                            data-file="full_json"
-                        >
-                            full.json
-                        </button>
-
-                        <button
-                            class="download-button"
-                            data-file="summary_text"
-                        >
-                            summary.txt
-                        </button>
-
-                        <button
-                            class="download-button"
-                            data-file="summary_json"
-                        >
-                            summary.json
-                        </button>
-                    </div>
+                    <div class="result-files"></div>
                 `;
 
-                card
-                    .querySelector('[data-file="full_text"]')
-                    .addEventListener(
+                const resultFiles =
+                    card.querySelector(".result-files");
+
+                if (report.full_text !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "full.txt";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-full.txt`,
@@ -1909,9 +1945,17 @@
                         ),
                     );
 
-                card
-                    .querySelector('[data-file="full_json"]')
-                    .addEventListener(
+                    resultFiles.appendChild(button);
+                }
+
+                if (report.full_json !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "full.json";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-full.json`,
@@ -1920,9 +1964,17 @@
                         ),
                     );
 
-                card
-                    .querySelector('[data-file="summary_text"]')
-                    .addEventListener(
+                    resultFiles.appendChild(button);
+                }
+
+                if (report.summary_text !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "summary.txt";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-summary.txt`,
@@ -1931,9 +1983,17 @@
                         ),
                     );
 
-                card
-                    .querySelector('[data-file="summary_json"]')
-                    .addEventListener(
+                    resultFiles.appendChild(button);
+                }
+
+                if (report.summary_json !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "summary.json";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-summary.json`,
@@ -1941,6 +2001,9 @@
                             "application/json",
                         ),
                     );
+
+                    resultFiles.appendChild(button);
+                }
 
                 resultList.appendChild(card);
             });
@@ -2276,6 +2339,21 @@
                     return;
                 }
 
+                const hasSelectedOutput =
+                    outputFullText.checked
+                    || outputFullJson.checked
+                    || outputSummaryText.checked
+                    || outputSummaryJson.checked;
+
+                if (!hasSelectedOutput) {
+                    showStatus(
+                        "Select at least one report output.",
+                        "error",
+                    );
+
+                    return;
+                }
+
                 const formData =
                     new FormData();
 
@@ -2298,6 +2376,25 @@
                         .join(","),
                 );
 
+                formData.append(
+                    "full_text",
+                    String(outputFullText.checked),
+                );
+
+                formData.append(
+                    "full_json",
+                    String(outputFullJson.checked),
+                );
+
+                formData.append(
+                    "summary_text",
+                    String(outputSummaryText.checked),
+                );
+
+                formData.append(
+                    "summary_json",
+                    String(outputSummaryJson.checked),
+                );
 
                 const configFile =
                     configInput.files[0];

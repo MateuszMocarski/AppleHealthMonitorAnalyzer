@@ -10,6 +10,7 @@ from apple_health.api.models import (
 )
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
 from apple_health.config.exceptions import ConfigurationError
@@ -745,6 +746,10 @@ def generate_report(
     ahm_session: str | None = Cookie(default=None),
     save_config_as: str | None = Form(default=None),
     drive_file_id: str | None = Form(default=None),
+    full_text: bool = Form(default=False),
+    full_json: bool = Form(default=True),
+    summary_text: bool = Form(default=False),
+    summary_json: bool = Form(default=False),
 ) -> MultiMonthReportResponse:
     response.headers["Cache-Control"] = "no-store"
 
@@ -826,6 +831,19 @@ def generate_report(
                         session,
                     )
 
+            try:
+                outputs = ReportOutputs(
+                    full_text=full_text,
+                    full_json=full_json,
+                    summary_text=summary_text,
+                    summary_json=summary_json,
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=str(exc),
+                ) from exc
+
             options = MultiMonthRunOptions(
                 archive_path=archive_path,
                 periods=parsed_periods,
@@ -837,6 +855,7 @@ def generate_report(
                 apple_health_app_source=_normalize_optional_source(
                     apple_health_app_source,
                 ),
+                outputs=outputs,
             )
 
             try:
