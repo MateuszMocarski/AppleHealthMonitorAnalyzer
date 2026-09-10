@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+from apple_health.application.report_generation_metadata import (
+    ReportGenerationMetadata,
+)
 from apple_health.application.report_period import ReportPeriod
 
 
@@ -10,3 +13,4 @@ class MonthlyReports:
     full_json: str | None
     summary_text: str | None
     summary_json: str | None
+    metadata: ReportGenerationMetadata

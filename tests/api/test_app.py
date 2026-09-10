@@ -16,6 +16,9 @@ import apple_health.api.app as api_app_module
 from apple_health.api.app import MAX_UPLOAD_SIZE, app, download_drive_archive, verify_drive_archive
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
+from apple_health.application.report_generation_metadata import (
+    ReportGenerationMetadata,
+)
 from apple_health.application.report_generation_result import (
     ReportGenerationResult,
 )
@@ -201,6 +204,21 @@ def test_generate_reports_for_multiple_months(
                     full_json="august-full-json",
                     summary_text="august-summary-text",
                     summary_json="august-summary-json",
+                    metadata=ReportGenerationMetadata(
+                        period=ReportPeriod(
+                            year=2026,
+                            month=8,
+                        ),
+                        generation_id="generation-123",
+                        generated_at=datetime(
+                            2026,
+                            9,
+                            10,
+                            20,
+                            30,
+                            tzinfo=timezone.utc,
+                        ),
+                    ),
                 ),
                 MonthlyReports(
                     period=ReportPeriod(
@@ -211,6 +229,21 @@ def test_generate_reports_for_multiple_months(
                     full_json="september-full-json",
                     summary_text="september-summary-text",
                     summary_json="september-summary-json",
+                    metadata=ReportGenerationMetadata(
+                        period=ReportPeriod(
+                            year=2026,
+                            month=9,
+                        ),
+                        generation_id="generation-456",
+                        generated_at=datetime(
+                            2026,
+                            9,
+                            10,
+                            20,
+                            31,
+                            tzinfo=timezone.utc,
+                        ),
+                    ),
                 ),
             ]
         )
@@ -245,6 +278,8 @@ def test_generate_reports_for_multiple_months(
                 "full_json": "august-full-json",
                 "summary_text": "august-summary-text",
                 "summary_json": "august-summary-json",
+                "generation_id": "generation-123",
+                "generated_at": "2026-09-10T20:30:00Z",
             },
             {
                 "year": 2026,
@@ -253,6 +288,8 @@ def test_generate_reports_for_multiple_months(
                 "full_json": "september-full-json",
                 "summary_text": "september-summary-text",
                 "summary_json": "september-summary-json",
+                "generation_id": "generation-456",
+                "generated_at": "2026-09-10T20:31:00Z",
             },
         ]
     }
@@ -5869,6 +5906,21 @@ def test_reports_api_serializes_unselected_outputs_as_none(
                         full_json='{"status":"ok"}',
                         summary_text=None,
                         summary_json=None,
+                        metadata=ReportGenerationMetadata(
+                            period=ReportPeriod(
+                                year=2026,
+                                month=8,
+                            ),
+                            generation_id="generation-123",
+                            generated_at=datetime(
+                                2026,
+                                9,
+                                10,
+                                20,
+                                30,
+                                tzinfo=timezone.utc,
+                            ),
+                        ),
                     ),
                 ),
             )
@@ -5903,6 +5955,8 @@ def test_reports_api_serializes_unselected_outputs_as_none(
                 "full_json": '{"status":"ok"}',
                 "summary_text": None,
                 "summary_json": None,
+                "generation_id": "generation-123",
+                "generated_at": "2026-09-10T20:30:00Z",
             },
         ],
     }
@@ -6098,3 +6152,85 @@ def test_web_interface_documents_selectable_report_outputs() -> None:
 
     assert "Selected report outputs are generated for every chosen month." in html
     assert "Every selected month produces" not in html
+
+
+# =====================================================================
+# Verifies that the reports API exposes the generation identity and
+# timestamp assigned to each generated monthly report.
+# =====================================================================
+
+
+def test_reports_api_serializes_month_generation_metadata(
+    monkeypatch,
+) -> None:
+    generated_at = datetime(
+        2026,
+        9,
+        10,
+        20,
+        30,
+        tzinfo=timezone.utc,
+    )
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            period = ReportPeriod(
+                year=2026,
+                month=8,
+            )
+
+            return _generation_result(
+                reports=(
+                    MonthlyReports(
+                        period=period,
+                        full_text=None,
+                        full_json='{"status":"ok"}',
+                        summary_text=None,
+                        summary_json=None,
+                        metadata=ReportGenerationMetadata(
+                            period=period,
+                            generation_id="generation-123",
+                            generated_at=generated_at,
+                        ),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+
+    report = response.json()["reports"][0]
+
+    assert report["generation_id"] == "generation-123"
+
+    assert (
+        datetime.fromisoformat(
+            report["generated_at"].replace(
+                "Z",
+                "+00:00",
+            )
+        )
+        == generated_at
+    )

@@ -1,9 +1,11 @@
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_generation_metadata import ReportGenerationMetadata
 from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.application.run_options import RunOptions
@@ -306,8 +308,78 @@ def test_application_generates_all_report_variants_for_multiple_months(
         FakeJsonRenderer,
     )
 
+    generation_ids = iter(
+        (
+            "generation-123",
+            "generation-456",
+        )
+    )
+
+    generated_times = iter(
+        (
+            datetime(
+                2026,
+                9,
+                10,
+                20,
+                30,
+                tzinfo=timezone.utc,
+            ),
+            datetime(
+                2026,
+                9,
+                10,
+                20,
+                31,
+                tzinfo=timezone.utc,
+            ),
+        )
+    )
+
+    monkeypatch.setattr(
+        "apple_health.application.application._generation_id",
+        lambda: next(generation_ids),
+    )
+
+    monkeypatch.setattr(
+        "apple_health.application.application._utc_now",
+        lambda: next(generated_times),
+    )
+
     result = AppleHealthApplication().generate_reports(
         options,
+    )
+
+    metadata_aug = ReportGenerationMetadata(
+        period=ReportPeriod(
+            year=2026,
+            month=8,
+        ),
+        generation_id="generation-123",
+        generated_at=datetime(
+            2026,
+            9,
+            10,
+            20,
+            30,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    metadata_sept = ReportGenerationMetadata(
+        period=ReportPeriod(
+            year=2026,
+            month=9,
+        ),
+        generation_id="generation-456",
+        generated_at=datetime(
+            2026,
+            9,
+            10,
+            20,
+            31,
+            tzinfo=timezone.utc,
+        ),
     )
 
     assert result.reports == (
@@ -320,6 +392,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             full_json="json-full:summary-2026-8",
             summary_text="text-summary:summary-2026-8",
             summary_json="json-summary:summary-2026-8",
+            metadata=metadata_aug,
         ),
         MonthlyReports(
             period=ReportPeriod(
@@ -330,6 +403,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             full_json="json-full:summary-2026-9",
             summary_text="text-summary:summary-2026-9",
             summary_json="json-summary:summary-2026-9",
+            metadata=metadata_sept,
         ),
     )
 
@@ -954,3 +1028,136 @@ def test_generate_reports_renders_only_selected_outputs(
         "summary_text": 0,
         "summary_json": 0,
     }
+
+
+# =====================================================================
+# Verifies that every generated month receives its own generation
+# identity while all metadata for that month shares one UTC timestamp.
+# =====================================================================
+
+
+def test_generate_reports_assigns_identity_per_month(
+    monkeypatch,
+) -> None:
+    generated_times = iter(
+        (
+            datetime(
+                2026,
+                9,
+                10,
+                20,
+                30,
+                tzinfo=timezone.utc,
+            ),
+            datetime(
+                2026,
+                9,
+                10,
+                20,
+                31,
+                tzinfo=timezone.utc,
+            ),
+        )
+    )
+
+    generated_ids = iter(
+        (
+            "generation-august",
+            "generation-september",
+        )
+    )
+
+    monkeypatch.setattr(
+        "apple_health.application.application._utc_now",
+        lambda: next(generated_times),
+    )
+
+    monkeypatch.setattr(
+        "apple_health.application.application._generation_id",
+        lambda: next(generated_ids),
+    )
+
+    class FakeImporter:
+        def __init__(self, path):
+            pass
+
+        @contextmanager
+        def open_export(self):
+            yield object()
+
+    class FakeParser:
+        def __init__(self, xml_stream, config):
+            pass
+
+        def parse(self):
+            return "health-data"
+
+    class FakeAnalyzer:
+        def __init__(self, health_data, config):
+            pass
+
+        def summarize_month(self, year, month):
+            return f"summary-{year}-{month}"
+
+    class FakeJsonRenderer:
+        def __init__(self, config):
+            pass
+
+        def render_month(self, summary):
+            return f"json:{summary}"
+
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthImporter",
+        FakeImporter,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthParser",
+        FakeParser,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.HealthAnalyzer",
+        FakeAnalyzer,
+    )
+    monkeypatch.setattr(
+        "apple_health.application.application.JsonRenderer",
+        FakeJsonRenderer,
+    )
+
+    result = AppleHealthApplication().generate_reports(
+        MultiMonthRunOptions(
+            archive_path=Path("export.zip"),
+            periods=(
+                ReportPeriod(
+                    year=2026,
+                    month=8,
+                ),
+                ReportPeriod(
+                    year=2026,
+                    month=9,
+                ),
+            ),
+            config_path=None,
+        )
+    )
+
+    august, september = result.reports
+
+    assert august.metadata.generation_id == "generation-august"
+    assert august.metadata.generated_at == datetime(
+        2026,
+        9,
+        10,
+        20,
+        30,
+        tzinfo=timezone.utc,
+    )
+
+    assert september.metadata.generation_id == "generation-september"
+    assert september.metadata.generated_at == datetime(
+        2026,
+        9,
+        10,
+        20,
+        31,
+        tzinfo=timezone.utc,
+    )

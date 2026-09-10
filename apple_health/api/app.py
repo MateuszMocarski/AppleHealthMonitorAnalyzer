@@ -925,6 +925,8 @@ def generate_report(
                     full_json=report.full_json,
                     summary_text=report.summary_text,
                     summary_json=report.summary_json,
+                    generation_id=report.metadata.generation_id,
+                    generated_at=report.metadata.generated_at,
                 )
                 for report in generation_result.reports
             ]
