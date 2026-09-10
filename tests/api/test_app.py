@@ -3,6 +3,7 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
@@ -5692,3 +5693,152 @@ def test_save_config_profile_uses_current_discovery_api(
 
     # use the existing helper setup from the nearest
     # save_config_profile_for_session test
+
+
+# =====================================================================
+# Verifies that the web interface exposes a Google connection control
+# that starts the existing Google OAuth flow.
+# =====================================================================
+
+
+def test_web_interface_exposes_google_connect_control() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="google-connect"' in html
+    assert 'href="/auth/google/start"' in html
+    assert "Connect Google" in html
+
+
+# =====================================================================
+# Verifies that the web interface replaces the Google connect control
+# with the connected account email after successful authentication.
+# =====================================================================
+
+
+def test_web_interface_shows_connected_google_account() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="google-connection-status"' in html
+    assert "googleConnect.hidden = true;" in html
+    assert "googleConnectionStatus.hidden = false;" in html
+    assert "googleStatus.email" in html
+
+
+# =====================================================================
+# Verifies that the web interface restores the disconnected Google state
+# by showing the connect control and hiding Google-only controls.
+# =====================================================================
+
+
+def test_web_interface_restores_disconnected_google_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "googleConnect.hidden = false;" in html
+    assert "googleConnectionStatus.hidden = true;" in html
+    assert "driveArchivePicker.hidden = true;" in html
+
+
+# =====================================================================
+# Verifies that the web interface exposes a reconnect action when the
+# Google session requires reauthentication.
+# =====================================================================
+
+
+def test_web_interface_shows_google_reconnect_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'googleStatus.status === "reconnect_required"' in html
+    assert "googleConnect.textContent" in html
+    assert '"Reconnect Google"' in html
+    assert "googleConnect.hidden = false;" in html
+    assert "googleConnectionStatus.hidden = true;" in html
+    assert "driveArchivePicker.hidden = true;" in html
+
+
+# =====================================================================
+# Verifies that a successful Google OAuth callback redirects the user
+# back to the application root.
+# =====================================================================
+
+
+def test_google_callback_redirects_to_application_root(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        api_app_module.session_store,
+        "get",
+        lambda _: object(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleOAuthService,
+        "complete",
+        lambda self, **_: None,
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleSettings,
+        "load",
+        lambda: SimpleNamespace(
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        ),
+    )
+
+    response = client.get(
+        "/auth/google/callback",
+        params={
+            "code": "test-code",
+            "state": "test-state",
+        },
+        cookies={
+            "ahm_session": "test-session",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+
+# =====================================================================
+# Verifies that saved Google Drive config profiles are loaded only
+# after the frontend confirms an active Google connection.
+# =====================================================================
+
+
+def test_web_interface_loads_config_profiles_only_when_google_connected() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    google_state_function = html.split(
+        "async function loadGoogleConnectionState()",
+        1,
+    )[1].split(
+        "async function loadConfigProfileState()",
+        1,
+    )[0]
+
+    assert "await loadConfigProfileState();" in google_state_function
+
+    assert "loadConfigProfileState();\n" "        loadGoogleConnectionState();" not in html

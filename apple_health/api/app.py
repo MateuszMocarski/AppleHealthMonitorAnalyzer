@@ -507,7 +507,7 @@ def google_oauth_callback(
     code: str | None = None,
     error: str | None = None,
     ahm_session: str | None = Cookie(default=None),
-) -> dict[str, str]:
+) -> RedirectResponse:
     if ahm_session is None:
         raise HTTPException(
             status_code=400,
@@ -557,9 +557,10 @@ def google_oauth_callback(
             detail="Google OAuth connection failed.",
         ) from exc
 
-    return {
-        "status": "google_connected",
-    }
+    return RedirectResponse(
+        url="/",
+        status_code=303,
+    )
 
 
 @app.post(
