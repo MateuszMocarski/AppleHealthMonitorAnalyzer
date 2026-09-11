@@ -369,3 +369,28 @@ def discover_report_index(
         index[year_value] = tuple(month.app_properties["ahm_period"] for month in months)
 
     return index
+
+
+def ensure_report_month(
+    drive_client: DriveClient,
+    *,
+    year_id: str,
+    period: str,
+) -> DriveFileMetadata:
+    month = discover_report_month(
+        drive_client,
+        year_id=year_id,
+        period=period,
+    )
+
+    if month is not None:
+        return month
+
+    return drive_client.create_folder(
+        name=period,
+        parent_id=year_id,
+        app_properties={
+            "ahm_type": _AHM_REPORT_MONTH_TYPE,
+            "ahm_period": period,
+        },
+    )

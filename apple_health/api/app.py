@@ -47,6 +47,9 @@ from apple_health.google.oauth import (
     HttpGoogleRevocationClient,
     HttpGoogleTokenClient,
 )
+from apple_health.google.report_persistence import (
+    save_new_report_month,
+)
 from apple_health.google.sessions import SessionCookieSettings, SessionStore
 from apple_health.google.settings import GoogleSettings
 
@@ -862,6 +865,25 @@ def generate_report(
                 generation_result = AppleHealthApplication().generate_reports(
                     options,
                 )
+                if ahm_session is not None:
+                    session = session_store.get(
+                        ahm_session,
+                    )
+
+                    if (
+                        session is not None
+                        and session.google_access_token is not None
+                        and session.report_autosave_enabled
+                    ):
+                        drive_client = HttpGoogleDriveClient(
+                            session.google_access_token,
+                        )
+
+                        for report in generation_result.reports:
+                            save_new_report_month(
+                                drive_client,
+                                report=report,
+                            )
                 if (
                     save_config_as is not None
                     and save_config_as.strip()

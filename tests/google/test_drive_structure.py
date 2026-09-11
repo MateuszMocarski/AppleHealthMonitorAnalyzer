@@ -15,6 +15,7 @@ from apple_health.google.drive_structure import (
     discover_reports_container,
     ensure_ahm_root,
     ensure_config_container,
+    ensure_report_month,
     ensure_reports_container,
     ensure_year_container,
 )
@@ -1312,3 +1313,59 @@ def test_discover_config_container_returns_existing_container() -> None:
         )
         == config_container
     )
+
+
+# =====================================================================
+# Verifies that ensuring a report month creates the managed month
+# folder with canonical period metadata when it does not exist.
+# =====================================================================
+
+
+def test_ensure_report_month_creates_missing_month() -> None:
+    created = {}
+
+    class FakeDriveClient:
+        def search(
+            self,
+            query: str,
+            page_token: str | None = None,
+        ) -> DriveFilePage:
+            return DriveFilePage(
+                files=(),
+                next_page_token=None,
+            )
+
+        def create_folder(
+            self,
+            name: str,
+            parent_id: str | None = None,
+            app_properties: dict[str, str] | None = None,
+        ) -> DriveFileMetadata:
+            created["name"] = name
+            created["parent_id"] = parent_id
+            created["app_properties"] = app_properties
+
+            return DriveFileMetadata(
+                file_id="month-1",
+                name=name,
+                mime_type="application/vnd.google-apps.folder",
+                size_bytes=None,
+                trashed=False,
+                app_properties=app_properties or {},
+            )
+
+    month = ensure_report_month(
+        FakeDriveClient(),
+        year_id="year-2026",
+        period="2026-08",
+    )
+
+    assert month.file_id == "month-1"
+    assert created == {
+        "name": "2026-08",
+        "parent_id": "year-2026",
+        "app_properties": {
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+        },
+    }

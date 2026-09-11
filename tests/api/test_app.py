@@ -6234,3 +6234,247 @@ def test_reports_api_serializes_month_generation_metadata(
         )
         == generated_at
     )
+
+
+# =====================================================================
+# Verifies that an authenticated Google session autosaves generated
+# reports by default after local report generation succeeds.
+# =====================================================================
+
+
+def test_generate_reports_autosaves_reports_for_google_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    # Keep config autosave out of this test.
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    monthly_report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"ok"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-123",
+            generated_at=datetime(
+                2026,
+                9,
+                11,
+                16,
+                30,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    generation_result = _generation_result(
+        reports=(monthly_report,),
+    )
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return generation_result
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    saved = []
+
+    def fake_save_new_report_month(
+        received_drive_client,
+        *,
+        report,
+    ):
+        saved.append(
+            (
+                received_drive_client,
+                report,
+            )
+        )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        fake_save_new_report_month,
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert saved == [
+        (
+            drive_client,
+            generation_result.reports[0],
+        ),
+    ]
+
+
+# =====================================================================
+# Verifies that disabling report autosave prevents generated reports
+# from being persisted to Drive.
+# =====================================================================
+
+
+def test_generate_reports_skips_report_persistence_when_autosave_disabled(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    monthly_report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"ok"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-123",
+            generated_at=datetime(
+                2026,
+                9,
+                11,
+                16,
+                30,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    generation_result = _generation_result(
+        reports=(monthly_report,),
+    )
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return generation_result
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    save_calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda *args, **kwargs: save_calls.append(
+            (
+                args,
+                kwargs,
+            )
+        ),
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert save_calls == []
