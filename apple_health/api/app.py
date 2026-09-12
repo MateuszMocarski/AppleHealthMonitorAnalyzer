@@ -29,6 +29,7 @@ from apple_health.google.config_profiles import (
 )
 from apple_health.google.drive import (
     DriveAccessError,
+    DriveConflictError,
     DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveNotFoundError,
@@ -48,6 +49,8 @@ from apple_health.google.oauth import (
     HttpGoogleTokenClient,
 )
 from apple_health.google.report_persistence import (
+    find_existing_report_periods,
+    replace_existing_report_month,
     save_new_report_month,
 )
 from apple_health.google.sessions import SessionCookieSettings, SessionStore
@@ -457,6 +460,46 @@ def set_config_autosave(
     }
 
 
+@app.post("/reports/autosave")
+def set_report_autosave(
+    enabled: bool = Form(),
+    ahm_session: str = Cookie(),
+) -> dict[str, bool]:
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    session_store.set_report_autosave_enabled(
+        session_id=ahm_session,
+        enabled=enabled,
+    )
+
+    return {
+        "autosave_enabled": enabled,
+    }
+
+
+@app.get("/reports/autosave")
+def get_report_autosave(
+    ahm_session: str = Cookie(),
+) -> dict[str, bool]:
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    return {
+        "autosave_enabled": session.report_autosave_enabled,
+    }
+
+
 @app.get(
     "/auth/google/start",
     include_in_schema=False,
@@ -735,6 +778,46 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _persist_generated_reports(
+    *,
+    session,
+    reports,
+    confirmed_replace_periods: set[str],
+) -> None:
+    if session.google_access_token is None or not session.report_autosave_enabled:
+        return
+
+    drive_client = HttpGoogleDriveClient(
+        session.google_access_token,
+    )
+
+    existing_periods = find_existing_report_periods(
+        drive_client,
+        reports=reports,
+    )
+
+    unconfirmed_periods = existing_periods - confirmed_replace_periods
+
+    if unconfirmed_periods:
+        periods = ", ".join(sorted(unconfirmed_periods))
+
+        raise DriveConflictError(f"Report months already exist: {periods}")
+
+    for report in reports:
+        period = f"{report.period.year}-" f"{report.period.month:02d}"
+
+        if period in confirmed_replace_periods:
+            replace_existing_report_month(
+                drive_client,
+                report=report,
+            )
+        else:
+            save_new_report_month(
+                drive_client,
+                report=report,
+            )
+
+
 @app.post(
     "/reports/generate",
     response_model=MultiMonthReportResponse,
@@ -753,11 +836,16 @@ def generate_report(
     full_json: bool = Form(default=True),
     summary_text: bool = Form(default=False),
     summary_json: bool = Form(default=False),
+    replace_periods: str = Form(default=""),
 ) -> MultiMonthReportResponse:
     response.headers["Cache-Control"] = "no-store"
 
     try:
         parsed_periods = _parse_periods(periods)
+
+        confirmed_replace_periods = {
+            period.strip() for period in replace_periods.split(",") if period.strip()
+        }
 
         if archive is not None and drive_file_id is not None:
             raise HTTPException(
@@ -800,7 +888,7 @@ def generate_report(
                     archive,
                     archive_path,
                     max_size=MAX_UPLOAD_SIZE,
-                    too_large_detail="Uploaded archive is too large.",
+                    too_large_detail=("Uploaded archive is too large."),
                 )
 
             else:
@@ -818,12 +906,15 @@ def generate_report(
                     config,
                     config_path,
                     max_size=MAX_CONFIG_UPLOAD_SIZE,
-                    too_large_detail="Uploaded configuration is too large.",
+                    too_large_detail=("Uploaded configuration is too large."),
                 )
+
             selected_drive_config = None
 
             if ahm_session is not None:
-                session = session_store.get(ahm_session)
+                session = session_store.get(
+                    ahm_session,
+                )
 
                 if (
                     session is not None
@@ -841,6 +932,7 @@ def generate_report(
                     summary_text=summary_text,
                     summary_json=summary_json,
                 )
+
             except ValueError as exc:
                 raise HTTPException(
                     status_code=422,
@@ -852,11 +944,15 @@ def generate_report(
                 periods=parsed_periods,
                 config_path=config_path,
                 selected_drive_config=selected_drive_config,
-                apple_watch_source=_normalize_optional_source(
-                    apple_watch_source,
+                apple_watch_source=(
+                    _normalize_optional_source(
+                        apple_watch_source,
+                    )
                 ),
-                apple_health_app_source=_normalize_optional_source(
-                    apple_health_app_source,
+                apple_health_app_source=(
+                    _normalize_optional_source(
+                        apple_health_app_source,
+                    )
                 ),
                 outputs=outputs,
             )
@@ -865,77 +961,88 @@ def generate_report(
                 generation_result = AppleHealthApplication().generate_reports(
                     options,
                 )
+
                 if ahm_session is not None:
                     session = session_store.get(
                         ahm_session,
                     )
 
-                    if (
-                        session is not None
-                        and session.google_access_token is not None
-                        and session.report_autosave_enabled
-                    ):
-                        drive_client = HttpGoogleDriveClient(
-                            session.google_access_token,
-                        )
-
-                        for report in generation_result.reports:
-                            save_new_report_month(
-                                drive_client,
-                                report=report,
+                    if session is not None:
+                        try:
+                            _persist_generated_reports(
+                                session=session,
+                                reports=(generation_result.reports),
+                                confirmed_replace_periods=(confirmed_replace_periods),
                             )
+
+                        except DriveConflictError as exc:
+                            raise HTTPException(
+                                status_code=409,
+                                detail=str(exc),
+                            ) from exc
+
                 if (
                     save_config_as is not None
                     and save_config_as.strip()
                     and ahm_session is not None
                 ):
-                    session = session_store.get(ahm_session)
+                    session = session_store.get(
+                        ahm_session,
+                    )
 
                     if session is not None:
                         save_config_profile_for_session(
                             session,
                             name=save_config_as.strip(),
-                            config=generation_result.effective_config,
+                            config=(generation_result.effective_config),
                         )
 
                 elif ahm_session is not None:
-                    session = session_store.get(ahm_session)
+                    session = session_store.get(
+                        ahm_session,
+                    )
 
                     if session is not None and session.config_autosave_enabled:
                         save_config_profile_for_session(
                             session,
                             name="Autosave",
-                            config=generation_result.effective_config,
+                            config=(generation_result.effective_config),
                         )
+
             except ConfigurationError as exc:
                 raise HTTPException(
                     status_code=422,
                     detail=str(exc),
                 ) from exc
+
             except InvalidArchiveError as exc:
                 raise HTTPException(
                     status_code=422,
-                    detail="Invalid Apple Health export archive.",
+                    detail=("Invalid Apple Health export archive."),
                 ) from exc
+
             except ExportXmlNotFoundError as exc:
                 raise HTTPException(
                     status_code=422,
-                    detail="Apple Health export XML not found in archive.",
+                    detail=("Apple Health export XML " "not found in archive."),
                 ) from exc
+
             except MultipleExportXmlError as exc:
                 raise HTTPException(
                     status_code=422,
-                    detail=("Archive contains multiple Apple Health " "export XML files."),
+                    detail=("Archive contains multiple " "Apple Health export XML files."),
                 ) from exc
+
             except ExportXmlTooLargeError as exc:
                 raise HTTPException(
                     status_code=413,
-                    detail="Apple Health export XML is too large.",
+                    detail=("Apple Health export XML " "is too large."),
                 ) from exc
+
             except HealthDataParseError as exc:
                 raise HTTPException(
                     status_code=422,
-                    detail="Invalid Apple Health export XML.",
+                    detail=("Invalid Apple Health export XML."),
                 ) from exc
 
         return MultiMonthReportResponse(
@@ -947,8 +1054,8 @@ def generate_report(
                     full_json=report.full_json,
                     summary_text=report.summary_text,
                     summary_json=report.summary_json,
-                    generation_id=report.metadata.generation_id,
-                    generated_at=report.metadata.generated_at,
+                    generation_id=(report.metadata.generation_id),
+                    generated_at=(report.metadata.generated_at),
                 )
                 for report in generation_result.reports
             ]

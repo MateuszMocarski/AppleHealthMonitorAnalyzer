@@ -15,9 +15,12 @@ from apple_health.google.report_persistence import (
     commit_staged_generation,
     create_report_staging_folder,
     ensure_report_archive_container,
+    find_existing_report_periods,
     mark_generation_current,
     prepare_staged_generation_activation,
+    replace_existing_report_month,
     replace_report_month,
+    report_month_exists,
     save_new_report_month,
     stage_report_generation,
     upload_report_artifacts,
@@ -2144,4 +2147,259 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
         "commit",
         "archive",
         "cleanup",
+    ]
+
+
+# =====================================================================
+# Verifies that replacing an existing saved month resolves the managed
+# Drive structure and delegates to the safe replacement flow.
+# =====================================================================
+
+
+def test_replace_existing_report_month_discovers_month_and_replaces(
+    monkeypatch,
+) -> None:
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    root = DriveFileMetadata(
+        file_id="root-id",
+        name="Apple Health Monitor",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={},
+    )
+
+    reports_container = DriveFileMetadata(
+        file_id="reports-id",
+        name="reports",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={},
+    )
+
+    year_container = DriveFileMetadata(
+        file_id="year-id",
+        name="2026",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={},
+    )
+
+    month = DriveFileMetadata(
+        file_id="month-id",
+        name="2026-08",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+            "ahm_current_generation_id": "generation-old",
+        },
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.ensure_ahm_root",
+        lambda drive_client: root,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.ensure_reports_container",
+        lambda drive_client, *, root_id: reports_container,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.ensure_year_container",
+        lambda drive_client, *, reports_id, year: year_container,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.discover_report_month",
+        lambda drive_client, *, year_id, period: month,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.replace_report_month",
+        lambda drive_client, *, month, report: calls.append(
+            (
+                month.file_id,
+                report.metadata.generation_id,
+            )
+        ),
+    )
+
+    replace_existing_report_month(
+        object(),
+        report=report,
+    )
+
+    assert calls == [
+        (
+            "month-id",
+            "generation-new",
+        ),
+    ]
+
+
+# =====================================================================
+# Verifies that existing target months are resolved from one read-only
+# report-index discovery for the whole generated batch.
+# =====================================================================
+
+
+def test_find_existing_report_periods_uses_single_report_index(
+    monkeypatch,
+) -> None:
+    july_period = ReportPeriod(
+        year=2026,
+        month=7,
+    )
+
+    august_period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    july = MonthlyReports(
+        period=july_period,
+        full_text=None,
+        full_json="{}",
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=july_period,
+            generation_id="generation-july",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    august = MonthlyReports(
+        period=august_period,
+        full_text=None,
+        full_json="{}",
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=august_period,
+            generation_id="generation-august",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                1,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.discover_report_index",
+        lambda drive_client: (
+            calls.append(drive_client),
+            {
+                "2026": ("2026-08",),
+            },
+        )[1],
+    )
+
+    drive_client = object()
+
+    existing = find_existing_report_periods(
+        drive_client,
+        reports=(july, august),
+    )
+
+    assert existing == {
+        "2026-08",
+    }
+
+    assert calls == [
+        drive_client,
+    ]
+
+
+# =====================================================================
+# Verifies that report-month existence is resolved from the read-only
+# Drive report index without creating or modifying Drive state.
+# =====================================================================
+
+
+def test_report_month_exists_uses_read_only_report_index(
+    monkeypatch,
+) -> None:
+    calls = []
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.discover_report_index",
+        lambda drive_client: (
+            calls.append(drive_client),
+            {
+                "2025": ("2025-12",),
+                "2026": (
+                    "2026-07",
+                    "2026-08",
+                ),
+            },
+        )[1],
+    )
+
+    drive_client = object()
+
+    assert (
+        report_month_exists(
+            drive_client,
+            period="2026-08",
+        )
+        is True
+    )
+
+    assert (
+        report_month_exists(
+            drive_client,
+            period="2026-09",
+        )
+        is False
+    )
+
+    assert calls == [
+        drive_client,
+        drive_client,
     ]

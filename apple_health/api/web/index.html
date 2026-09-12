@@ -188,7 +188,8 @@
 
         #google-connect[hidden],
         #google-connection-status[hidden],
-        #drive-archive-picker[hidden] {
+        #drive-archive-picker[hidden],
+        #report-autosave-control[hidden] {
             display: none !important;
         }
 
@@ -1598,6 +1599,21 @@
                         Summary JSON
                     </label>
                 </div>
+                <label
+                    class="config-autosave-control"
+                    id="report-autosave-control"
+                    hidden
+                >
+                    <input
+                        id="report-autosave"
+                        type="checkbox"
+                        checked
+                    >
+
+                    <span>
+                        Automatically save reports
+                    </span>
+                </label>
             </div>
             <div class="generate-row">
                 <div class="privacy-note">
@@ -1698,6 +1714,16 @@
         const configAutosave =
             document.getElementById(
                 "config-autosave",
+            );
+
+        const reportAutosave =
+            document.getElementById(
+                "report-autosave",
+            );
+
+        const reportAutosaveControl =
+            document.getElementById(
+                "report-autosave-control",
             );
 
         const configProfileNone =
@@ -2034,8 +2060,10 @@
 
                 googleConnectionStatus.hidden = false;
                 driveArchivePicker.hidden = false;
+                reportAutosaveControl.hidden = false;
 
                 await loadConfigProfileState();
+                await loadReportAutosaveState();
 
                 return;
             }
@@ -2049,6 +2077,7 @@
                 googleConnect.hidden = false;
                 googleConnectionStatus.hidden = true;
                 driveArchivePicker.hidden = true;
+                reportAutosaveControl.hidden = true;
 
                 return;
             }
@@ -2059,6 +2088,7 @@
             googleConnect.hidden = false;
             googleConnectionStatus.hidden = true;
             driveArchivePicker.hidden = true;
+            reportAutosaveControl.hidden = true;
         }
 
         async function loadConfigProfileState() {
@@ -2093,6 +2123,21 @@
                 payload.selected_profile_id ?? "";
 
             configAutosave.checked =
+                payload.autosave_enabled;
+        }
+
+        async function loadReportAutosaveState() {
+            const response =
+                await fetch("/reports/autosave");
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload =
+                await response.json();
+
+            reportAutosave.checked =
                 payload.autosave_enabled;
         }
 
@@ -2300,6 +2345,33 @@
             },
         );
 
+        reportAutosave.addEventListener(
+            "change",
+            async () => {
+                const formData =
+                    new FormData();
+
+                formData.append(
+                    "enabled",
+                    String(reportAutosave.checked),
+                );
+
+                const response =
+                    await fetch(
+                        "/reports/autosave",
+                        {
+                            method: "POST",
+                            body: formData,
+                        },
+                    );
+
+                if (!response.ok) {
+                    reportAutosave.checked =
+                        !reportAutosave.checked;
+                }
+            },
+        );
+
         driveArchivePicker.addEventListener(
             "click",
             async () => {
@@ -2446,6 +2518,99 @@
                                 body: formData,
                             },
                         );
+
+                    if (response.status === 409) {
+                        let conflictDetail = "";
+
+                        try {
+                            const errorPayload =
+                                await response.json();
+
+                            conflictDetail =
+                                errorPayload.detail ?? "";
+                        } catch {
+                            // Keep the conflict detail empty.
+                        }
+
+                        const conflictPrefix =
+                            "Report months already exist:";
+
+                        if (
+                            conflictDetail.startsWith(
+                                conflictPrefix,
+                            )
+                        ) {
+                            const replacePeriods =
+                                conflictDetail
+                                    .slice(conflictPrefix.length)
+                                    .split(",")
+                                    .map((period) => period.trim())
+                                    .filter(Boolean);
+
+                            const confirmed =
+                                window.confirm(
+                                    "Saved reports already exist for: "
+                                    + replacePeriods.join(", ")
+                                    + ". Replace them?",
+                                );
+
+                            if (!confirmed) {
+                                showStatus(
+                                    "Report replacement cancelled.",
+                                    "error",
+                                );
+                                return;
+                            }
+
+                            formData.set(
+                                "replace_periods",
+                                replacePeriods.join(","),
+                            );
+
+                            const replacementResponse =
+                                await fetch(
+                                    "/reports/generate",
+                                    {
+                                        method: "POST",
+                                        body: formData,
+                                    },
+                                );
+
+                            if (!replacementResponse.ok) {
+                                let message =
+                                    `Request failed with status ${replacementResponse.status}`;
+
+                                try {
+                                    const errorPayload =
+                                        await replacementResponse.json();
+
+                                    if (errorPayload.detail) {
+                                        message = errorPayload.detail;
+                                    }
+                                } catch {
+                                    // Keep the generic HTTP status message.
+                                }
+
+                                throw new Error(message);
+                            }
+
+                            const payload =
+                                await replacementResponse.json();
+
+                            renderReports(
+                                payload.reports,
+                            );
+
+                            await loadGoogleConnectionState();
+
+                            showStatus(
+                                `Generated ${payload.reports.length} monthly report set(s).`,
+                                "success",
+                            );
+
+                            return;
+                        }
+                    }
 
                     if (!response.ok) {
                         let message =

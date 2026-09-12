@@ -6,6 +6,7 @@ from apple_health.google.drive import (
     DriveFileMetadata,
 )
 from apple_health.google.drive_structure import (
+    discover_report_index,
     discover_report_month,
     ensure_ahm_root,
     ensure_report_month,
@@ -434,3 +435,85 @@ def cleanup_staging_generation(
     staging_id: str,
 ) -> DriveFileMetadata:
     return drive_client.trash(staging_id)
+
+
+def report_month_exists(
+    drive_client: DriveClient,
+    *,
+    period: str,
+) -> bool:
+    report_index = discover_report_index(
+        drive_client,
+    )
+
+    year = period[:4]
+
+    return period in report_index.get(
+        year,
+        (),
+    )
+
+
+def replace_existing_report_month(
+    drive_client: DriveClient,
+    *,
+    report: MonthlyReports,
+) -> None:
+    period = f"{report.period.year}-" f"{report.period.month:02d}"
+
+    root = ensure_ahm_root(
+        drive_client,
+    )
+
+    reports = ensure_reports_container(
+        drive_client,
+        root_id=root.file_id,
+    )
+
+    year = ensure_year_container(
+        drive_client,
+        reports_id=reports.file_id,
+        year=report.period.year,
+    )
+
+    month = discover_report_month(
+        drive_client,
+        year_id=year.file_id,
+        period=period,
+    )
+
+    if month is None:
+        raise DriveConflictError(f"Report month does not exist: {period}")
+
+    replace_report_month(
+        drive_client,
+        month=month,
+        report=report,
+    )
+
+
+def find_existing_report_periods(
+    drive_client: DriveClient,
+    *,
+    reports: tuple[MonthlyReports, ...],
+) -> set[str]:
+    report_index = discover_report_index(
+        drive_client,
+    )
+
+    existing: set[str] = set()
+
+    for report in reports:
+        period = f"{report.period.year}-" f"{report.period.month:02d}"
+
+        year = str(
+            report.period.year,
+        )
+
+        if period in report_index.get(
+            year,
+            (),
+        ):
+            existing.add(period)
+
+    return existing
