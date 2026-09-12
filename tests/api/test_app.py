@@ -1,8 +1,10 @@
 import json
+import re
 import zipfile
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 from zipfile import ZipFile
 
@@ -14,9 +16,13 @@ import apple_health.api.app as api_app_module
 from apple_health.api.app import MAX_UPLOAD_SIZE, app, download_drive_archive, verify_drive_archive
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
+from apple_health.application.report_generation_metadata import (
+    ReportGenerationMetadata,
+)
 from apple_health.application.report_generation_result import (
     ReportGenerationResult,
 )
+from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
 from apple_health.config.exceptions import ConfigurationError
@@ -198,6 +204,21 @@ def test_generate_reports_for_multiple_months(
                     full_json="august-full-json",
                     summary_text="august-summary-text",
                     summary_json="august-summary-json",
+                    metadata=ReportGenerationMetadata(
+                        period=ReportPeriod(
+                            year=2026,
+                            month=8,
+                        ),
+                        generation_id="generation-123",
+                        generated_at=datetime(
+                            2026,
+                            9,
+                            10,
+                            20,
+                            30,
+                            tzinfo=timezone.utc,
+                        ),
+                    ),
                 ),
                 MonthlyReports(
                     period=ReportPeriod(
@@ -208,6 +229,21 @@ def test_generate_reports_for_multiple_months(
                     full_json="september-full-json",
                     summary_text="september-summary-text",
                     summary_json="september-summary-json",
+                    metadata=ReportGenerationMetadata(
+                        period=ReportPeriod(
+                            year=2026,
+                            month=9,
+                        ),
+                        generation_id="generation-456",
+                        generated_at=datetime(
+                            2026,
+                            9,
+                            10,
+                            20,
+                            31,
+                            tzinfo=timezone.utc,
+                        ),
+                    ),
                 ),
             ]
         )
@@ -242,6 +278,8 @@ def test_generate_reports_for_multiple_months(
                 "full_json": "august-full-json",
                 "summary_text": "august-summary-text",
                 "summary_json": "august-summary-json",
+                "generation_id": "generation-123",
+                "generated_at": "2026-09-10T20:30:00Z",
             },
             {
                 "year": 2026,
@@ -250,6 +288,8 @@ def test_generate_reports_for_multiple_months(
                 "full_json": "september-full-json",
                 "summary_text": "september-summary-text",
                 "summary_json": "september-summary-json",
+                "generation_id": "generation-456",
+                "generated_at": "2026-09-10T20:31:00Z",
             },
         ]
     }
@@ -1790,12 +1830,11 @@ def test_google_oauth_callback_completes_backend_session(
             "code": "authorization-code",
             "state": "expected-state",
         },
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "google_connected",
-    }
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
     session = sessions.get(session_id)
 
@@ -3108,12 +3147,11 @@ def test_google_oauth_callback_refreshes_existing_session_credentials(
             "code": "authorization-code",
             "state": "expected-state",
         },
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "google_connected",
-    }
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
 
     session = sessions.get(session_id)
 
@@ -3446,6 +3484,11 @@ def test_report_generation_uses_selected_drive_config(
     sessions = SessionStore()
     session_id = sessions.create()
 
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
     sessions.set_google_access_credentials(
         session_id=session_id,
         access_token="access-token",
@@ -3531,6 +3574,11 @@ def test_uploaded_config_replaces_selected_drive_config(
 ) -> None:
     sessions = SessionStore()
     session_id = sessions.create()
+
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
 
     sessions.set_google_access_credentials(
         session_id=session_id,
@@ -4122,6 +4170,11 @@ def test_report_generation_can_explicitly_save_effective_config(
     sessions = SessionStore()
     session_id = sessions.create()
 
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
     sessions.set_google_access_credentials(
         session_id=session_id,
         access_token="access-token",
@@ -4229,6 +4282,11 @@ def test_report_generation_autosaves_effective_config(
     sessions = SessionStore()
     session_id = sessions.create()
 
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
     sessions.set_google_access_credentials(
         session_id=session_id,
         access_token="access-token",
@@ -4327,6 +4385,11 @@ def test_report_generation_does_not_autosave_when_disabled(
     sessions = SessionStore()
     session_id = sessions.create()
 
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
     sessions.set_google_access_credentials(
         session_id=session_id,
         access_token="access-token",
@@ -4417,6 +4480,11 @@ def test_explicit_config_save_takes_precedence_over_autosave(
 ) -> None:
     sessions = SessionStore()
     session_id = sessions.create()
+
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
 
     sessions.set_google_access_credentials(
         session_id=session_id,
@@ -5043,6 +5111,11 @@ def test_report_generation_uses_google_drive_archive(
 ) -> None:
     sessions = SessionStore()
     session_id = sessions.create()
+
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
 
     sessions.set_google_identity(
         session_id=session_id,
@@ -5692,3 +5765,1758 @@ def test_save_config_profile_uses_current_discovery_api(
 
     # use the existing helper setup from the nearest
     # save_config_profile_for_session test
+
+
+# =====================================================================
+# Verifies that the web interface exposes a Google connection control
+# that starts the existing Google OAuth flow.
+# =====================================================================
+
+
+def test_web_interface_exposes_google_connect_control() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="google-connect"' in html
+    assert 'href="/auth/google/start"' in html
+    assert "Connect Google" in html
+
+
+# =====================================================================
+# Verifies that the web interface replaces the Google connect control
+# with the connected account email after successful authentication.
+# =====================================================================
+
+
+def test_web_interface_shows_connected_google_account() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="google-connection-status"' in html
+    assert "googleConnect.hidden = true;" in html
+    assert "googleConnectionStatus.hidden = false;" in html
+    assert "googleStatus.email" in html
+
+
+# =====================================================================
+# Verifies that the web interface restores the disconnected Google state
+# by showing the connect control and hiding Google-only controls.
+# =====================================================================
+
+
+def test_web_interface_restores_disconnected_google_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "googleConnect.hidden = false;" in html
+    assert "googleConnectionStatus.hidden = true;" in html
+    assert "driveArchivePicker.hidden = true;" in html
+
+
+# =====================================================================
+# Verifies that the web interface exposes a reconnect action when the
+# Google session requires reauthentication.
+# =====================================================================
+
+
+def test_web_interface_shows_google_reconnect_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'googleStatus.status === "reconnect_required"' in html
+    assert "googleConnectLabel.textContent" in html
+    assert '"Reconnect Google"' in html
+    assert "googleConnect.hidden = false;" in html
+    assert "googleConnectionStatus.hidden = true;" in html
+    assert "driveArchivePicker.hidden = true;" in html
+
+
+# =====================================================================
+# Verifies that a successful Google OAuth callback redirects the user
+# back to the application root.
+# =====================================================================
+
+
+def test_google_callback_redirects_to_application_root(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        api_app_module.session_store,
+        "get",
+        lambda _: object(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleOAuthService,
+        "complete",
+        lambda self, **_: None,
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleSettings,
+        "load",
+        lambda: SimpleNamespace(
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        ),
+    )
+
+    response = client.get(
+        "/auth/google/callback",
+        params={
+            "code": "test-code",
+            "state": "test-state",
+        },
+        cookies={
+            "ahm_session": "test-session",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+
+# =====================================================================
+# Verifies that saved Google Drive config profiles are loaded only
+# after the frontend confirms an active Google connection.
+# =====================================================================
+
+
+def test_web_interface_loads_config_profiles_only_when_google_connected() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    google_state_function = html.split(
+        "async function loadGoogleConnectionState()",
+        1,
+    )[1].split(
+        "async function loadConfigProfileState()",
+        1,
+    )[0]
+
+    assert "await loadConfigProfileState();" in google_state_function
+
+    assert "loadConfigProfileState();\n" "        loadGoogleConnectionState();" not in html
+
+
+# =====================================================================
+# Verifies that the reports API can serialize unselected report outputs
+# as missing values while returning the selected Full JSON output.
+# =====================================================================
+
+
+def test_reports_api_serializes_unselected_outputs_as_none(
+    monkeypatch,
+) -> None:
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return _generation_result(
+                reports=(
+                    MonthlyReports(
+                        period=ReportPeriod(
+                            year=2026,
+                            month=8,
+                        ),
+                        full_text=None,
+                        full_json='{"status":"ok"}',
+                        summary_text=None,
+                        summary_json=None,
+                        metadata=ReportGenerationMetadata(
+                            period=ReportPeriod(
+                                year=2026,
+                                month=8,
+                            ),
+                            generation_id="generation-123",
+                            generated_at=datetime(
+                                2026,
+                                9,
+                                10,
+                                20,
+                                30,
+                                tzinfo=timezone.utc,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reports": [
+            {
+                "year": 2026,
+                "month": 8,
+                "full_text": None,
+                "full_json": '{"status":"ok"}',
+                "summary_text": None,
+                "summary_json": None,
+                "generation_id": "generation-123",
+                "generated_at": "2026-09-10T20:30:00Z",
+            },
+        ],
+    }
+
+
+# =====================================================================
+# Verifies that the reports API passes the selected report outputs to
+# the application generation options.
+# =====================================================================
+
+
+def test_reports_api_passes_selected_outputs_to_generation(
+    monkeypatch,
+) -> None:
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        assert options.outputs == ReportOutputs(
+            full_text=True,
+            full_json=False,
+            summary_text=True,
+            summary_json=False,
+        )
+
+        return _generation_result()
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "full_text": "true",
+            "full_json": "false",
+            "summary_text": "true",
+            "summary_json": "false",
+        },
+    )
+
+    assert response.status_code == 200
+
+
+# =====================================================================
+# Verifies that report generation rejects requests with every report
+# output disabled.
+# =====================================================================
+
+
+def test_reports_api_rejects_all_outputs_disabled() -> None:
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+            "full_text": "false",
+            "full_json": "false",
+            "summary_text": "false",
+            "summary_json": "false",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "At least one report output must be selected.",
+    }
+
+
+# =====================================================================
+# Verifies that the web interface exposes selectable report outputs
+# with Full JSON selected by default.
+# =====================================================================
+
+
+def test_web_interface_exposes_report_output_controls() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="output-full-text"' in html
+    assert 'id="output-full-json"' in html
+    assert 'id="output-summary-text"' in html
+    assert 'id="output-summary-json"' in html
+
+    assert re.search(
+        r'<input[^>]*id="output-full-json"[^>]*checked[^>]*>',
+        html,
+        re.DOTALL,
+    )
+
+
+# =====================================================================
+# Verifies that the web interface submits the selected report outputs
+# with the report generation request.
+# =====================================================================
+
+
+def test_web_interface_submits_selected_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'document.getElementById("output-full-text")' in html
+    assert 'document.getElementById("output-full-json")' in html
+    assert 'document.getElementById("output-summary-text")' in html
+    assert 'document.getElementById("output-summary-json")' in html
+
+    assert '"full_text"' in html
+    assert '"full_json"' in html
+    assert '"summary_text"' in html
+    assert '"summary_json"' in html
+
+    assert "outputFullText.checked" in html
+    assert "outputFullJson.checked" in html
+    assert "outputSummaryText.checked" in html
+    assert "outputSummaryJson.checked" in html
+
+
+# =====================================================================
+# Verifies that the web interface blocks report generation when no
+# report output is selected.
+# =====================================================================
+
+
+def test_web_interface_rejects_no_selected_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = " ".join(response.text.split())
+
+    assert "const hasSelectedOutput =" in html
+    assert "outputFullText.checked" in html
+    assert "outputFullJson.checked" in html
+    assert "outputSummaryText.checked" in html
+    assert "outputSummaryJson.checked" in html
+    assert "if (!hasSelectedOutput)" in html
+    assert "Select at least one report output." in html
+
+
+# =====================================================================
+# Verifies that the web interface renders download controls only for
+# report outputs actually returned by the backend.
+# =====================================================================
+
+
+def test_web_interface_renders_only_available_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = " ".join(response.text.split())
+
+    assert "if (report.full_text !== null)" in html
+    assert "if (report.full_json !== null)" in html
+    assert "if (report.summary_text !== null)" in html
+    assert "if (report.summary_json !== null)" in html
+
+
+# =====================================================================
+# Verifies that the web interface documents selectable report outputs
+# instead of claiming that every report format is always generated.
+# =====================================================================
+
+
+def test_web_interface_documents_selectable_report_outputs() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = " ".join(response.text.split())
+
+    assert "Selected report outputs are generated for every chosen month." in html
+    assert "Every selected month produces" not in html
+
+
+# =====================================================================
+# Verifies that the reports API exposes the generation identity and
+# timestamp assigned to each generated monthly report.
+# =====================================================================
+
+
+def test_reports_api_serializes_month_generation_metadata(
+    monkeypatch,
+) -> None:
+    generated_at = datetime(
+        2026,
+        9,
+        10,
+        20,
+        30,
+        tzinfo=timezone.utc,
+    )
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            period = ReportPeriod(
+                year=2026,
+                month=8,
+            )
+
+            return _generation_result(
+                reports=(
+                    MonthlyReports(
+                        period=period,
+                        full_text=None,
+                        full_json='{"status":"ok"}',
+                        summary_text=None,
+                        summary_json=None,
+                        metadata=ReportGenerationMetadata(
+                            period=period,
+                            generation_id="generation-123",
+                            generated_at=generated_at,
+                        ),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+
+    report = response.json()["reports"][0]
+
+    assert report["generation_id"] == "generation-123"
+
+    assert (
+        datetime.fromisoformat(
+            report["generated_at"].replace(
+                "Z",
+                "+00:00",
+            )
+        )
+        == generated_at
+    )
+
+
+# =====================================================================
+# Verifies that an authenticated Google session autosaves generated
+# reports by default after local report generation succeeds.
+# =====================================================================
+
+
+def test_generate_reports_autosaves_reports_for_google_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    # Keep config autosave out of this test.
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    monthly_report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"ok"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-123",
+            generated_at=datetime(
+                2026,
+                9,
+                11,
+                16,
+                30,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    generation_result = _generation_result(
+        reports=(monthly_report,),
+    )
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return generation_result
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda drive_client, *, reports: set(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    saved = []
+
+    def fake_save_new_report_month(
+        received_drive_client,
+        *,
+        report,
+    ):
+        saved.append(
+            (
+                received_drive_client,
+                report,
+            )
+        )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        fake_save_new_report_month,
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert saved == [
+        (
+            drive_client,
+            generation_result.reports[0],
+        ),
+    ]
+
+
+# =====================================================================
+# Verifies that disabling report autosave prevents generated reports
+# from being persisted to Drive.
+# =====================================================================
+
+
+def test_generate_reports_skips_report_persistence_when_autosave_disabled(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    monthly_report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"ok"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-123",
+            generated_at=datetime(
+                2026,
+                9,
+                11,
+                16,
+                30,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    generation_result = _generation_result(
+        reports=(monthly_report,),
+    )
+
+    class FakeApplication:
+        def generate_reports(
+            self,
+            options,
+        ):
+            return generation_result
+
+    monkeypatch.setattr(
+        api_app_module,
+        "AppleHealthApplication",
+        FakeApplication,
+    )
+
+    save_calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda *args, **kwargs: save_calls.append(
+            (
+                args,
+                kwargs,
+            )
+        ),
+        raising=False,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert save_calls == []
+
+
+# =====================================================================
+# Verifies that the report autosave preference can be updated through
+# the API for the current session.
+# =====================================================================
+
+
+def test_report_autosave_preference_can_be_updated(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/autosave",
+        data={
+            "enabled": "false",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "autosave_enabled": False,
+    }
+
+    session = sessions.get(session_id)
+
+    assert session is not None
+    assert session.report_autosave_enabled is False
+
+
+# =====================================================================
+# Verifies that the current report autosave preference can be read
+# through the API for the active session.
+# =====================================================================
+
+
+def test_report_autosave_preference_can_be_read(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.get(
+        "/reports/autosave",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "autosave_enabled": False,
+    }
+
+
+# =====================================================================
+# Verifies that the web interface exposes report autosave controls and
+# synchronizes them with the report autosave API for Google sessions.
+# =====================================================================
+
+
+def test_web_interface_exposes_report_autosave_control() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="report-autosave-control"' in html
+    assert 'id="report-autosave"' in html
+    assert "Automatically save reports" in html
+
+    assert 'fetch("/reports/autosave")' in html
+    assert '"/reports/autosave"' in html
+    assert "reportAutosave.checked" in html
+
+
+# =====================================================================
+# Verifies that explicit replacement permission replaces an existing
+# saved month instead of returning a conflict.
+# =====================================================================
+
+
+def test_generate_reports_replaces_existing_month_when_explicitly_allowed(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    monthly_report = MonthlyReports(
+        period=ReportPeriod(
+            year=2026,
+            month=8,
+        ),
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=ReportPeriod(
+                year=2026,
+                month=8,
+            ),
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(monthly_report,),
+        ),
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda received_drive_client, *, reports: {
+            "2026-08",
+        },
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("New-month save must not run for explicit replacement")
+        ),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "replace_existing_report_month",
+        lambda received_drive_client, *, report: calls.append(
+            (
+                received_drive_client,
+                report.metadata.generation_id,
+            )
+        ),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "full_json": "true",
+            "replace_periods": "2026-08",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"fake",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        (
+            drive_client,
+            "generation-new",
+        ),
+    ]
+
+
+# =====================================================================
+# Verifies that explicit replacement applies only to confirmed periods
+# while other months still use the normal new-month save flow.
+# =====================================================================
+
+
+def test_generate_reports_replaces_only_explicitly_confirmed_periods(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    july_period = ReportPeriod(
+        year=2026,
+        month=7,
+    )
+
+    july = MonthlyReports(
+        period=july_period,
+        full_text=None,
+        full_json='{"status":"july"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=july_period,
+            generation_id="generation-july",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    august_period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    august = MonthlyReports(
+        period=august_period,
+        full_text=None,
+        full_json='{"status":"august"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=august_period,
+            generation_id="generation-august",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                1,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(july, august),
+        ),
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda received_drive_client, *, reports: {
+            "2026-08",
+        },
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda received_drive_client, *, report: calls.append(
+            (
+                "save",
+                report.period.year,
+                report.period.month,
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "replace_existing_report_month",
+        lambda received_drive_client, *, report: calls.append(
+            (
+                "replace",
+                report.period.year,
+                report.period.month,
+            )
+        ),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-07,2026-08",
+            "full_json": "true",
+            "replace_periods": "2026-08",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"fake",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        ("save", 2026, 7),
+        ("replace", 2026, 8),
+    ]
+
+
+# =====================================================================
+# Verifies that existing unconfirmed report months are detected before
+# any save or replacement mutates Drive state.
+# =====================================================================
+
+
+def test_generate_reports_preflights_existing_months_before_persistence(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    july_period = ReportPeriod(
+        year=2026,
+        month=7,
+    )
+
+    august_period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    july = MonthlyReports(
+        period=july_period,
+        full_text=None,
+        full_json='{"status":"july"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=july_period,
+            generation_id="generation-july",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    august = MonthlyReports(
+        period=august_period,
+        full_text=None,
+        full_json='{"status":"august"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=august_period,
+            generation_id="generation-august",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                1,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(july, august),
+        ),
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda received_drive_client, *, reports: {
+            "2026-08",
+        },
+    )
+
+    persistence_calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda *args, **kwargs: persistence_calls.append("save"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "replace_existing_report_month",
+        lambda *args, **kwargs: persistence_calls.append("replace"),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-07,2026-08",
+            "full_json": "true",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"fake",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Report months already exist: 2026-08",
+    }
+    assert persistence_calls == []
+
+
+# =====================================================================
+# Verifies that confirmed existing months are replaced while new months
+# are saved normally within the same multi-month persistence batch.
+# =====================================================================
+
+
+def test_generate_reports_persists_confirmed_and_new_months_together(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    july_period = ReportPeriod(
+        year=2026,
+        month=7,
+    )
+
+    august_period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    july = MonthlyReports(
+        period=july_period,
+        full_text=None,
+        full_json='{"status":"july"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=july_period,
+            generation_id="generation-july",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    august = MonthlyReports(
+        period=august_period,
+        full_text=None,
+        full_json='{"status":"august"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=august_period,
+            generation_id="generation-august",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                1,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(july, august),
+        ),
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda received_drive_client, *, reports: {
+            "2026-08",
+        },
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda received_drive_client, *, report: calls.append(
+            (
+                "save",
+                report.period.year,
+                report.period.month,
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "replace_existing_report_month",
+        lambda received_drive_client, *, report: calls.append(
+            (
+                "replace",
+                report.period.year,
+                report.period.month,
+            )
+        ),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-07,2026-08",
+            "full_json": "true",
+            "replace_periods": "2026-08",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"fake",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        ("save", 2026, 7),
+        ("replace", 2026, 8),
+    ]
+
+
+# =====================================================================
+# Verifies that the web interface confirms existing report replacement
+# and retries generation with the confirmed replacement periods.
+# =====================================================================
+
+
+def test_web_interface_confirms_report_replacement() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "Report months already exist:" in html
+    assert "window.confirm(" in html
+    assert '"replace_periods"' in html
+    assert "formData.set(" in html
+
+
+# =====================================================================
+# Verifies that disabled report autosave skips both persistence preflight
+# and all report Drive mutations, even when target months already exist.
+# =====================================================================
+
+
+def test_generate_reports_skips_persistence_when_report_autosave_disabled(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(report,),
+        ),
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: calls.append("client"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda *args, **kwargs: calls.append("preflight"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda *args, **kwargs: calls.append("save"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "replace_existing_report_month",
+        lambda *args, **kwargs: calls.append("replace"),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "full_json": "true",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"fake",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == []
+
+
+# =====================================================================
+# Verifies that report persistence is atomic per month rather than
+# across the whole multi-month generation request.
+# =====================================================================
+
+
+def test_generate_reports_allows_partial_multi_month_persistence(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    july_period = ReportPeriod(
+        year=2026,
+        month=7,
+    )
+
+    august_period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    july = MonthlyReports(
+        period=july_period,
+        full_text=None,
+        full_json='{"status":"july"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=july_period,
+            generation_id="generation-july",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    august = MonthlyReports(
+        period=august_period,
+        full_text=None,
+        full_json='{"status":"august"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=august_period,
+            generation_id="generation-august",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                1,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(july, august),
+        ),
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda received_drive_client, *, reports: set(),
+    )
+
+    calls = []
+
+    def save_report(
+        received_drive_client,
+        *,
+        report,
+    ) -> None:
+        period = (
+            report.period.year,
+            report.period.month,
+        )
+
+        calls.append(period)
+
+        if period == (2026, 8):
+            raise RuntimeError("second month persistence failed")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        save_report,
+    )
+
+    auth_client = TestClient(app)
+
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="second month persistence failed",
+    ):
+        auth_client.post(
+            "/reports/generate",
+            data={
+                "periods": "2026-07,2026-08",
+                "full_json": "true",
+            },
+            files={
+                "archive": (
+                    "export.zip",
+                    b"fake",
+                    "application/zip",
+                ),
+            },
+        )
+
+    assert calls == [
+        (2026, 7),
+        (2026, 8),
+    ]

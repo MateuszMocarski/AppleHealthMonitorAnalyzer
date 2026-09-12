@@ -16,6 +16,7 @@ class Session:
     google_access_token_expires_at: datetime | None = None
     selected_config_profile_id: str | None = None
     config_autosave_enabled: bool = True
+    report_autosave_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -208,4 +209,19 @@ class SessionStore:
         self._sessions[session_id] = replace(
             session,
             config_autosave_enabled=enabled,
+        )
+
+    def set_report_autosave_enabled(
+        self,
+        session_id: str,
+        enabled: bool,
+    ) -> None:
+        session = self.get(session_id)
+
+        if session is None:
+            raise ValueError("Session does not exist or has expired")
+
+        self._sessions[session_id] = replace(
+            session,
+            report_autosave_enabled=enabled,
         )

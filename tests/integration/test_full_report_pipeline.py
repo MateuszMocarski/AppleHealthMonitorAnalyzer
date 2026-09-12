@@ -7,6 +7,7 @@ import pytest
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
 from apple_health.config.config_loader import ConfigLoader
@@ -664,6 +665,12 @@ def test_multi_month_report_generation_pipeline(
             ),
         ),
         config_path=None,
+        outputs=ReportOutputs(
+            full_text=True,
+            full_json=True,
+            summary_text=True,
+            summary_json=True,
+        ),
     )
 
     result = AppleHealthApplication().generate_reports(

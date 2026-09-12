@@ -435,3 +435,29 @@ def test_config_autosave_can_be_disabled() -> None:
 
     assert session is not None
     assert session.config_autosave_enabled is False
+
+
+# =====================================================================
+# Verifies that report autosave is enabled by default for a new
+# session and can be explicitly disabled.
+# =====================================================================
+
+
+def test_report_autosave_defaults_to_enabled_and_can_be_disabled() -> None:
+    store = SessionStore()
+    session_id = store.create()
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.report_autosave_enabled is True
+
+    store.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.report_autosave_enabled is False

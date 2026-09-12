@@ -103,17 +103,24 @@
             letter-spacing: 0.02em;
         }
 
-        .repo-link {
+        .brand-actions {
             margin-left: auto;
 
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .repo-link {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
 
-            padding: 7px 10px;
+            min-height: 40px;
+            padding: 0 12px;
 
             border: 1px solid var(--border);
-            border-radius: 9px;
+            border-radius: 10px;
 
             background: rgba(255, 255, 255, 0.025);
             color: var(--text-secondary);
@@ -125,13 +132,65 @@
             transition:
                 background 150ms ease,
                 color 150ms ease,
-                border-color 150ms ease;
+                border-color 150ms ease,
+                transform 150ms ease;
         }
 
         .repo-link:hover {
             border-color: var(--border-strong);
             background: rgba(255, 255, 255, 0.06);
             color: var(--text);
+            transform: translateY(-1px);
+        }
+
+        .google-connect-link {
+            background: #ffffff;
+            border-color: rgba(255, 255, 255, 0.95);
+            color: #202124;
+        }
+
+        .google-connect-link:hover {
+            background: #f8f9fa;
+            border-color: #ffffff;
+            color: #202124;
+        }
+
+        .google-logo {
+            width: 18px;
+            height: 18px;
+
+            flex: 0 0 auto;
+        }
+
+        .google-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+
+            min-height: 40px;
+            padding: 0 12px;
+
+            border: 1px solid rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+
+            background: #ffffff;
+            color: #202124;
+
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .google-status .google-logo {
+            width: 18px;
+            height: 18px;
+        }
+
+        #google-connect[hidden],
+        #google-connection-status[hidden],
+        #drive-archive-picker[hidden],
+        #report-autosave-control[hidden] {
+            display: none !important;
         }
 
         .brand-icon {
@@ -952,8 +1011,11 @@
                 flex-wrap: wrap;
             }
 
-            .repo-link {
+            .brand-actions {
+                width: 100%;
                 margin-left: 0;
+
+                flex-wrap: wrap;
             }
 
             .panel {
@@ -1008,15 +1070,78 @@
             <div class="brand">
                 <div class="brand-icon">♥</div>
                 Apple Health Monitor
+                <div class="brand-actions">
+                    <a
+                        class="repo-link google-connect-link"
+                        id="google-connect"
+                        href="/auth/google/start"
+                    >
+                        <svg
+                            class="google-logo"
+                            viewBox="0 0 18 18"
+                            aria-hidden="true"
+                        >
+                            <path
+                                fill="#4285F4"
+                                d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.874 2.684-6.615Z"
+                            />
+                            <path
+                                fill="#34A853"
+                                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.258c-.806.54-1.836.859-3.047.859-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"
+                            />
+                            <path
+                                fill="#FBBC05"
+                                d="M3.963 10.707A5.41 5.41 0 0 1 3.681 9c0-.593.102-1.169.282-1.707V4.961H.956A9 9 0 0 0 0 9c0 1.452.347 2.826.956 4.039l3.007-2.332Z"
+                            />
+                            <path
+                                fill="#EA4335"
+                                d="M9 3.58c1.322 0 2.508.454 3.441 1.346l2.581-2.58C13.463.892 11.426 0 9 0A9 9 0 0 0 .956 4.961l3.007 2.332C4.672 5.164 6.656 3.58 9 3.58Z"
+                            />
+                        </svg>
 
-                <a
-                    class="repo-link"
-                    href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    View on GitHub ↗
-                </a>
+                        <span id="google-connect-label">Connect Google</span>
+                    </a>
+
+                    <span
+                        class="google-status"
+                        id="google-connection-status"
+                        hidden
+                    >
+                        <svg
+                            class="google-logo"
+                            viewBox="0 0 18 18"
+                            aria-hidden="true"
+                        >
+                            <path
+                                fill="#4285F4"
+                                d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.874 2.684-6.615Z"
+                            />
+                            <path
+                                fill="#34A853"
+                                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.258c-.806.54-1.836.859-3.047.859-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"
+                            />
+                            <path
+                                fill="#FBBC05"
+                                d="M3.963 10.707A5.41 5.41 0 0 1 3.681 9c0-.593.102-1.169.282-1.707V4.961H.956A9 9 0 0 0 0 9c0 1.452.347 2.826.956 4.039l3.007-2.332Z"
+                            />
+                            <path
+                                fill="#EA4335"
+                                d="M9 3.58c1.322 0 2.508.454 3.441 1.346l2.581-2.58C13.463.892 11.426 0 9 0A9 9 0 0 0 .956 4.961l3.007 2.332C4.672 5.164 6.656 3.58 9 3.58Z"
+                            />
+                        </svg>
+
+                        <span id="google-connection-label"></span>
+                    </span>
+
+                    <a
+                        class="repo-link"
+                        href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        View on GitHub ↗
+                    </a>
+                </div>
             </div>
 
             <h1>
@@ -1375,14 +1500,13 @@
                                 </div>
 
                                 <p class="guide-card-text">
-                                    Every selected month produces
+                                    Selected report outputs are generated for every chosen month.
+                                    You can choose between
                                     <code>full.txt</code>,
                                     <code>full.json</code>,
                                     <code>summary.txt</code>, and
                                     <code>summary.json</code>.
-                                    The JSON files preserve missing values
-                                    and coverage information for future
-                                    viewers and integrations.
+                                    Full JSON is selected by default.
                                 </p>
                             </div>
 
@@ -1430,7 +1554,67 @@
                     </div>
                 </details>
             </div>
+            <div class="section">
+                <div class="section-header">
+                    <div class="section-title">
+                        Report outputs
+                    </div>
 
+                    <div class="section-hint">
+                        Select at least one
+                    </div>
+                </div>
+
+                <div class="output-options">
+                    <label>
+                        <input
+                            id="output-full-text"
+                            type="checkbox"
+                        >
+                        Full TXT
+                    </label>
+
+                    <label>
+                        <input
+                            id="output-full-json"
+                            type="checkbox"
+                            checked
+                        >
+                        Full JSON
+                    </label>
+
+                    <label>
+                        <input
+                            id="output-summary-text"
+                            type="checkbox"
+                        >
+                        Summary TXT
+                    </label>
+
+                    <label>
+                        <input
+                            id="output-summary-json"
+                            type="checkbox"
+                        >
+                        Summary JSON
+                    </label>
+                </div>
+                <label
+                    class="config-autosave-control"
+                    id="report-autosave-control"
+                    hidden
+                >
+                    <input
+                        id="report-autosave"
+                        type="checkbox"
+                        checked
+                    >
+
+                    <span>
+                        Automatically save reports
+                    </span>
+                </label>
+            </div>
             <div class="generate-row">
                 <div class="privacy-note">
                     The uploaded archive is used only to generate the selected
@@ -1532,6 +1716,16 @@
                 "config-autosave",
             );
 
+        const reportAutosave =
+            document.getElementById(
+                "report-autosave",
+            );
+
+        const reportAutosaveControl =
+            document.getElementById(
+                "report-autosave-control",
+            );
+
         const configProfileNone =
             document.getElementById(
                 "config-profile-none",
@@ -1541,6 +1735,38 @@
             document.getElementById(
                 "save-config-as",
             );
+
+        const googleConnect =
+            document.getElementById(
+                "google-connect",
+            );
+
+        const googleConnectionStatus =
+            document.getElementById(
+                "google-connection-status",
+            );
+
+        const googleConnectLabel =
+            document.getElementById(
+                "google-connect-label",
+            );
+
+        const googleConnectionLabel =
+            document.getElementById(
+                "google-connection-label",
+            );
+
+        const outputFullText =
+            document.getElementById("output-full-text");
+
+        const outputFullJson =
+            document.getElementById("output-full-json");
+
+        const outputSummaryText =
+            document.getElementById("output-summary-text");
+
+        const outputSummaryJson =
+            document.getElementById("output-summary-json");
 
         archiveInput.addEventListener(
             "change",
@@ -1723,40 +1949,20 @@
                         ${period}
                     </div>
 
-                    <div class="result-files">
-                        <button
-                            class="download-button"
-                            data-file="full_text"
-                        >
-                            full.txt
-                        </button>
-
-                        <button
-                            class="download-button"
-                            data-file="full_json"
-                        >
-                            full.json
-                        </button>
-
-                        <button
-                            class="download-button"
-                            data-file="summary_text"
-                        >
-                            summary.txt
-                        </button>
-
-                        <button
-                            class="download-button"
-                            data-file="summary_json"
-                        >
-                            summary.json
-                        </button>
-                    </div>
+                    <div class="result-files"></div>
                 `;
 
-                card
-                    .querySelector('[data-file="full_text"]')
-                    .addEventListener(
+                const resultFiles =
+                    card.querySelector(".result-files");
+
+                if (report.full_text !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "full.txt";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-full.txt`,
@@ -1765,9 +1971,17 @@
                         ),
                     );
 
-                card
-                    .querySelector('[data-file="full_json"]')
-                    .addEventListener(
+                    resultFiles.appendChild(button);
+                }
+
+                if (report.full_json !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "full.json";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-full.json`,
@@ -1776,9 +1990,17 @@
                         ),
                     );
 
-                card
-                    .querySelector('[data-file="summary_text"]')
-                    .addEventListener(
+                    resultFiles.appendChild(button);
+                }
+
+                if (report.summary_text !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "summary.txt";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-summary.txt`,
@@ -1787,9 +2009,17 @@
                         ),
                     );
 
-                card
-                    .querySelector('[data-file="summary_json"]')
-                    .addEventListener(
+                    resultFiles.appendChild(button);
+                }
+
+                if (report.summary_json !== null) {
+                    const button =
+                        document.createElement("button");
+
+                    button.className = "download-button";
+                    button.textContent = "summary.json";
+
+                    button.addEventListener(
                         "click",
                         () => downloadText(
                             `${period}-summary.json`,
@@ -1797,6 +2027,9 @@
                             "application/json",
                         ),
                     );
+
+                    resultFiles.appendChild(button);
+                }
 
                 resultList.appendChild(card);
             });
@@ -1820,8 +2053,42 @@
             if (
                 googleStatus.status === "connected"
             ) {
+                googleConnect.hidden = true;
+
+                googleConnectionLabel.textContent =
+                    `Connected as ${googleStatus.email}`;
+
+                googleConnectionStatus.hidden = false;
                 driveArchivePicker.hidden = false;
+                reportAutosaveControl.hidden = false;
+
+                await loadConfigProfileState();
+                await loadReportAutosaveState();
+
+                return;
             }
+
+            if (
+                googleStatus.status === "reconnect_required"
+            ) {
+                googleConnectLabel.textContent =
+                    "Reconnect Google";
+
+                googleConnect.hidden = false;
+                googleConnectionStatus.hidden = true;
+                driveArchivePicker.hidden = true;
+                reportAutosaveControl.hidden = true;
+
+                return;
+            }
+
+            googleConnectLabel.textContent =
+                "Connect Google";
+
+            googleConnect.hidden = false;
+            googleConnectionStatus.hidden = true;
+            driveArchivePicker.hidden = true;
+            reportAutosaveControl.hidden = true;
         }
 
         async function loadConfigProfileState() {
@@ -1856,6 +2123,21 @@
                 payload.selected_profile_id ?? "";
 
             configAutosave.checked =
+                payload.autosave_enabled;
+        }
+
+        async function loadReportAutosaveState() {
+            const response =
+                await fetch("/reports/autosave");
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload =
+                await response.json();
+
+            reportAutosave.checked =
                 payload.autosave_enabled;
         }
 
@@ -1963,6 +2245,7 @@
             driveView.setMimeTypes(
                 "application/zip",
             );
+            driveView.setOwnedByMe(true);
 
             driveView.setMode(
                 google.picker.DocsViewMode.LIST,
@@ -2062,6 +2345,33 @@
             },
         );
 
+        reportAutosave.addEventListener(
+            "change",
+            async () => {
+                const formData =
+                    new FormData();
+
+                formData.append(
+                    "enabled",
+                    String(reportAutosave.checked),
+                );
+
+                const response =
+                    await fetch(
+                        "/reports/autosave",
+                        {
+                            method: "POST",
+                            body: formData,
+                        },
+                    );
+
+                if (!response.ok) {
+                    reportAutosave.checked =
+                        !reportAutosave.checked;
+                }
+            },
+        );
+
         driveArchivePicker.addEventListener(
             "click",
             async () => {
@@ -2101,6 +2411,21 @@
                     return;
                 }
 
+                const hasSelectedOutput =
+                    outputFullText.checked
+                    || outputFullJson.checked
+                    || outputSummaryText.checked
+                    || outputSummaryJson.checked;
+
+                if (!hasSelectedOutput) {
+                    showStatus(
+                        "Select at least one report output.",
+                        "error",
+                    );
+
+                    return;
+                }
+
                 const formData =
                     new FormData();
 
@@ -2123,6 +2448,25 @@
                         .join(","),
                 );
 
+                formData.append(
+                    "full_text",
+                    String(outputFullText.checked),
+                );
+
+                formData.append(
+                    "full_json",
+                    String(outputFullJson.checked),
+                );
+
+                formData.append(
+                    "summary_text",
+                    String(outputSummaryText.checked),
+                );
+
+                formData.append(
+                    "summary_json",
+                    String(outputSummaryJson.checked),
+                );
 
                 const configFile =
                     configInput.files[0];
@@ -2175,6 +2519,99 @@
                             },
                         );
 
+                    if (response.status === 409) {
+                        let conflictDetail = "";
+
+                        try {
+                            const errorPayload =
+                                await response.json();
+
+                            conflictDetail =
+                                errorPayload.detail ?? "";
+                        } catch {
+                            // Keep the conflict detail empty.
+                        }
+
+                        const conflictPrefix =
+                            "Report months already exist:";
+
+                        if (
+                            conflictDetail.startsWith(
+                                conflictPrefix,
+                            )
+                        ) {
+                            const replacePeriods =
+                                conflictDetail
+                                    .slice(conflictPrefix.length)
+                                    .split(",")
+                                    .map((period) => period.trim())
+                                    .filter(Boolean);
+
+                            const confirmed =
+                                window.confirm(
+                                    "Saved reports already exist for: "
+                                    + replacePeriods.join(", ")
+                                    + ". Replace them?",
+                                );
+
+                            if (!confirmed) {
+                                showStatus(
+                                    "Report replacement cancelled.",
+                                    "error",
+                                );
+                                return;
+                            }
+
+                            formData.set(
+                                "replace_periods",
+                                replacePeriods.join(","),
+                            );
+
+                            const replacementResponse =
+                                await fetch(
+                                    "/reports/generate",
+                                    {
+                                        method: "POST",
+                                        body: formData,
+                                    },
+                                );
+
+                            if (!replacementResponse.ok) {
+                                let message =
+                                    `Request failed with status ${replacementResponse.status}`;
+
+                                try {
+                                    const errorPayload =
+                                        await replacementResponse.json();
+
+                                    if (errorPayload.detail) {
+                                        message = errorPayload.detail;
+                                    }
+                                } catch {
+                                    // Keep the generic HTTP status message.
+                                }
+
+                                throw new Error(message);
+                            }
+
+                            const payload =
+                                await replacementResponse.json();
+
+                            renderReports(
+                                payload.reports,
+                            );
+
+                            await loadGoogleConnectionState();
+
+                            showStatus(
+                                `Generated ${payload.reports.length} monthly report set(s).`,
+                                "success",
+                            );
+
+                            return;
+                        }
+                    }
+
                     if (!response.ok) {
                         let message =
                             `Request failed with status ${response.status}`;
@@ -2200,7 +2637,7 @@
                         payload.reports,
                     );
 
-                    await loadConfigProfileState();
+                    await loadGoogleConnectionState();
 
                     showStatus(
                         `Generated ${payload.reports.length} monthly report set(s).`,
@@ -2218,7 +2655,6 @@
                 }
             },
         );
-        loadConfigProfileState();
         loadGoogleConnectionState();
     </script>
 </body>

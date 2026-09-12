@@ -1,9 +1,13 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.application.effective_config_resolver import (
     EffectiveConfigResolver,
 )
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_generation_metadata import ReportGenerationMetadata
 from apple_health.application.report_generation_result import (
     ReportGenerationResult,
 )
@@ -13,6 +17,14 @@ from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _generation_id() -> str:
+    return str(uuid4())
 
 
 class AppleHealthApplication:
@@ -66,6 +78,7 @@ class AppleHealthApplication:
         self,
         options: MultiMonthRunOptions,
     ) -> ReportGenerationResult:
+
         config = EffectiveConfigResolver.resolve(
             uploaded_config_path=options.config_path,
             selected_drive_config=options.selected_drive_config,
@@ -103,21 +116,32 @@ class AppleHealthApplication:
                 month=period.month,
             )
 
+            metadata = ReportGenerationMetadata(
+                period=period,
+                generation_id=_generation_id(),
+                generated_at=_utc_now(),
+            )
+
             reports.append(
                 MonthlyReports(
                     period=period,
-                    full_text=text_renderer.render_month(
-                        summary,
+                    full_text=(
+                        text_renderer.render_month(summary) if options.outputs.full_text else None
                     ),
-                    full_json=json_renderer.render_month(
-                        summary,
+                    full_json=(
+                        json_renderer.render_month(summary) if options.outputs.full_json else None
                     ),
-                    summary_text=text_renderer.render_month_summary(
-                        summary,
+                    summary_text=(
+                        text_renderer.render_month_summary(summary)
+                        if options.outputs.summary_text
+                        else None
                     ),
-                    summary_json=json_renderer.render_month_summary(
-                        summary,
+                    summary_json=(
+                        json_renderer.render_month_summary(summary)
+                        if options.outputs.summary_json
+                        else None
                     ),
+                    metadata=metadata,
                 )
             )
 
