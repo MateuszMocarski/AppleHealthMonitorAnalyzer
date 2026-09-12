@@ -4997,12 +4997,12 @@ def test_verify_drive_archive_rejects_blank_file_id(
 
 
 # =====================================================================
-# Verifies that inaccessible Google Drive files are exposed as a
-# controlled validation error instead of leaking Drive client errors.
+# Verifies that Drive authorization failure during archive verification
+# requests Google reconnection instead of treating the file as missing.
 # =====================================================================
 
 
-def test_verify_drive_archive_rejects_inaccessible_file(
+def test_verify_drive_archive_requires_reconnect_when_access_is_denied(
     monkeypatch,
 ) -> None:
     class FakeDriveClient:
@@ -5032,8 +5032,8 @@ def test_verify_drive_archive_rejects_inaccessible_file(
             file_id="drive-file-id",
         )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == ("Google reconnect is required.")
 
 
 # =====================================================================
@@ -5454,12 +5454,12 @@ def test_report_generation_cleans_up_drive_archive_after_failure(
 
 
 # =====================================================================
-# Verifies that a Drive file becoming inaccessible during download is
-# exposed as a controlled validation error.
+# Verifies that Drive authorization failure during archive download
+# requests Google reconnection instead of treating the file as missing.
 # =====================================================================
 
 
-def test_download_drive_archive_rejects_inaccessible_download(
+def test_download_drive_archive_requires_reconnect_when_access_is_denied(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -5508,8 +5508,8 @@ def test_download_drive_archive_rejects_inaccessible_download(
             destination=destination,
         )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == ("Google reconnect is required.")
 
 
 # =====================================================================
@@ -7228,8 +7228,8 @@ def test_generate_reports_persists_confirmed_and_new_months_together(
 
 
 # =====================================================================
-# Verifies that the web interface confirms existing report replacement
-# and retries generation with the confirmed replacement periods.
+# Verifies that report replacement is explicitly confirmed and retried
+# with the conflicting periods through the shared generation request flow.
 # =====================================================================
 
 
@@ -7240,10 +7240,12 @@ def test_web_interface_confirms_report_replacement() -> None:
 
     html = response.text
 
-    assert "Report months already exist:" in html
     assert "window.confirm(" in html
+    assert "Report months already exist:" in html
+    assert "const replacePeriods =" in html
+    assert "await submitGenerationRequest(" in html
+    assert "replacePeriods," in html
     assert '"replace_periods"' in html
-    assert "formData.set(" in html
 
 
 # =====================================================================
@@ -7595,3 +7597,232 @@ def test_web_interface_uses_unified_generation_request_flow() -> None:
     assert "async function submitGenerationRequest(" in html
     assert "async function readResponseError(" in html
     assert "async function handleSuccessfulGeneration(" in html
+
+
+# =====================================================================
+# Verifies that Drive authorization failures become a controlled
+# reconnect response instead of an internal server error.
+# =====================================================================
+
+
+def test_config_profiles_returns_reconnect_response_for_drive_access_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    def fail_profile_discovery(
+        session,
+    ):
+        raise DriveAccessError("access denied")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_profiles_for_session",
+        fail_profile_discovery,
+    )
+
+    recovery_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    recovery_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = recovery_client.get(
+        "/config/profiles",
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Google reconnect is required.",
+    }
+
+
+# =====================================================================
+# Verifies that transient Drive failures become a controlled retryable
+# response instead of an internal server error.
+# =====================================================================
+
+
+def test_config_profiles_returns_retryable_response_for_transient_drive_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    def fail_profile_discovery(
+        session,
+    ):
+        raise DriveTransientError("temporary failure")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_profiles_for_session",
+        fail_profile_discovery,
+    )
+
+    recovery_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    recovery_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = recovery_client.get(
+        "/config/profiles",
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": ("Google Drive is temporarily unavailable."),
+    }
+
+
+# =====================================================================
+# Verifies that the web interface exposes explicit reconnect, retry,
+# local ZIP and anonymous recovery actions for Google Drive failures.
+# =====================================================================
+
+
+def test_web_interface_exposes_google_drive_recovery_actions() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="google-recovery"' in html
+    assert 'id="google-recovery-reconnect"' in html
+    assert 'id="google-recovery-retry"' in html
+    assert 'id="google-recovery-local"' in html
+    assert 'id="google-recovery-anonymous"' in html
+
+    assert "Reconnect Google" in html
+    assert "Retry Google Drive" in html
+    assert "Choose local ZIP" in html
+    assert "Continue without Google" in html
+
+
+# =====================================================================
+# Verifies that Google recovery copy is user-facing and avoids exposing
+# Picker credential or access-token terminology to the user.
+# =====================================================================
+
+
+def test_web_interface_uses_friendly_google_drive_recovery_copy() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "Google needs to be reconnected before Drive " "features can be used." in html
+
+    assert "Google Drive is temporarily unavailable. " "Retry or choose a local ZIP." in html
+
+    assert "Google Picker credentials are unavailable." not in html
+
+
+# =====================================================================
+# Verifies that retry is initiated only by an explicit user action and
+# does not create an automatic frontend retry loop.
+# =====================================================================
+
+
+def test_web_interface_uses_manual_google_drive_retry() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "let lastGoogleRetryAction = null;" in html
+
+    assert "async function retryGoogleAction()" in html
+
+    assert "googleRecoveryRetry.addEventListener(" in html
+
+    assert "await retryAction();" in html
+    assert "setInterval(" not in html
+
+
+# =====================================================================
+# Verifies that anonymous fallback signs out the local Google-backed
+# session so local generation cannot silently keep Drive persistence.
+# =====================================================================
+
+
+def test_web_interface_anonymous_fallback_signs_out_google_session() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "async function continueWithoutGoogle()" in html
+
+    assert '"/auth/sign-out"' in html
+    assert 'method: "POST"' in html
+
+    assert "applyAnonymousGoogleState();" in html
+
+    assert "Continuing locally without Google Drive." in html
+
+
+# =====================================================================
+# Verifies that Drive-backed generation failures expose reconnect,
+# retry or local-file recovery instead of only surfacing raw API errors.
+# =====================================================================
+
+
+def test_web_interface_recovers_from_drive_generation_failures() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "async function handleGenerationRecovery(" in html
+
+    assert "response.status === 401" in html
+    assert "response.status === 502" in html
+    assert "response.status === 422" in html
+
+    assert "The selected Google Drive ZIP is no longer " "available." in html

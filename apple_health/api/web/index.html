@@ -193,6 +193,61 @@
             display: none !important;
         }
 
+        .google-recovery {
+            margin-bottom: 22px;
+            padding: 14px 16px;
+
+            border: 1px solid rgba(255, 193, 7, 0.32);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 193, 7, 0.07);
+        }
+
+        .google-recovery[hidden] {
+            display: none !important;
+        }
+
+        .google-recovery-message {
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .google-recovery-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+
+            margin-top: 12px;
+        }
+
+        .google-recovery-actions button,
+        .google-recovery-actions a {
+            min-height: 34px;
+            padding: 0 11px;
+
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            border: 1px solid var(--border);
+            border-radius: 8px;
+
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .google-recovery-actions button:hover,
+        .google-recovery-actions a:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.07);
+        }
+
         .archive-source-status,
         .config-source-status {
             margin-top: 10px;
@@ -1184,6 +1239,47 @@
         </header>
 
         <section class="panel">
+            <div
+                class="google-recovery"
+                id="google-recovery"
+                hidden
+            >
+                <div
+                    class="google-recovery-message"
+                    id="google-recovery-message"
+                ></div>
+
+                <div class="google-recovery-actions">
+                    <a
+                        id="google-recovery-reconnect"
+                        href="/auth/google/start"
+                    >
+                        Reconnect Google
+                    </a>
+
+                    <button
+                        id="google-recovery-retry"
+                        type="button"
+                    >
+                        Retry Google Drive
+                    </button>
+
+                    <button
+                        id="google-recovery-local"
+                        type="button"
+                    >
+                        Choose local ZIP
+                    </button>
+
+                    <button
+                        id="google-recovery-anonymous"
+                        type="button"
+                    >
+                        Continue without Google
+                    </button>
+                </div>
+            </div>
+
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">
@@ -1820,6 +1916,38 @@
                 "google-connection-label",
             );
 
+        const googleRecovery =
+            document.getElementById(
+                "google-recovery",
+            );
+
+        const googleRecoveryMessage =
+            document.getElementById(
+                "google-recovery-message",
+            );
+
+        const googleRecoveryReconnect =
+            document.getElementById(
+                "google-recovery-reconnect",
+            );
+
+        const googleRecoveryRetry =
+            document.getElementById(
+                "google-recovery-retry",
+            );
+
+        const googleRecoveryLocal =
+            document.getElementById(
+                "google-recovery-local",
+            );
+
+        const googleRecoveryAnonymous =
+            document.getElementById(
+                "google-recovery-anonymous",
+            );
+
+        let lastGoogleRetryAction = null;
+
         const outputFullText =
             document.getElementById("output-full-text");
 
@@ -2261,13 +2389,153 @@
             results.classList.add("visible");
         }
 
-        async function loadGoogleConnectionState() {
+        function hideGoogleRecovery() {
+            googleRecovery.hidden = true;
+            lastGoogleRetryAction = null;
+        }
+
+        function showGoogleRecovery(
+            message,
+            {
+                reconnect = false,
+                retryAction = null,
+            } = {},
+        ) {
+            googleRecoveryMessage.textContent =
+                message;
+
+            googleRecoveryReconnect.hidden =
+                !reconnect;
+
+            googleRecoveryRetry.hidden =
+                retryAction === null;
+
+            lastGoogleRetryAction =
+                retryAction;
+
+            googleRecovery.hidden = false;
+        }
+
+        function resetDriveArchiveSelection() {
+            selectedDriveFileId = null;
+            selectedDriveFileName = null;
+
+            updateArchiveSourceStatus();
+        }
+
+        function applyAnonymousGoogleState() {
+            resetDriveArchiveSelection();
+
+            googleConnectLabel.textContent =
+                "Connect Google";
+
+            googleConnect.hidden = false;
+            googleConnectionStatus.hidden = true;
+            driveArchivePicker.hidden = true;
+            reportAutosaveControl.hidden = true;
+
+            configProfileSelect.innerHTML =
+                '<option value="">Application defaults</option>';
+
+            configProfileSelect.value = "";
+            configAutosave.checked = false;
+            reportAutosave.checked = false;
+
+            updateConfigSourceStatus();
+            updateGenerationSummary();
+        }
+
+        async function continueWithoutGoogle() {
             const response =
                 await fetch(
-                    "/auth/google/status",
+                    "/auth/sign-out",
+                    {
+                        method: "POST",
+                    },
                 );
 
             if (!response.ok) {
+                throw new Error(
+                    "Could not switch to local mode.",
+                );
+            }
+
+            applyAnonymousGoogleState();
+            hideGoogleRecovery();
+
+            showStatus(
+                "Continuing locally without Google Drive.",
+                "success",
+            );
+        }
+
+        async function retryGoogleAction() {
+            if (lastGoogleRetryAction === null) {
+                return;
+            }
+
+            const retryAction =
+                lastGoogleRetryAction;
+
+            hideGoogleRecovery();
+
+            try {
+                await retryAction();
+            } catch (error) {
+                if (googleRecovery.hidden) {
+                    showGoogleRecovery(
+                        "Google Drive is temporarily unavailable. Retry or choose a local ZIP.",
+                        {
+                            retryAction,
+                        },
+                    );
+                }
+
+                showStatus(
+                    error.message,
+                    "error",
+                );
+            }
+        }
+
+        function showReconnectRecovery() {
+            showGoogleRecovery(
+                "Google needs to be reconnected before Drive features can be used.",
+                {
+                    reconnect: true,
+                },
+            );
+        }
+
+        function showTransientDriveRecovery(
+            retryAction,
+        ) {
+            showGoogleRecovery(
+                "Google Drive is temporarily unavailable. Retry or choose a local ZIP.",
+                {
+                    retryAction,
+                },
+            );
+        }
+
+        async function loadGoogleConnectionState() {
+            let response;
+
+            try {
+                response = await fetch(
+                    "/auth/google/status",
+                );
+            } catch {
+                showTransientDriveRecovery(
+                    loadGoogleConnectionState,
+                );
+                return;
+            }
+
+            if (!response.ok) {
+                showTransientDriveRecovery(
+                    loadGoogleConnectionState,
+                );
                 return;
             }
 
@@ -2277,6 +2545,7 @@
             if (
                 googleStatus.status === "connected"
             ) {
+                hideGoogleRecovery();
                 googleConnect.hidden = true;
 
                 googleConnectionLabel.textContent =
@@ -2303,26 +2572,30 @@
                 googleConnectionStatus.hidden = true;
                 driveArchivePicker.hidden = true;
                 reportAutosaveControl.hidden = true;
+
+                showReconnectRecovery();
                 updateGenerationSummary();
 
                 return;
             }
 
-            googleConnectLabel.textContent =
-                "Connect Google";
-
-            googleConnect.hidden = false;
-            googleConnectionStatus.hidden = true;
-            driveArchivePicker.hidden = true;
-            reportAutosaveControl.hidden = true;
-            updateGenerationSummary();
+            hideGoogleRecovery();
+            applyAnonymousGoogleState();
         }
 
         async function loadConfigProfileState() {
             const response =
                 await fetch("/config/profiles");
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    loadConfigProfileState,
+                );
                 return;
             }
 
@@ -2359,7 +2632,15 @@
             const response =
                 await fetch("/reports/autosave");
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    loadReportAutosaveState,
+                );
                 return;
             }
 
@@ -2390,7 +2671,17 @@
                     },
                 );
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    () => selectConfigProfile(
+                        profileId,
+                    ),
+                );
                 return;
             }
 
@@ -2409,7 +2700,15 @@
                     },
                 );
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    clearConfigProfileSelection,
+                );
                 return;
             }
 
@@ -2429,12 +2728,22 @@
                     "/google/picker/token",
                 );
 
+            if (tokenResponse.status === 401) {
+                showReconnectRecovery();
+                throw new Error(
+                    "Reconnect Google to use Drive.",
+                );
+            }
+
             if (
                 !configResponse.ok
                 || !tokenResponse.ok
             ) {
+                showTransientDriveRecovery(
+                    openGoogleDrivePicker,
+                );
                 throw new Error(
-                    "Google Picker credentials are unavailable.",
+                    "Google Drive is temporarily unavailable.",
                 );
             }
 
@@ -2536,6 +2845,34 @@
             picker.setVisible(true);
         }
 
+        googleRecoveryRetry.addEventListener(
+            "click",
+            retryGoogleAction,
+        );
+
+        googleRecoveryLocal.addEventListener(
+            "click",
+            () => {
+                resetDriveArchiveSelection();
+                hideGoogleRecovery();
+                archiveInput.click();
+            },
+        );
+
+        googleRecoveryAnonymous.addEventListener(
+            "click",
+            async () => {
+                try {
+                    await continueWithoutGoogle();
+                } catch (error) {
+                    showStatus(
+                        error.message,
+                        "error",
+                    );
+                }
+            },
+        );
+
         configProfileSelect.addEventListener(
             "change",
             () => {
@@ -2582,6 +2919,14 @@
                 if (!response.ok) {
                     configAutosave.checked =
                         !configAutosave.checked;
+
+                    if (response.status === 401) {
+                        showReconnectRecovery();
+                    } else {
+                        showTransientDriveRecovery(
+                            loadConfigProfileState,
+                        );
+                    }
                 }
             },
         );
@@ -2624,6 +2969,14 @@
                 if (!response.ok) {
                     reportAutosave.checked =
                         !reportAutosave.checked;
+
+                    if (response.status === 401) {
+                        showReconnectRecovery();
+                    } else {
+                        showTransientDriveRecovery(
+                            loadReportAutosaveState,
+                        );
+                    }
                 }
             },
         );
@@ -2782,6 +3135,68 @@
             );
         }
 
+        async function handleGenerationRecovery(
+            response,
+            retryAction,
+        ) {
+            if (!selectedDriveFileId) {
+                return false;
+            }
+
+            if (response.status === 401) {
+                showReconnectRecovery();
+
+                showStatus(
+                    "Reconnect Google to use the selected Drive ZIP.",
+                    "error",
+                );
+
+                return true;
+            }
+
+            if (response.status === 502) {
+                showTransientDriveRecovery(
+                    retryAction,
+                );
+
+                showStatus(
+                    "Google Drive is temporarily unavailable.",
+                    "error",
+                );
+
+                return true;
+            }
+
+            if (response.status === 422) {
+                const detail =
+                    await readResponseError(
+                        response.clone(),
+                    );
+
+                if (
+                    detail.includes(
+                        "Google Drive file",
+                    )
+                ) {
+                    showGoogleRecovery(
+                        "The selected Google Drive ZIP is no longer available. Choose it again or use a local ZIP.",
+                        {
+                            retryAction: openGoogleDrivePicker,
+                        },
+                    );
+
+                    showStatus(
+                        detail,
+                        "error",
+                    );
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         function parseReplacementPeriods(
             conflictDetail,
         ) {
@@ -2858,6 +3273,15 @@
                     const response =
                         await submitGenerationRequest();
 
+                    if (
+                        await handleGenerationRecovery(
+                            response,
+                            () => generateButton.click(),
+                        )
+                    ) {
+                        return;
+                    }
+
                     if (response.status === 409) {
                         const conflictDetail =
                             await readResponseError(
@@ -2889,6 +3313,15 @@
                                 await submitGenerationRequest(
                                     replacePeriods,
                                 );
+
+                            if (
+                                await handleGenerationRecovery(
+                                    replacementResponse,
+                                    () => generateButton.click(),
+                                )
+                            ) {
+                                return;
+                            }
 
                             if (!replacementResponse.ok) {
                                 throw new Error(

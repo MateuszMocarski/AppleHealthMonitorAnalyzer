@@ -1,7 +1,16 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from fastapi import Cookie, FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi import (
+    Cookie,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from apple_health.api.models import (
@@ -69,6 +78,33 @@ app = FastAPI(
     title="Apple Health Monitor Analyzer",
     version="0.1.0",
 )
+
+
+@app.exception_handler(DriveAccessError)
+async def handle_drive_access_error(
+    _request: Request,
+    _exc: DriveAccessError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={
+            "detail": "Google reconnect is required.",
+        },
+    )
+
+
+@app.exception_handler(DriveTransientError)
+async def handle_drive_transient_error(
+    _request: Request,
+    _exc: DriveTransientError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=502,
+        content={
+            "detail": ("Google Drive is temporarily unavailable."),
+        },
+    )
+
 
 session_store = SessionStore()
 
@@ -253,13 +289,16 @@ def verify_drive_archive(
         metadata = drive_client.get_metadata(
             file_id,
         )
-    except (
-        DriveAccessError,
-        DriveNotFoundError,
-    ) as exc:
+    except DriveAccessError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        ) from exc
+
+    except DriveNotFoundError as exc:
         raise HTTPException(
             status_code=422,
-            detail="Selected Google Drive file is unavailable.",
+            detail=("Selected Google Drive file " "is unavailable."),
         ) from exc
 
     if metadata.trashed:
@@ -309,13 +348,16 @@ def download_drive_archive(
             status_code=413,
             detail="Selected Google Drive archive is too large.",
         ) from exc
-    except (
-        DriveAccessError,
-        DriveNotFoundError,
-    ) as exc:
+    except DriveAccessError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        ) from exc
+
+    except DriveNotFoundError as exc:
         raise HTTPException(
             status_code=422,
-            detail="Selected Google Drive file is unavailable.",
+            detail=("Selected Google Drive file " "is unavailable."),
         ) from exc
     except DriveTransientError as exc:
         raise HTTPException(
