@@ -333,10 +333,14 @@ def download_drive_archive(
     file_id: str,
     destination: Path,
 ) -> DriveDownloadTimings:
+    verification_started = perf_counter()
+
     verify_drive_archive(
         access_token=access_token,
         file_id=file_id,
     )
+
+    verification_seconds = perf_counter() - verification_started
 
     drive_client = HttpGoogleDriveClient(
         access_token,
@@ -377,15 +381,22 @@ def download_drive_archive(
     )
 
     if timings is not None:
-        return timings
+        return DriveDownloadTimings(
+            downloaded_bytes=(timings.downloaded_bytes),
+            verification_seconds=(verification_seconds),
+            response_wait_seconds=(timings.response_wait_seconds),
+            body_transfer_seconds=(timings.body_transfer_seconds),
+            write_seconds=(timings.write_seconds),
+        )
 
     return DriveDownloadTimings(
-        downloaded_bytes=(
-            destination.stat().st_size
-        ),
-        transfer_seconds=0.0,
+        downloaded_bytes=(destination.stat().st_size),
+        verification_seconds=(verification_seconds),
+        response_wait_seconds=0.0,
+        body_transfer_seconds=0.0,
         write_seconds=0.0,
     )
+
 
 @app.get("/")
 def index() -> FileResponse:
@@ -905,12 +916,16 @@ def generate_report(
 
     try:
         parsed_periods = _parse_periods(periods)
-        
+
         request_started = perf_counter()
 
-        drive_download_timings: (
-            DriveDownloadTimings | None
-        ) = None
+        drive_download_timings: DriveDownloadTimings | None = None
+
+        local_archive_copy_seconds: float | None = None
+        config_copy_seconds: float | None = None
+        config_load_seconds: float | None = None
+        report_persistence_seconds: float | None = None
+        config_persistence_seconds: float | None = None
 
         confirmed_replace_periods = {
             period.strip() for period in replace_periods.split(",") if period.strip()
@@ -946,23 +961,23 @@ def generate_report(
                         detail="Google session is unavailable.",
                     )
 
-                drive_download_timings = (
-                    download_drive_archive(
-                        access_token=(
-                            session.google_access_token
-                        ),
-                        file_id=drive_file_id,
-                        destination=archive_path,
-                    )
+                drive_download_timings = download_drive_archive(
+                    access_token=(session.google_access_token),
+                    file_id=drive_file_id,
+                    destination=archive_path,
                 )
 
             elif archive is not None:
+                local_archive_copy_started = perf_counter()
+
                 _copy_upload_to_path(
                     archive,
                     archive_path,
                     max_size=MAX_UPLOAD_SIZE,
                     too_large_detail=("Uploaded archive is too large."),
                 )
+
+                local_archive_copy_seconds = perf_counter() - local_archive_copy_started
 
             else:
                 raise HTTPException(
@@ -974,6 +989,7 @@ def generate_report(
 
             if config is not None:
                 config_path = temporary_directory_path / "config.toml"
+                config_copy_started = perf_counter()
 
                 _copy_upload_to_path(
                     config,
@@ -981,6 +997,8 @@ def generate_report(
                     max_size=MAX_CONFIG_UPLOAD_SIZE,
                     too_large_detail=("Uploaded configuration is too large."),
                 )
+
+                config_copy_seconds = perf_counter() - config_copy_started
 
             selected_drive_config = None
 
@@ -994,9 +1012,13 @@ def generate_report(
                     and session.selected_config_profile_id is not None
                     and config_path is None
                 ):
+                    config_load_started = perf_counter()
+
                     selected_drive_config = load_selected_config_for_session(
                         session,
                     )
+
+                    config_load_seconds = perf_counter() - config_load_started
 
             try:
                 outputs = ReportOutputs(
@@ -1041,6 +1063,8 @@ def generate_report(
                     )
 
                     if session is not None:
+                        report_persistence_started = perf_counter()
+
                         try:
                             _persist_generated_reports(
                                 session=session,
@@ -1049,10 +1073,14 @@ def generate_report(
                             )
 
                         except DriveConflictError as exc:
+                            report_persistence_seconds = perf_counter() - report_persistence_started
+
                             raise HTTPException(
                                 status_code=409,
                                 detail=str(exc),
                             ) from exc
+
+                        report_persistence_seconds = perf_counter() - report_persistence_started
 
                 if (
                     save_config_as is not None
@@ -1064,11 +1092,15 @@ def generate_report(
                     )
 
                     if session is not None:
+                        config_persistence_started = perf_counter()
+
                         save_config_profile_for_session(
                             session,
                             name=save_config_as.strip(),
                             config=(generation_result.effective_config),
                         )
+
+                        config_persistence_seconds = perf_counter() - config_persistence_started
 
                 elif ahm_session is not None:
                     session = session_store.get(
@@ -1076,11 +1108,15 @@ def generate_report(
                     )
 
                     if session is not None and session.config_autosave_enabled:
+                        config_persistence_started = perf_counter()
+
                         save_config_profile_for_session(
                             session,
                             name="Autosave",
                             config=(generation_result.effective_config),
                         )
+
+                        config_persistence_seconds = perf_counter() - config_persistence_started
 
             except ConfigurationError as exc:
                 raise HTTPException(
@@ -1118,11 +1154,7 @@ def generate_report(
                     detail=("Invalid Apple Health export XML."),
                 ) from exc
 
-        
-        total_seconds = (
-            perf_counter()
-            - request_started
-        )
+        total_seconds = perf_counter() - request_started
 
         generation_timings = getattr(
             generation_result,
@@ -1134,51 +1166,100 @@ def generate_report(
             (
                 "archive",
                 "ZIP open",
-                (
-                    generation_timings
-                    .archive_open_seconds
-                ),
+                (generation_timings.archive_open_seconds),
             ),
             (
                 "parse",
                 "XML parse",
-                (
-                    generation_timings
-                    .xml_parse_seconds
-                ),
+                (generation_timings.xml_parse_seconds),
             ),
             (
                 "reports",
                 "Report generation",
-                (
-                    generation_timings
-                    .report_render_seconds
-                ),
+                (generation_timings.report_render_seconds),
             ),
         ]
+
+        if local_archive_copy_seconds is not None:
+            timing_parts.insert(
+                0,
+                (
+                    "local_copy",
+                    "Local archive copy",
+                    local_archive_copy_seconds,
+                ),
+            )
+
+        if config_copy_seconds is not None:
+            timing_parts.append(
+                (
+                    "config_copy",
+                    "Config upload copy",
+                    config_copy_seconds,
+                )
+            )
+
+        if config_load_seconds is not None:
+            timing_parts.append(
+                (
+                    "config_load",
+                    "Drive config load",
+                    config_load_seconds,
+                )
+            )
+
+        if report_persistence_seconds is not None:
+            timing_parts.append(
+                (
+                    "report_save",
+                    "Report persistence",
+                    report_persistence_seconds,
+                )
+            )
+
+        if config_persistence_seconds is not None:
+            timing_parts.append(
+                (
+                    "config_save",
+                    "Config persistence",
+                    config_persistence_seconds,
+                )
+            )
 
         if drive_download_timings is not None:
             timing_parts.insert(
                 0,
                 (
-                    "drive",
-                    "Drive transfer",
-                    (
-                        drive_download_timings
-                        .transfer_seconds
-                    ),
+                    "drive_verify",
+                    "Drive metadata verification",
+                    (drive_download_timings.verification_seconds),
                 ),
             )
 
             timing_parts.insert(
                 1,
                 (
+                    "drive_wait",
+                    "Drive response wait",
+                    (drive_download_timings.response_wait_seconds),
+                ),
+            )
+
+            timing_parts.insert(
+                2,
+                (
+                    "drive_body",
+                    "Drive body transfer",
+                    (drive_download_timings.body_transfer_seconds),
+                ),
+            )
+
+            timing_parts.insert(
+                3,
+                (
                     "write",
                     "Temporary file write",
-                    (
-                        drive_download_timings
-                        .write_seconds
-                    ),
+                    (drive_download_timings.write_seconds),
                 ),
             )
 
@@ -1190,22 +1271,15 @@ def generate_report(
             )
         )
 
-        response.headers["Server-Timing"] = (
-            ", ".join(
-                (
-                    f"{name};"
-                    f"dur={seconds * 1000:.1f};"
-                    f'desc="{description}"'
-                )
-                for (
-                    name,
-                    description,
-                    seconds,
-                ) in timing_parts
-            )
+        response.headers["Server-Timing"] = ", ".join(
+            (f"{name};" f"dur={seconds * 1000:.1f};" f'desc="{description}"')
+            for (
+                name,
+                description,
+                seconds,
+            ) in timing_parts
         )
-        
-        
+
         return MultiMonthReportResponse(
             reports=[
                 MonthlyReportResponse(

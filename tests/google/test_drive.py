@@ -1249,8 +1249,8 @@ def test_download_file_uses_extended_timeout(
     )
 
     assert captured_timeout == client.DOWNLOAD_TIMEOUT
-    
-    
+
+
 # =====================================================================
 # Verifies that Drive download diagnostics separate remote transfer wait
 # from local temporary-file write time without changing byte-limit logic.
@@ -1284,15 +1284,17 @@ def test_http_drive_client_records_download_transfer_and_write_timings(
     clock = iter(
         (
             0.0,
-            1.0,
-            1.0,
-            1.1,
-            1.1,
-            2.1,
-            2.1,
-            2.3,
-            2.3,
-            2.8,
+            5.0,
+            5.0,
+            6.0,
+            6.0,
+            6.1,
+            6.1,
+            7.1,
+            7.1,
+            7.3,
+            7.3,
+            7.8,
         )
     )
 
@@ -1325,5 +1327,7 @@ def test_http_drive_client_records_download_transfer_and_write_timings(
 
     assert timings is not None
     assert timings.downloaded_bytes == 11
-    assert timings.transfer_seconds == pytest.approx(2.5)
+    assert timings.verification_seconds == 0.0
+    assert timings.response_wait_seconds == pytest.approx(5.0)
+    assert timings.body_transfer_seconds == pytest.approx(2.5)
     assert timings.write_seconds == pytest.approx(0.3)

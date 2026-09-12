@@ -111,6 +111,36 @@
             gap: 8px;
         }
 
+        .diagnostics-toggle {
+            min-height: 40px;
+            padding: 0 12px;
+
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+
+            border: 1px solid var(--border);
+            border-radius: 10px;
+
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text-secondary);
+
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .diagnostics-toggle:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+        }
+
+        .diagnostics-toggle input {
+            margin: 0;
+        }
+
         .repo-link {
             display: inline-flex;
             align-items: center;
@@ -1216,6 +1246,19 @@
                         <span id="google-connection-label"></span>
                     </span>
 
+                    <label
+                        class="diagnostics-toggle"
+                        title="Show technical timing details after report generation"
+                    >
+                        <input
+                            id="technical-diagnostics"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span>Technical diagnostics</span>
+                    </label>
+
                     <a
                         class="repo-link"
                         href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
@@ -1862,6 +1905,11 @@
         const generationSummary =
             document.getElementById(
                 "generation-summary",
+            );
+
+        const technicalDiagnostics =
+            document.getElementById(
+                "technical-diagnostics",
             );
 
         const selectedMonths = new Set();
@@ -3180,38 +3228,110 @@
             });
 
             const details = [];
+            const accountedTimingNames = [];
 
-            if (timings.has("drive")) {
+            if (timings.has("local_copy")) {
                 details.push(
-                    `Drive ${timings.get("drive").toFixed(1)}s`,
+                    `local ZIP copy ${timings.get("local_copy").toFixed(1)}s`,
                 );
+                accountedTimingNames.push("local_copy");
+            }
+
+            if (timings.has("drive_verify")) {
+                details.push(
+                    `Drive verify ${timings.get("drive_verify").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("drive_verify");
+            }
+
+            if (timings.has("drive_wait")) {
+                details.push(
+                    `Drive wait ${timings.get("drive_wait").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("drive_wait");
+            }
+
+            if (timings.has("drive_body")) {
+                details.push(
+                    `Drive body ${timings.get("drive_body").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("drive_body");
             }
 
             if (timings.has("write")) {
                 details.push(
                     `temp write ${timings.get("write").toFixed(1)}s`,
                 );
+                accountedTimingNames.push("write");
+            }
+
+            if (timings.has("config_copy")) {
+                details.push(
+                    `config copy ${timings.get("config_copy").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("config_copy");
+            }
+
+            if (timings.has("config_load")) {
+                details.push(
+                    `Drive config ${timings.get("config_load").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("config_load");
             }
 
             if (timings.has("archive")) {
                 details.push(
                     `ZIP open ${timings.get("archive").toFixed(1)}s`,
                 );
+                accountedTimingNames.push("archive");
             }
 
             if (timings.has("parse")) {
                 details.push(
                     `XML parse ${timings.get("parse").toFixed(1)}s`,
                 );
+                accountedTimingNames.push("parse");
             }
 
             if (timings.has("reports")) {
                 details.push(
                     `reports ${timings.get("reports").toFixed(1)}s`,
                 );
+                accountedTimingNames.push("reports");
+            }
+
+            if (timings.has("report_save")) {
+                details.push(
+                    `report save ${timings.get("report_save").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("report_save");
+            }
+
+            if (timings.has("config_save")) {
+                details.push(
+                    `config save ${timings.get("config_save").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("config_save");
             }
 
             if (timings.has("total")) {
+                const accountedSeconds =
+                    accountedTimingNames.reduce(
+                        (sum, name) => sum + timings.get(name),
+                        0,
+                    );
+
+                const otherSeconds = Math.max(
+                    0,
+                    timings.get("total") - accountedSeconds,
+                );
+
+                if (otherSeconds >= 0.05) {
+                    details.push(
+                        `other backend ${otherSeconds.toFixed(1)}s`,
+                    );
+                }
+
                 return `Total ${timings.get("total").toFixed(1)}s`
                     + (
                         details.length > 0
@@ -3238,9 +3358,11 @@
             await loadGoogleConnectionState();
 
             const performanceSummary =
-                formatPerformanceSummary(
-                    response.headers.get("Server-Timing"),
-                );
+                technicalDiagnostics.checked
+                    ? formatPerformanceSummary(
+                        response.headers.get("Server-Timing"),
+                    )
+                    : null;
 
             const successMessage =
                 `Generated ${payload.reports.length} monthly report set(s).`

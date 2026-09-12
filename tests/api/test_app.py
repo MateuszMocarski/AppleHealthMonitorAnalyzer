@@ -7952,8 +7952,8 @@ def test_web_interface_renders_generation_summary_without_inner_html() -> None:
     assert "generationSummary.innerHTML" not in html
     assert "generationSummary.replaceChildren(" in html
     assert "document.createTextNode(line)" in html
-    
-    
+
+
 # =====================================================================
 # Verifies that successful report generation exposes phase timings via
 # the standard Server-Timing response header without changing the body.
@@ -7989,10 +7989,12 @@ def test_report_generation_exposes_server_timing_header(
     assert "reports;dur=" in server_timing
     assert "total;dur=" in server_timing
 
-    assert "drive;dur=" not in server_timing
+    assert "drive_verify;dur=" not in server_timing
+    assert "drive_wait;dur=" not in server_timing
+    assert "drive_body;dur=" not in server_timing
     assert "write;dur=" not in server_timing
-    
-    
+
+
 # =====================================================================
 # Verifies that Drive-backed archive downloads expose measured transfer
 # and temporary-file write timings to the report-generation response.
@@ -8005,9 +8007,11 @@ def test_download_drive_archive_returns_download_timings(
 ) -> None:
     from apple_health.google.drive import DriveDownloadTimings
 
-    expected_timings = DriveDownloadTimings(
+    client_timings = DriveDownloadTimings(
         downloaded_bytes=11,
-        transfer_seconds=2.5,
+        verification_seconds=0.0,
+        response_wait_seconds=5.0,
+        body_transfer_seconds=2.5,
         write_seconds=0.3,
     )
 
@@ -8018,9 +8022,7 @@ def test_download_drive_archive_returns_download_timings(
         ) -> None:
             assert access_token == "drive-token"
 
-            self.last_download_timings = (
-                expected_timings
-            )
+            self.last_download_timings = client_timings
 
         def download_file(
             self,
@@ -8049,17 +8051,34 @@ def test_download_drive_archive_returns_download_timings(
         FakeDriveClient,
     )
 
+    verification_clock = iter(
+        (
+            10.0,
+            12.0,
+        )
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "perf_counter",
+        lambda: next(verification_clock),
+    )
+
     timings = download_drive_archive(
         access_token="drive-token",
         file_id="drive-file-id",
-        destination=(
-            tmp_path / "archive.zip"
-        ),
+        destination=(tmp_path / "archive.zip"),
     )
 
-    assert timings == expected_timings
-    
-    
+    assert timings == DriveDownloadTimings(
+        downloaded_bytes=11,
+        verification_seconds=2.0,
+        response_wait_seconds=5.0,
+        body_transfer_seconds=2.5,
+        write_seconds=0.3,
+    )
+
+
 # =====================================================================
 # Verifies that the web UI distinguishes Drive transfer from local
 # parsing and renders backend performance diagnostics after generation.
@@ -8073,38 +8092,110 @@ def test_web_interface_exposes_drive_transfer_progress_and_timings() -> None:
 
     html = response.text
 
-    assert (
-        "function formatPerformanceSummary("
-        in html
+    assert 'id="technical-diagnostics"' in html
+
+    assert "Technical diagnostics" in html
+
+    assert "function formatPerformanceSummary(" in html
+
+    assert 'response.headers.get("Server-Timing")' in html
+
+    assert "Downloading the Apple Health ZIP " "from Google Drive" in html
+
+    assert 'Drive verify ${timings.get("drive_verify").toFixed(1)}s' in html
+
+    assert 'Drive wait ${timings.get("drive_wait").toFixed(1)}s' in html
+
+    assert 'Drive body ${timings.get("drive_body").toFixed(1)}s' in html
+
+    assert 'temp write ${timings.get("write").toFixed(1)}s' in html
+
+    assert "other backend ${otherSeconds.toFixed(1)}s" in html
+
+    assert "technicalDiagnostics.checked" in html
+
+
+# =====================================================================
+# Verifies that request diagnostics account for local archive copying
+# and report persistence outside the core report-generation pipeline.
+# =====================================================================
+
+
+def test_report_generation_server_timing_accounts_for_persistence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
     )
 
-    assert (
-        'response.headers.get("Server-Timing")'
-        in html
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
     )
 
-    assert (
-        "Downloading the Apple Health ZIP "
-        "from Google Drive"
-        in html
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
     )
 
-    assert (
-        'Drive ${timings.get("drive").toFixed(1)}s'
-        in html
+    monkeypatch.setattr(
+        api_app_module,
+        "_persist_generated_reports",
+        lambda **kwargs: None,
     )
 
-    assert (
-        'temp write ${timings.get("write").toFixed(1)}s'
-        in html
+    clock = iter(
+        (
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            8.0,
+            10.0,
+        )
     )
 
-    assert (
-        'XML parse ${timings.get("parse").toFixed(1)}s'
-        in html
+    monkeypatch.setattr(
+        api_app_module,
+        "perf_counter",
+        lambda: next(clock),
     )
 
-    assert (
-        'reports ${timings.get("reports").toFixed(1)}s'
-        in html
+    archive_path = _create_export_archive(tmp_path)
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
     )
+
+    with archive_path.open("rb") as archive:
+        response = auth_client.post(
+            "/reports/generate",
+            data={
+                "periods": "2026-08",
+            },
+            files={
+                "archive": (
+                    "export.zip",
+                    archive,
+                    "application/zip",
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+
+    server_timing = response.headers["Server-Timing"]
+
+    assert "local_copy;dur=1000.0" in server_timing
+    assert "report_save;dur=5000.0" in server_timing
+    assert "total;dur=10000.0" in server_timing

@@ -1,5 +1,5 @@
-from time import perf_counter
 from datetime import datetime, timezone
+from time import perf_counter
 from uuid import uuid4
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
@@ -95,10 +95,7 @@ class AppleHealthApplication:
         archive_open_started = perf_counter()
 
         with importer.open_export() as xml_stream:
-            archive_open_seconds = (
-                perf_counter()
-                - archive_open_started
-            )
+            archive_open_seconds = perf_counter() - archive_open_started
 
             xml_parse_started = perf_counter()
 
@@ -107,10 +104,7 @@ class AppleHealthApplication:
                 config=config,
             ).parse()
 
-            xml_parse_seconds = (
-                perf_counter()
-                - xml_parse_started
-            )
+            xml_parse_seconds = perf_counter() - xml_parse_started
 
         report_render_started = perf_counter()
 
@@ -164,23 +158,14 @@ class AppleHealthApplication:
                 )
             )
 
-        report_render_seconds = (
-            perf_counter()
-            - report_render_started
-        )
+        report_render_seconds = perf_counter() - report_render_started
 
         return ReportGenerationResult(
             reports=tuple(reports),
             effective_config=config,
             timings=ReportGenerationTimings(
-                archive_open_seconds=(
-                    archive_open_seconds
-                ),
-                xml_parse_seconds=(
-                    xml_parse_seconds
-                ),
-                report_render_seconds=(
-                    report_render_seconds
-                ),
+                archive_open_seconds=(archive_open_seconds),
+                xml_parse_seconds=(xml_parse_seconds),
+                report_render_seconds=(report_render_seconds),
             ),
         )
