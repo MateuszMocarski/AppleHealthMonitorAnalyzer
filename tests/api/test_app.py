@@ -7826,3 +7826,129 @@ def test_web_interface_recovers_from_drive_generation_failures() -> None:
     assert "response.status === 422" in html
 
     assert "The selected Google Drive ZIP is no longer " "available." in html
+
+
+# =====================================================================
+# Verifies that temporary uploaded configuration files are deleted after
+# successful report generation together with the temporary archive.
+# =====================================================================
+
+
+def test_report_generation_deletes_temporary_config_after_success(
+    monkeypatch,
+) -> None:
+    temporary_config_path = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal temporary_config_path
+
+        temporary_config_path = options.config_path
+
+        assert temporary_config_path is not None
+        assert temporary_config_path.exists()
+
+        return _generation_result()
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[source]\n",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert temporary_config_path is not None
+    assert not temporary_config_path.exists()
+
+
+# =====================================================================
+# Verifies that temporary uploaded configuration files are deleted when
+# report generation fails.
+# =====================================================================
+
+
+def test_report_generation_deletes_temporary_config_after_failure(
+    monkeypatch,
+) -> None:
+    temporary_config_path = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal temporary_config_path
+
+        temporary_config_path = options.config_path
+
+        assert temporary_config_path is not None
+        assert temporary_config_path.exists()
+
+        raise InvalidArchiveError
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[source]\n",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert temporary_config_path is not None
+    assert not temporary_config_path.exists()
+
+
+# =====================================================================
+# Verifies that user-controlled archive and configuration names are not
+# interpolated into generation-summary HTML.
+# =====================================================================
+
+
+def test_web_interface_renders_generation_summary_without_inner_html() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "generationSummary.innerHTML" not in html
+    assert "generationSummary.replaceChildren(" in html
+    assert "document.createTextNode(line)" in html

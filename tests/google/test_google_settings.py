@@ -266,3 +266,28 @@ def test_google_settings_reject_unsupported_redirect_uri_scheme() -> None:
         match="GOOGLE_REDIRECT_URI",
     ):
         GoogleSettings.from_environment(environment)
+
+
+# =====================================================================
+# Verifies that application secrets are redacted from the Google
+# settings representation used by diagnostics/logging.
+# =====================================================================
+
+
+def test_google_settings_repr_redacts_secrets() -> None:
+    settings = GoogleSettings.from_environment(
+        {
+            "AHM_ENV": "development",
+            "GOOGLE_CLIENT_ID": "dev-client-id",
+            "GOOGLE_CLIENT_SECRET": "client-secret-value",
+            "GOOGLE_REDIRECT_URI": ("http://localhost:8000/auth/google/callback"),
+            "GOOGLE_PICKER_API_KEY": "dev-picker-key",
+            "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
+            "AHM_SESSION_SECRET": "session-secret-value",
+        }
+    )
+
+    rendered = repr(settings)
+
+    assert "client-secret-value" not in rendered
+    assert "session-secret-value" not in rendered

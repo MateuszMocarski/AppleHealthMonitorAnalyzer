@@ -1,15 +1,27 @@
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 
 
 @dataclass(frozen=True)
 class Session:
-    session_id: str
+    session_id: str = field(
+        repr=False,
+    )
+
     expires_at: datetime
-    oauth_state: str | None = None
-    google_access_token: str | None = None
+
+    oauth_state: str | None = field(
+        default=None,
+        repr=False,
+    )
+
+    google_access_token: str | None = field(
+        default=None,
+        repr=False,
+    )
+
     google_sub: str | None = None
     google_email: str | None = None
     google_granted_scopes: frozenset[str] | None = None

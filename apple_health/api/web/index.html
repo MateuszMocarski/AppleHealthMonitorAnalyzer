@@ -2033,17 +2033,36 @@
                     .join(", ")
                 || "None";
 
-            generationSummary.innerHTML = `
-                <strong>Generation summary</strong><br>
-                ZIP: ${archiveSource}<br>
-                Periods: ${periods}<br>
-                Config: ${configSource}<br>
-                Outputs: ${
+            const summaryTitle =
+                document.createElement("strong");
+
+            summaryTitle.textContent =
+                "Generation summary";
+
+            const summaryLines = [
+                `ZIP: ${archiveSource}`,
+                `Periods: ${periods}`,
+                `Config: ${configSource}`,
+                `Outputs: ${
                     selectedOutputs.join(", ")
                     || "None"
-                }<br>
-                Persistence: ${autosaveState}
-            `;
+                }`,
+                `Persistence: ${autosaveState}`,
+            ];
+
+            generationSummary.replaceChildren(
+                summaryTitle,
+            );
+
+            summaryLines.forEach((line) => {
+                generationSummary.appendChild(
+                    document.createElement("br"),
+                );
+
+                generationSummary.appendChild(
+                    document.createTextNode(line),
+                );
+            });
         }
 
         function updateArchiveSourceStatus() {

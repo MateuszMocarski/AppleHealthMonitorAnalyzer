@@ -1396,3 +1396,23 @@ def test_complete_oauth_accepts_canonical_google_email_scope() -> None:
 
     assert session is not None
     assert session.google_access_token == "access-token"
+
+
+# =====================================================================
+# Verifies that OAuth access tokens are redacted from token-response
+# representations used by diagnostics/logging.
+# =====================================================================
+
+
+def test_google_token_response_repr_redacts_access_token() -> None:
+    token_response = GoogleTokenResponse(
+        access_token="google-access-token-secret",
+        expires_in_seconds=3600,
+        granted_scopes=frozenset(
+            {
+                "openid",
+            }
+        ),
+    )
+
+    assert "google-access-token-secret" not in repr(token_response)
