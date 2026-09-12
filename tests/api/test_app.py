@@ -7952,3 +7952,159 @@ def test_web_interface_renders_generation_summary_without_inner_html() -> None:
     assert "generationSummary.innerHTML" not in html
     assert "generationSummary.replaceChildren(" in html
     assert "document.createTextNode(line)" in html
+    
+    
+# =====================================================================
+# Verifies that successful report generation exposes phase timings via
+# the standard Server-Timing response header without changing the body.
+# =====================================================================
+
+
+def test_report_generation_exposes_server_timing_header(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(tmp_path)
+
+    with archive_path.open("rb") as archive:
+        response = client.post(
+            "/reports/generate",
+            data={
+                "periods": "2026-08",
+            },
+            files={
+                "archive": (
+                    "export.zip",
+                    archive,
+                    "application/zip",
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+
+    server_timing = response.headers["Server-Timing"]
+
+    assert "archive;dur=" in server_timing
+    assert "parse;dur=" in server_timing
+    assert "reports;dur=" in server_timing
+    assert "total;dur=" in server_timing
+
+    assert "drive;dur=" not in server_timing
+    assert "write;dur=" not in server_timing
+    
+    
+# =====================================================================
+# Verifies that Drive-backed archive downloads expose measured transfer
+# and temporary-file write timings to the report-generation response.
+# =====================================================================
+
+
+def test_download_drive_archive_returns_download_timings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from apple_health.google.drive import DriveDownloadTimings
+
+    expected_timings = DriveDownloadTimings(
+        downloaded_bytes=11,
+        transfer_seconds=2.5,
+        write_seconds=0.3,
+    )
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+            self.last_download_timings = (
+                expected_timings
+            )
+
+        def download_file(
+            self,
+            file_id: str,
+            destination: Path,
+            max_bytes: int,
+        ) -> int:
+            assert file_id == "drive-file-id"
+            assert max_bytes == MAX_UPLOAD_SIZE
+
+            destination.write_bytes(
+                b"hello world",
+            )
+
+            return 11
+
+    monkeypatch.setattr(
+        api_app_module,
+        "verify_drive_archive",
+        lambda **kwargs: None,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    timings = download_drive_archive(
+        access_token="drive-token",
+        file_id="drive-file-id",
+        destination=(
+            tmp_path / "archive.zip"
+        ),
+    )
+
+    assert timings == expected_timings
+    
+    
+# =====================================================================
+# Verifies that the web UI distinguishes Drive transfer from local
+# parsing and renders backend performance diagnostics after generation.
+# =====================================================================
+
+
+def test_web_interface_exposes_drive_transfer_progress_and_timings() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert (
+        "function formatPerformanceSummary("
+        in html
+    )
+
+    assert (
+        'response.headers.get("Server-Timing")'
+        in html
+    )
+
+    assert (
+        "Downloading the Apple Health ZIP "
+        "from Google Drive"
+        in html
+    )
+
+    assert (
+        'Drive ${timings.get("drive").toFixed(1)}s'
+        in html
+    )
+
+    assert (
+        'temp write ${timings.get("write").toFixed(1)}s'
+        in html
+    )
+
+    assert (
+        'XML parse ${timings.get("parse").toFixed(1)}s'
+        in html
+    )
+
+    assert (
+        'reports ${timings.get("reports").toFixed(1)}s'
+        in html
+    )

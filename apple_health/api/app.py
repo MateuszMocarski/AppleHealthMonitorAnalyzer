@@ -1,5 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import perf_counter
 
 from fastapi import (
     Cookie,
@@ -19,6 +20,9 @@ from apple_health.api.models import (
 )
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_generation_result import (
+    ReportGenerationTimings,
+)
 from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
@@ -39,6 +43,7 @@ from apple_health.google.config_profiles import (
 from apple_health.google.drive import (
     DriveAccessError,
     DriveConflictError,
+    DriveDownloadTimings,
     DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveNotFoundError,
@@ -327,7 +332,7 @@ def download_drive_archive(
     access_token: str,
     file_id: str,
     destination: Path,
-) -> None:
+) -> DriveDownloadTimings:
     verify_drive_archive(
         access_token=access_token,
         file_id=file_id,
@@ -365,6 +370,22 @@ def download_drive_archive(
             detail="Google Drive is temporarily unavailable.",
         ) from exc
 
+    timings = getattr(
+        drive_client,
+        "last_download_timings",
+        None,
+    )
+
+    if timings is not None:
+        return timings
+
+    return DriveDownloadTimings(
+        downloaded_bytes=(
+            destination.stat().st_size
+        ),
+        transfer_seconds=0.0,
+        write_seconds=0.0,
+    )
 
 @app.get("/")
 def index() -> FileResponse:
@@ -884,6 +905,12 @@ def generate_report(
 
     try:
         parsed_periods = _parse_periods(periods)
+        
+        request_started = perf_counter()
+
+        drive_download_timings: (
+            DriveDownloadTimings | None
+        ) = None
 
         confirmed_replace_periods = {
             period.strip() for period in replace_periods.split(",") if period.strip()
@@ -919,10 +946,14 @@ def generate_report(
                         detail="Google session is unavailable.",
                     )
 
-                download_drive_archive(
-                    access_token=session.google_access_token,
-                    file_id=drive_file_id,
-                    destination=archive_path,
+                drive_download_timings = (
+                    download_drive_archive(
+                        access_token=(
+                            session.google_access_token
+                        ),
+                        file_id=drive_file_id,
+                        destination=archive_path,
+                    )
                 )
 
             elif archive is not None:
@@ -1087,6 +1118,94 @@ def generate_report(
                     detail=("Invalid Apple Health export XML."),
                 ) from exc
 
+        
+        total_seconds = (
+            perf_counter()
+            - request_started
+        )
+
+        generation_timings = getattr(
+            generation_result,
+            "timings",
+            ReportGenerationTimings(),
+        )
+
+        timing_parts = [
+            (
+                "archive",
+                "ZIP open",
+                (
+                    generation_timings
+                    .archive_open_seconds
+                ),
+            ),
+            (
+                "parse",
+                "XML parse",
+                (
+                    generation_timings
+                    .xml_parse_seconds
+                ),
+            ),
+            (
+                "reports",
+                "Report generation",
+                (
+                    generation_timings
+                    .report_render_seconds
+                ),
+            ),
+        ]
+
+        if drive_download_timings is not None:
+            timing_parts.insert(
+                0,
+                (
+                    "drive",
+                    "Drive transfer",
+                    (
+                        drive_download_timings
+                        .transfer_seconds
+                    ),
+                ),
+            )
+
+            timing_parts.insert(
+                1,
+                (
+                    "write",
+                    "Temporary file write",
+                    (
+                        drive_download_timings
+                        .write_seconds
+                    ),
+                ),
+            )
+
+        timing_parts.append(
+            (
+                "total",
+                "Total request",
+                total_seconds,
+            )
+        )
+
+        response.headers["Server-Timing"] = (
+            ", ".join(
+                (
+                    f"{name};"
+                    f"dur={seconds * 1000:.1f};"
+                    f'desc="{description}"'
+                )
+                for (
+                    name,
+                    description,
+                    seconds,
+                ) in timing_parts
+            )
+        )
+        
+        
         return MultiMonthReportResponse(
             reports=[
                 MonthlyReportResponse(

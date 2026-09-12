@@ -1249,3 +1249,81 @@ def test_download_file_uses_extended_timeout(
     )
 
     assert captured_timeout == client.DOWNLOAD_TIMEOUT
+    
+    
+# =====================================================================
+# Verifies that Drive download diagnostics separate remote transfer wait
+# from local temporary-file write time without changing byte-limit logic.
+# =====================================================================
+
+
+def test_http_drive_client_records_download_transfer_and_write_timings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def iter_bytes(self):
+            yield b"hello "
+            yield b"world"
+
+    class FakeStream:
+        def __enter__(self) -> FakeResponse:
+            return FakeResponse()
+
+        def __exit__(
+            self,
+            exc_type,
+            exc_value,
+            traceback,
+        ) -> None:
+            pass
+
+    clock = iter(
+        (
+            0.0,
+            1.0,
+            1.0,
+            1.1,
+            1.1,
+            2.1,
+            2.1,
+            2.3,
+            2.3,
+            2.8,
+        )
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.httpx.stream",
+        lambda *args, **kwargs: FakeStream(),
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.perf_counter",
+        lambda: next(clock),
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    destination = tmp_path / "download.bin"
+
+    downloaded_bytes = client.download_file(
+        file_id="file-123",
+        destination=destination,
+        max_bytes=100,
+    )
+
+    assert downloaded_bytes == 11
+    assert destination.read_bytes() == b"hello world"
+
+    timings = client.last_download_timings
+
+    assert timings is not None
+    assert timings.downloaded_bytes == 11
+    assert timings.transfer_seconds == pytest.approx(2.5)
+    assert timings.write_seconds == pytest.approx(0.3)

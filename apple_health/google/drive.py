@@ -2,6 +2,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Protocol
 
 import httpx
@@ -21,6 +22,13 @@ class DriveFileMetadata:
 class DriveFilePage:
     files: tuple[DriveFileMetadata, ...]
     next_page_token: str | None
+    
+
+@dataclass(frozen=True)
+class DriveDownloadTimings:
+    downloaded_bytes: int
+    transfer_seconds: float
+    write_seconds: float
 
 
 class DriveClient(Protocol):
@@ -91,12 +99,23 @@ class HttpGoogleDriveClient:
     REQUEST_TIMEOUT = 10.0
     DOWNLOAD_TIMEOUT = 60.0
     READ_MAX_ATTEMPTS = 3
+    
+    @property
+    def last_download_timings(
+        self,
+    ) -> DriveDownloadTimings | None:
+        return self._last_download_timings
 
     def __init__(
         self,
         access_token: str,
     ) -> None:
         self._access_token = access_token
+        self._access_token = access_token
+
+        self._last_download_timings: (
+            DriveDownloadTimings | None
+        ) = None
 
     def get_metadata(
         self,
@@ -423,13 +442,22 @@ class HttpGoogleDriveClient:
         max_bytes: int,
     ) -> int:
         downloaded_bytes = 0
+        transfer_seconds = 0.0
+        write_seconds = 0.0
+
+        self._last_download_timings = None
 
         try:
             with httpx.stream(
                 "GET",
-                f"{self.API_BASE_URL}/files/{file_id}",
+                (
+                    f"{self.API_BASE_URL}"
+                    f"/files/{file_id}"
+                ),
                 headers={
-                    "Authorization": (f"Bearer {self._access_token}"),
+                    "Authorization": (
+                        f"Bearer {self._access_token}"
+                    ),
                 },
                 params={
                     "alt": "media",
@@ -438,27 +466,76 @@ class HttpGoogleDriveClient:
             ) as response:
                 try:
                     response.raise_for_status()
+
                 except httpx.HTTPStatusError as exc:
                     self._raise_http_error(
                         exc,
                     )
 
                 try:
-                    with destination.open("wb") as output:
-                        for chunk in response.iter_bytes():
-                            downloaded_bytes += len(chunk)
+                    chunks = iter(
+                        response.iter_bytes(),
+                    )
 
-                            if downloaded_bytes > max_bytes:
-                                raise DriveDownloadTooLargeError(
-                                    "Google Drive download exceeds size limit"
+                    with destination.open(
+                        "wb",
+                    ) as output:
+                        while True:
+                            transfer_started = (
+                                perf_counter()
+                            )
+
+                            try:
+                                chunk = next(
+                                    chunks,
                                 )
 
-                            output.write(chunk)
+                            except StopIteration:
+                                transfer_seconds += (
+                                    perf_counter()
+                                    - transfer_started
+                                )
+
+                                break
+
+                            transfer_seconds += (
+                                perf_counter()
+                                - transfer_started
+                            )
+
+                            downloaded_bytes += len(
+                                chunk,
+                            )
+
+                            if (
+                                downloaded_bytes
+                                > max_bytes
+                            ):
+                                raise (
+                                    DriveDownloadTooLargeError(
+                                        "Google Drive download "
+                                        "exceeds size limit"
+                                    )
+                                )
+
+                            write_started = (
+                                perf_counter()
+                            )
+
+                            output.write(
+                                chunk,
+                            )
+
+                            write_seconds += (
+                                perf_counter()
+                                - write_started
+                            )
 
                 except DriveDownloadTooLargeError:
                     destination.unlink(
                         missing_ok=True,
                     )
+
                     raise
 
         except httpx.RequestError as exc:
@@ -466,7 +543,24 @@ class HttpGoogleDriveClient:
                 missing_ok=True,
             )
 
-            raise DriveTransientError("Google Drive request failed temporarily") from exc
+            raise DriveTransientError(
+                "Google Drive request failed "
+                "temporarily"
+            ) from exc
+
+        self._last_download_timings = (
+            DriveDownloadTimings(
+                downloaded_bytes=(
+                    downloaded_bytes
+                ),
+                transfer_seconds=(
+                    transfer_seconds
+                ),
+                write_seconds=(
+                    write_seconds
+                ),
+            )
+        )
 
         return downloaded_bytes
 

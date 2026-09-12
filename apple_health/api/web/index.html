@@ -3144,6 +3144,87 @@
             );
         }
 
+        function formatPerformanceSummary(
+            serverTiming,
+        ) {
+            if (!serverTiming) {
+                return null;
+            }
+
+            const timings = new Map();
+
+            serverTiming.split(",").forEach((entry) => {
+                const parts =
+                    entry.trim().split(";");
+
+                const name = parts[0];
+                const durationPart =
+                    parts.find(
+                        (part) => part.startsWith("dur="),
+                    );
+
+                if (!durationPart) {
+                    return;
+                }
+
+                const milliseconds = Number(
+                    durationPart.slice(4),
+                );
+
+                if (Number.isFinite(milliseconds)) {
+                    timings.set(
+                        name,
+                        milliseconds / 1000,
+                    );
+                }
+            });
+
+            const details = [];
+
+            if (timings.has("drive")) {
+                details.push(
+                    `Drive ${timings.get("drive").toFixed(1)}s`,
+                );
+            }
+
+            if (timings.has("write")) {
+                details.push(
+                    `temp write ${timings.get("write").toFixed(1)}s`,
+                );
+            }
+
+            if (timings.has("archive")) {
+                details.push(
+                    `ZIP open ${timings.get("archive").toFixed(1)}s`,
+                );
+            }
+
+            if (timings.has("parse")) {
+                details.push(
+                    `XML parse ${timings.get("parse").toFixed(1)}s`,
+                );
+            }
+
+            if (timings.has("reports")) {
+                details.push(
+                    `reports ${timings.get("reports").toFixed(1)}s`,
+                );
+            }
+
+            if (timings.has("total")) {
+                return `Total ${timings.get("total").toFixed(1)}s`
+                    + (
+                        details.length > 0
+                            ? ` · ${details.join(" · ")}`
+                            : ""
+                    );
+            }
+
+            return details.length > 0
+                ? details.join(" · ")
+                : null;
+        }
+
         async function handleSuccessfulGeneration(
             response,
         ) {
@@ -3156,8 +3237,21 @@
 
             await loadGoogleConnectionState();
 
+            const performanceSummary =
+                formatPerformanceSummary(
+                    response.headers.get("Server-Timing"),
+                );
+
+            const successMessage =
+                `Generated ${payload.reports.length} monthly report set(s).`
+                + (
+                    performanceSummary
+                        ? ` ${performanceSummary}`
+                        : ""
+                );
+
             showStatus(
-                `Generated ${payload.reports.length} monthly report set(s).`,
+                successMessage,
                 "success",
             );
         }
@@ -3292,7 +3386,14 @@
                 results.classList.remove("visible");
 
                 showStatus(
-                    "Parsing Apple Health data and generating reports…",
+                    selectedDriveFileId
+                        ? (
+                            "Downloading the Apple Health ZIP from Google Drive "
+                            + "and generating reports…"
+                        )
+                        : (
+                            "Parsing Apple Health data and generating reports…"
+                        ),
                     "success",
                 );
 

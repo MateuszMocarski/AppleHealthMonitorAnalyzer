@@ -1,3 +1,4 @@
+from time import perf_counter
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from apple_health.application.multi_month_run_options import MultiMonthRunOption
 from apple_health.application.report_generation_metadata import ReportGenerationMetadata
 from apple_health.application.report_generation_result import (
     ReportGenerationResult,
+    ReportGenerationTimings,
 )
 from apple_health.application.run_options import RunOptions
 from apple_health.config.config_loader import ConfigLoader
@@ -90,11 +92,27 @@ class AppleHealthApplication:
             options.archive_path,
         )
 
+        archive_open_started = perf_counter()
+
         with importer.open_export() as xml_stream:
+            archive_open_seconds = (
+                perf_counter()
+                - archive_open_started
+            )
+
+            xml_parse_started = perf_counter()
+
             health_data = AppleHealthParser(
                 xml_stream,
                 config=config,
             ).parse()
+
+            xml_parse_seconds = (
+                perf_counter()
+                - xml_parse_started
+            )
+
+        report_render_started = perf_counter()
 
         analyzer = HealthAnalyzer(
             health_data,
@@ -104,6 +122,7 @@ class AppleHealthApplication:
         text_renderer = TextRenderer(
             config=config,
         )
+
         json_renderer = JsonRenderer(
             config=config,
         )
@@ -145,7 +164,23 @@ class AppleHealthApplication:
                 )
             )
 
+        report_render_seconds = (
+            perf_counter()
+            - report_render_started
+        )
+
         return ReportGenerationResult(
             reports=tuple(reports),
             effective_config=config,
+            timings=ReportGenerationTimings(
+                archive_open_seconds=(
+                    archive_open_seconds
+                ),
+                xml_parse_seconds=(
+                    xml_parse_seconds
+                ),
+                report_render_seconds=(
+                    report_render_seconds
+                ),
+            ),
         )
