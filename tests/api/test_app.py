@@ -8199,3 +8199,24 @@ def test_report_generation_server_timing_accounts_for_persistence(
     assert "local_copy;dur=1000.0" in server_timing
     assert "report_save;dur=5000.0" in server_timing
     assert "total;dur=10000.0" in server_timing
+
+
+# =====================================================================
+# Verifies that technical diagnostics are presented as a toggle switch
+# below the GitHub link in the header utility controls.
+# =====================================================================
+
+
+def test_web_interface_places_diagnostics_toggle_below_github_link() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    github_position = html.index("View on GitHub")
+    diagnostics_position = html.index("Technical diagnostics")
+
+    assert github_position < diagnostics_position
+    assert 'class="diagnostics-switch"' in html
+    assert 'id="technical-diagnostics"' in html

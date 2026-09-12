@@ -1,4 +1,5 @@
 import json
+from atexit import register
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -6,6 +7,16 @@ from time import perf_counter
 from typing import Protocol
 
 import httpx
+
+_HTTP_CLIENT = httpx.Client(
+    limits=httpx.Limits(
+        max_connections=20,
+        max_keepalive_connections=10,
+        keepalive_expiry=60.0,
+    ),
+)
+
+register(_HTTP_CLIENT.close)
 
 
 @dataclass(frozen=True)
@@ -113,7 +124,6 @@ class HttpGoogleDriveClient:
         access_token: str,
     ) -> None:
         self._access_token = access_token
-        self._access_token = access_token
 
         self._last_download_timings: DriveDownloadTimings | None = None
 
@@ -217,7 +227,7 @@ class HttpGoogleDriveClient:
             )
 
         try:
-            response = httpx.post(
+            response = _HTTP_CLIENT.post(
                 f"{self.API_BASE_URL}/files",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -289,7 +299,7 @@ class HttpGoogleDriveClient:
         ]
 
         try:
-            response = httpx.post(
+            response = _HTTP_CLIENT.post(
                 "https://www.googleapis.com/upload/drive/v3/files",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -338,7 +348,7 @@ class HttpGoogleDriveClient:
             )
 
         try:
-            response = httpx.patch(
+            response = _HTTP_CLIENT.patch(
                 f"{self.API_BASE_URL}/files/{file_id}",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -376,7 +386,7 @@ class HttpGoogleDriveClient:
         remove_parent_id: str,
     ) -> DriveFileMetadata:
         try:
-            response = httpx.patch(
+            response = _HTTP_CLIENT.patch(
                 f"{self.API_BASE_URL}/files/{file_id}",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -412,7 +422,7 @@ class HttpGoogleDriveClient:
         file_id: str,
     ) -> None:
         try:
-            response = httpx.patch(
+            response = _HTTP_CLIENT.patch(
                 f"{self.API_BASE_URL}/files/{file_id}",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -451,7 +461,7 @@ class HttpGoogleDriveClient:
         response_wait_started = perf_counter()
 
         try:
-            with httpx.stream(
+            with _HTTP_CLIENT.stream(
                 "GET",
                 (f"{self.API_BASE_URL}" f"/files/{file_id}"),
                 headers={
@@ -620,7 +630,7 @@ class HttpGoogleDriveClient:
             self.READ_MAX_ATTEMPTS,
         ):
             try:
-                response = httpx.get(
+                response = _HTTP_CLIENT.get(
                     url,
                     headers={
                         "Authorization": (f"Bearer {self._access_token}"),
