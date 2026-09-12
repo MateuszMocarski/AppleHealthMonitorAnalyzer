@@ -7520,3 +7520,78 @@ def test_generate_reports_allows_partial_multi_month_persistence(
         (2026, 7),
         (2026, 8),
     ]
+
+
+# =====================================================================
+# Verifies that the web interface exposes one visible archive-source
+# status shared by local upload and Google Drive selection.
+# =====================================================================
+
+
+def test_web_interface_exposes_unified_archive_source_status() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="archive-source-status"' in html
+    assert "Local file:" in html
+    assert "Google Drive:" in html
+
+
+# =====================================================================
+# Verifies that the web interface exposes one visible configuration
+# source status for defaults, saved profiles and uploaded config files.
+# =====================================================================
+
+
+def test_web_interface_exposes_unified_config_source_status() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="config-source-status"' in html
+    assert "Application defaults" in html
+    assert "Saved profile:" in html
+    assert "Uploaded config:" in html
+
+
+# =====================================================================
+# Verifies that the web interface exposes one generation summary with
+# archive source, periods, config source, outputs and persistence state.
+# =====================================================================
+
+
+def test_web_interface_exposes_generation_summary() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="generation-summary"' in html
+    assert "Generation summary" in html
+    assert "Persistence:" in html
+    assert "Outputs:" in html
+
+
+# =====================================================================
+# Verifies that report generation uses one shared request-building and
+# submission flow for normal generation and replacement retries.
+# =====================================================================
+
+
+def test_web_interface_uses_unified_generation_request_flow() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "function buildGenerationFormData(" in html
+    assert "async function submitGenerationRequest(" in html
+    assert "async function readResponseError(" in html
+    assert "async function handleSuccessfulGeneration(" in html
