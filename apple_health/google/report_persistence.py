@@ -235,11 +235,22 @@ def stage_report_generation(
         generation_id=report.metadata.generation_id,
     )
 
-    uploaded = upload_report_artifacts(
-        drive_client,
-        month_id=staging.file_id,
-        report=report,
-    )
+    try:
+        uploaded = upload_report_artifacts(
+            drive_client,
+            month_id=staging.file_id,
+            report=report,
+        )
+    except Exception:
+        try:
+            cleanup_staging_generation(
+                drive_client,
+                staging_id=staging.file_id,
+            )
+        except Exception:
+            pass
+
+        raise
 
     return staging, uploaded
 

@@ -491,3 +491,75 @@ def test_discover_current_generation_skips_children_without_pointer() -> None:
     )
 
     assert current is None
+
+
+# =====================================================================
+# Verifies that replacing a report with a different output set does not
+# merge artifacts from the previous generation into the current one.
+# =====================================================================
+
+
+def test_current_generation_does_not_merge_previous_output_set() -> None:
+    month = DriveFileMetadata(
+        file_id="month-id",
+        name="2026-08",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+            "ahm_current_generation_id": "generation-new",
+        },
+    )
+
+    artifacts = (
+        DriveFileMetadata(
+            file_id="old-full-json",
+            name="full.json",
+            mime_type="application/json",
+            size_bytes=100,
+            trashed=False,
+            app_properties={
+                "ahm_type": "report_artifact",
+                "ahm_period": "2026-08",
+                "ahm_generation_id": "generation-old",
+                "ahm_generated_at": "2026-09-01T18:42:15Z",
+            },
+        ),
+        DriveFileMetadata(
+            file_id="old-full-text",
+            name="full.txt",
+            mime_type="text/plain",
+            size_bytes=100,
+            trashed=False,
+            app_properties={
+                "ahm_type": "report_artifact",
+                "ahm_period": "2026-08",
+                "ahm_generation_id": "generation-old",
+                "ahm_generated_at": "2026-09-01T18:42:15Z",
+            },
+        ),
+        DriveFileMetadata(
+            file_id="new-summary-text",
+            name="summary.txt",
+            mime_type="text/plain",
+            size_bytes=50,
+            trashed=False,
+            app_properties={
+                "ahm_type": "report_artifact",
+                "ahm_period": "2026-08",
+                "ahm_generation_id": "generation-new",
+                "ahm_generated_at": "2026-09-12T18:00:00Z",
+            },
+        ),
+    )
+
+    current = resolve_current_generation(
+        month=month,
+        artifacts=artifacts,
+    )
+
+    assert current is not None
+    assert current.generation_id == "generation-new"
+    assert tuple(artifact.name for artifact in current.artifacts) == ("summary.txt",)

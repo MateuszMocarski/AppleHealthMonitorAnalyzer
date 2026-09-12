@@ -7244,3 +7244,279 @@ def test_web_interface_confirms_report_replacement() -> None:
     assert "window.confirm(" in html
     assert '"replace_periods"' in html
     assert "formData.set(" in html
+
+
+# =====================================================================
+# Verifies that disabled report autosave skips both persistence preflight
+# and all report Drive mutations, even when target months already exist.
+# =====================================================================
+
+
+def test_generate_reports_skips_persistence_when_report_autosave_disabled(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_report_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(report,),
+        ),
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: calls.append("client"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda *args, **kwargs: calls.append("preflight"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        lambda *args, **kwargs: calls.append("save"),
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "replace_existing_report_month",
+        lambda *args, **kwargs: calls.append("replace"),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = auth_client.post(
+        "/reports/generate",
+        data={
+            "periods": "2026-08",
+            "full_json": "true",
+        },
+        files={
+            "archive": (
+                "export.zip",
+                b"fake",
+                "application/zip",
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == []
+
+
+# =====================================================================
+# Verifies that report persistence is atomic per month rather than
+# across the whole multi-month generation request.
+# =====================================================================
+
+
+def test_generate_reports_allows_partial_multi_month_persistence(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    july_period = ReportPeriod(
+        year=2026,
+        month=7,
+    )
+
+    august_period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    july = MonthlyReports(
+        period=july_period,
+        full_text=None,
+        full_json='{"status":"july"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=july_period,
+            generation_id="generation-july",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    august = MonthlyReports(
+        period=august_period,
+        full_text=None,
+        full_json='{"status":"august"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=august_period,
+            generation_id="generation-august",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                1,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        lambda self, options: _generation_result(
+            reports=(july, august),
+        ),
+    )
+
+    drive_client = object()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        lambda access_token: drive_client,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "find_existing_report_periods",
+        lambda received_drive_client, *, reports: set(),
+    )
+
+    calls = []
+
+    def save_report(
+        received_drive_client,
+        *,
+        report,
+    ) -> None:
+        period = (
+            report.period.year,
+            report.period.month,
+        )
+
+        calls.append(period)
+
+        if period == (2026, 8):
+            raise RuntimeError("second month persistence failed")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "save_new_report_month",
+        save_report,
+    )
+
+    auth_client = TestClient(app)
+
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="second month persistence failed",
+    ):
+        auth_client.post(
+            "/reports/generate",
+            data={
+                "periods": "2026-07,2026-08",
+                "full_json": "true",
+            },
+            files={
+                "archive": (
+                    "export.zip",
+                    b"fake",
+                    "application/zip",
+                ),
+            },
+        )
+
+    assert calls == [
+        (2026, 7),
+        (2026, 8),
+    ]

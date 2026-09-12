@@ -2403,3 +2403,276 @@ def test_report_month_exists_uses_read_only_report_index(
         drive_client,
         drive_client,
     ]
+
+
+# =====================================================================
+# Verifies that a failed staging upload cleans the orphan staging
+# folder before propagating the upload failure.
+# =====================================================================
+
+
+def test_stage_report_generation_cleans_staging_when_upload_fails(
+    monkeypatch,
+) -> None:
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    staging = DriveFileMetadata(
+        file_id="staging-id",
+        name="staging-generation-new",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_staging",
+            "ahm_period": "2026-08",
+            "ahm_generation_id": "generation-new",
+        },
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.create_report_staging_folder",
+        lambda drive_client, *, month_id, period, generation_id: staging,
+    )
+
+    def fail_upload(
+        drive_client,
+        *,
+        month_id,
+        report,
+    ):
+        calls.append("upload")
+        raise RuntimeError("upload failed")
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.upload_report_artifacts",
+        fail_upload,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.cleanup_staging_generation",
+        lambda drive_client, *, staging_id: calls.append("cleanup"),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="upload failed",
+    ):
+        stage_report_generation(
+            object(),
+            month_id="month-id",
+            report=report,
+        )
+
+    assert calls == [
+        "upload",
+        "cleanup",
+    ]
+
+
+# =====================================================================
+# Verifies that staging cleanup failure does not mask the original
+# verification failure before the current-generation commit point.
+# =====================================================================
+
+
+def test_replace_report_month_preserves_verify_error_when_cleanup_fails(
+    monkeypatch,
+) -> None:
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    month = DriveFileMetadata(
+        file_id="month-id",
+        name="2026-08",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+            "ahm_current_generation_id": "generation-old",
+        },
+    )
+
+    current = CurrentReportGeneration(
+        period="2026-08",
+        generation_id="generation-old",
+        artifacts=(),
+    )
+
+    staging = DriveFileMetadata(
+        file_id="staging-id",
+        name="staging-generation-new",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_staging",
+            "ahm_period": "2026-08",
+            "ahm_generation_id": "generation-new",
+        },
+    )
+
+    uploaded = (
+        DriveFileMetadata(
+            file_id="new-full-json",
+            name="full.json",
+            mime_type="application/json",
+            size_bytes=len(b'{"status":"new"}'),
+            trashed=False,
+            app_properties=report.metadata.artifact_app_properties(),
+        ),
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.discover_current_generation",
+        lambda drive_client, *, month: current,
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.stage_report_generation",
+        lambda drive_client, *, month_id, report: (
+            staging,
+            uploaded,
+        ),
+    )
+
+    def fail_verify(
+        drive_client,
+        *,
+        report,
+        uploaded,
+    ) -> None:
+        raise ValueError("verification failed")
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.verify_staged_generation",
+        fail_verify,
+    )
+
+    def fail_cleanup(
+        drive_client,
+        *,
+        staging_id,
+    ) -> None:
+        raise RuntimeError("cleanup failed")
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.cleanup_staging_generation",
+        fail_cleanup,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="verification failed",
+    ):
+        replace_report_month(
+            object(),
+            month=month,
+            report=report,
+        )
+
+
+# =====================================================================
+# Verifies that replacement verification requires only artifacts
+# selected for the new generation and allows other outputs to be absent.
+# =====================================================================
+
+
+def test_verify_report_artifacts_accepts_only_selected_outputs() -> None:
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json=None,
+        summary_text="summary",
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                18,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    uploaded = (
+        DriveFileMetadata(
+            file_id="summary-text-id",
+            name="summary.txt",
+            mime_type="text/plain",
+            size_bytes=len(b"summary"),
+            trashed=False,
+            app_properties=report.metadata.artifact_app_properties(),
+        ),
+    )
+
+    class FakeDriveClient:
+        def get_metadata(
+            self,
+            file_id: str,
+        ) -> DriveFileMetadata:
+            assert file_id == "summary-text-id"
+            return uploaded[0]
+
+    verify_report_artifacts(
+        FakeDriveClient(),
+        report=report,
+        uploaded=uploaded,
+    )
