@@ -1330,3 +1330,60 @@ def test_http_drive_client_records_download_transfer_and_write_timings(
     assert timings.response_wait_seconds == pytest.approx(5.0)
     assert timings.body_transfer_seconds == pytest.approx(2.5)
     assert timings.write_seconds == pytest.approx(0.3)
+
+
+# =====================================================================
+# Verifies that permanent Drive deletion uses the files.delete endpoint
+# instead of moving temporary staging folders to trash.
+# =====================================================================
+
+
+def test_http_drive_client_permanently_deletes_file(
+    monkeypatch,
+) -> None:
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(
+            self,
+        ) -> None:
+            pass
+
+    def fake_delete(
+        url,
+        *,
+        headers,
+        timeout,
+    ):
+        calls.append(
+            (
+                url,
+                headers,
+                timeout,
+            )
+        )
+
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.drive._HTTP_CLIENT.delete",
+        fake_delete,
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    client.delete(
+        "staging-id",
+    )
+
+    assert calls == [
+        (
+            ("https://www.googleapis.com/" "drive/v3/files/staging-id"),
+            {
+                "Authorization": ("Bearer access-token"),
+            },
+            client.REQUEST_TIMEOUT,
+        ),
+    ]

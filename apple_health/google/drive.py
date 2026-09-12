@@ -99,6 +99,11 @@ class DriveClient(Protocol):
         file_id: str,
     ) -> None: ...
 
+    def delete(
+        self,
+        file_id: str,
+    ) -> None: ...
+
     def download_file(
         self,
         file_id: str,
@@ -432,6 +437,28 @@ class HttpGoogleDriveClient:
                 },
                 json={
                     "trashed": True,
+                },
+                timeout=self.REQUEST_TIMEOUT,
+            )
+        except httpx.RequestError as exc:
+            raise DriveTransientError("Google Drive request failed temporarily") from exc
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            self._raise_http_error(
+                exc,
+            )
+
+    def delete(
+        self,
+        file_id: str,
+    ) -> None:
+        try:
+            response = _HTTP_CLIENT.delete(
+                f"{self.API_BASE_URL}/files/{file_id}",
+                headers={
+                    "Authorization": (f"Bearer {self._access_token}"),
                 },
                 timeout=self.REQUEST_TIMEOUT,
             )
