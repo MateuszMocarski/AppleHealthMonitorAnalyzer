@@ -2850,13 +2850,21 @@
             retryGoogleAction,
         );
 
+        async function chooseLocalArchiveRecovery() {
+            try {
+                await continueWithoutGoogle();
+                archiveInput.click();
+            } catch (error) {
+                showStatus(
+                    error.message,
+                    "error",
+                );
+            }
+        }
+
         googleRecoveryLocal.addEventListener(
             "click",
-            () => {
-                resetDriveArchiveSelection();
-                hideGoogleRecovery();
-                archiveInput.click();
-            },
+            chooseLocalArchiveRecovery,
         );
 
         googleRecoveryAnonymous.addEventListener(
