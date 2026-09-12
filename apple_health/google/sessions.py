@@ -27,7 +27,7 @@ class Session:
     google_granted_scopes: frozenset[str] | None = None
     google_access_token_expires_at: datetime | None = None
     selected_config_profile_id: str | None = None
-    config_autosave_enabled: bool = True
+    config_autosave_enabled: bool = False
     report_autosave_enabled: bool = True
 
 

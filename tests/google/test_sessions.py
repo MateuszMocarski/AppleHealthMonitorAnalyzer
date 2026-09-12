@@ -401,22 +401,6 @@ def test_session_can_clear_selected_config_profile() -> None:
 
 
 # =====================================================================
-# Verifies that configuration autosave is enabled by default for a new
-# session.
-# =====================================================================
-
-
-def test_new_session_has_config_autosave_enabled() -> None:
-    store = SessionStore()
-
-    session_id = store.create()
-    session = store.get(session_id)
-
-    assert session is not None
-    assert session.config_autosave_enabled is True
-
-
-# =====================================================================
 # Verifies that configuration autosave can be explicitly disabled for
 # an existing session.
 # =====================================================================
@@ -494,3 +478,21 @@ def test_session_repr_redacts_session_and_oauth_credentials() -> None:
     assert session_id not in rendered
     assert "oauth-state-secret" not in rendered
     assert "google-access-token-secret" not in rendered
+
+
+# =====================================================================
+# Verifies that new sessions disable configuration autosave by default
+# while report autosave remains enabled.
+# =====================================================================
+
+
+def test_new_session_uses_expected_autosave_defaults() -> None:
+    store = SessionStore()
+
+    session_id = store.create()
+
+    session = store.get(session_id)
+
+    assert session is not None
+    assert session.config_autosave_enabled is False
+    assert session.report_autosave_enabled is True

@@ -136,6 +136,10 @@ def test_connected_local_generation_uses_selected_profile_and_autosaves(
         session_id=session_id,
         profile_id="profile-id",
     )
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=True,
+    )
 
     monkeypatch.setattr(api_app_module, "session_store", sessions)
 

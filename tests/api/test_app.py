@@ -4282,6 +4282,11 @@ def test_report_generation_autosaves_effective_config(
     sessions = SessionStore()
     session_id = sessions.create()
 
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=True,
+    )
+
     sessions.set_report_autosave_enabled(
         session_id=session_id,
         enabled=False,
@@ -7228,8 +7233,8 @@ def test_generate_reports_persists_confirmed_and_new_months_together(
 
 
 # =====================================================================
-# Verifies that report replacement is explicitly confirmed and retried
-# with the conflicting periods through the shared generation request flow.
+# Verifies that report replacement uses the in-page confirmation flow
+# and supports automatic replacement when enforcement is enabled.
 # =====================================================================
 
 
@@ -7240,11 +7245,20 @@ def test_web_interface_confirms_report_replacement() -> None:
 
     html = response.text
 
-    assert "window.confirm(" in html
-    assert "Report months already exist:" in html
-    assert "const replacePeriods =" in html
+    assert "window.confirm(" not in html
+
+    assert 'id="replacement-modal"' in html
+    assert 'id="replacement-modal-cancel"' in html
+    assert 'id="replacement-modal-confirm"' in html
+
+    assert "function confirmReportReplacement(" in html
+
+    assert "enforceReportReplacement.checked" in html
+
+    assert "await confirmReportReplacement(" in html
+
     assert "await submitGenerationRequest(" in html
-    assert "replacePeriods," in html
+
     assert '"replace_periods"' in html
 
 

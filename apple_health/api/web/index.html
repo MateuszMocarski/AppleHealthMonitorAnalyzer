@@ -280,7 +280,9 @@
         #google-connect[hidden],
         #google-connection-status[hidden],
         #drive-archive-picker[hidden],
-        #report-autosave-control[hidden] {
+        #report-drive-controls[hidden],
+        #config-autosave-control[hidden],
+        #config-profile-controls[hidden] {
             display: none !important;
         }
 
@@ -423,24 +425,33 @@
             font-size: 13px;
         }
 
-        .drop-zone {
+        .archive-choice-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .drop-zone,
+        .drive-archive-card {
             position: relative;
 
             display: flex;
             align-items: center;
-            gap: 18px;
+            gap: 14px;
 
             width: 100%;
-            min-height: 108px;
+            min-height: 78px;
 
-            padding: 20px 22px;
+            padding: 16px 18px;
 
-            border: 1px dashed var(--border-strong);
+            border: 1px solid var(--border);
             border-radius: var(--radius-medium);
 
-            background: rgba(255, 255, 255, 0.018);
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text);
 
             cursor: pointer;
+            text-align: left;
 
             transition:
                 border-color 160ms ease,
@@ -449,29 +460,42 @@
         }
 
         .drop-zone:hover,
-        .drop-zone.dragging {
-            border-color: rgba(255, 55, 95, 0.48);
-            background: var(--accent-soft);
+        .drop-zone.dragging,
+        .drive-archive-card:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.065);
         }
 
-        .drop-zone:active {
+        .drop-zone:active,
+        .drive-archive-card:active {
             transform: scale(0.997);
         }
 
-        .drop-icon {
+        .drop-icon,
+        .drive-archive-icon {
             flex: 0 0 auto;
 
-            width: 52px;
-            height: 52px;
+            width: 42px;
+            height: 42px;
 
             display: grid;
             place-items: center;
 
-            border-radius: 14px;
+            border-radius: 12px;
 
             background: rgba(255, 255, 255, 0.05);
 
-            font-size: 24px;
+            font-size: 20px;
+        }
+
+        .drive-archive-card {
+            height: auto;
+            font: inherit;
+        }
+
+        .drive-archive-card .drop-secondary {
+            display: block;
+            margin-top: 5px;
         }
 
         .drop-primary {
@@ -555,12 +579,12 @@
 
             padding: 8px 10px 8px 12px;
 
-            border: 1px solid rgba(255, 55, 95, 0.2);
+            border: 1px solid rgba(35, 134, 54, 0.42);
             border-radius: 999px;
 
-            background: var(--accent-soft);
+            background: rgba(35, 134, 54, 0.18);
 
-            color: #ff8aa1;
+            color: #63d47c;
             font-size: 13px;
             font-weight: 600;
         }
@@ -570,7 +594,7 @@
             border: 0;
             background: transparent;
 
-            color: #ff8aa1;
+            color: #63d47c;
 
             cursor: pointer;
             opacity: 0.65;
@@ -715,6 +739,191 @@
             margin: 0;
         }
 
+        .toggle-control {
+            min-height: 44px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+
+            padding: 0 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-control:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.055);
+            color: var(--text);
+        }
+
+        .toggle-control input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle-switch {
+            width: 34px;
+            height: 19px;
+            flex: 0 0 auto;
+
+            position: relative;
+
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+
+            background: rgba(255, 255, 255, 0.09);
+
+            transition:
+                background 150ms ease,
+                border-color 150ms ease;
+        }
+
+        .toggle-switch::after {
+            content: "";
+
+            width: 13px;
+            height: 13px;
+
+            position: absolute;
+            top: 2px;
+            left: 2px;
+
+            border-radius: 50%;
+
+            background: var(--text-secondary);
+
+            transition:
+                transform 150ms ease,
+                background 150ms ease;
+        }
+
+        .toggle-control input:checked + .toggle-switch {
+            border-color: #238636;
+            background: rgba(35, 134, 54, 0.25);
+        }
+
+        .toggle-control input:checked + .toggle-switch::after {
+            transform: translateX(15px);
+            background: #32d583;
+        }
+
+        .toggle-control input:focus-visible + .toggle-switch {
+            outline: 2px solid #238636;
+            outline-offset: 2px;
+        }
+
+        .toggle-stack {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .replacement-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+
+            display: grid;
+            place-items: center;
+
+            padding: 20px;
+
+            background: rgba(0, 0, 0, 0.66);
+            backdrop-filter: blur(10px);
+        }
+
+        .replacement-modal[hidden] {
+            display: none !important;
+        }
+
+        .replacement-dialog {
+            width: min(460px, 100%);
+            padding: 22px;
+
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-medium);
+
+            background: #12151c;
+
+            box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+        }
+
+        .replacement-dialog h2 {
+            margin: 0 0 10px;
+
+            font-size: 20px;
+            letter-spacing: -0.02em;
+        }
+
+        .replacement-dialog p {
+            margin: 0;
+
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .replacement-periods {
+            margin-top: 14px;
+            padding: 10px 12px;
+
+            border: 1px solid rgba(35, 134, 54, 0.35);
+            border-radius: var(--radius-small);
+
+            background: rgba(35, 134, 54, 0.12);
+            color: #63d47c;
+
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .replacement-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+
+            margin-top: 20px;
+        }
+
+        .replacement-actions button {
+            min-height: 40px;
+            padding: 0 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+
+            cursor: pointer;
+        }
+
+        .replacement-actions button:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .replacement-actions .replacement-confirm {
+            border-color: rgba(35, 134, 54, 0.5);
+            background: rgba(35, 134, 54, 0.22);
+            color: #7be08f;
+        }
+
+        .replacement-actions .replacement-confirm:hover {
+            background: rgba(35, 134, 54, 0.32);
+        }
+
         .source-warning {
             margin-bottom: 18px;
             padding: 11px 13px;
@@ -839,7 +1048,7 @@
             min-height: 48px;
             padding: 0 14px;
 
-            border: 1px dashed var(--border-strong);
+            border: 1px solid var(--border);
             border-radius: var(--radius-small);
 
             background: rgba(255, 255, 255, 0.025);
@@ -852,8 +1061,8 @@
         }
 
         .config-upload-label:hover {
-            border-color: rgba(255, 55, 95, 0.48);
-            background: var(--accent-soft);
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.065);
         }
 
         .config-upload-primary {
@@ -1218,6 +1427,10 @@
                 flex-direction: column;
             }
 
+            .archive-choice-grid {
+                grid-template-columns: 1fr;
+            }
+
             .config-example-button {
                 width: 100%;
             }
@@ -1402,40 +1615,58 @@
                     </div>
                 </div>
 
-                <label
-                    class="drop-zone"
-                    id="drop-zone"
-                    for="archive"
-                >
-                    <div class="drop-icon">⇧</div>
-
-                    <div>
-                        <div
-                            class="drop-primary"
-                            id="file-name"
-                        >
-                            Choose export.zip
-                        </div>
-
-                        <div class="drop-secondary">
-                            Click to browse or drop the file here
-                        </div>
-                    </div>
-
-                    <input
-                        id="archive"
-                        type="file"
-                        accept=".zip,application/zip"
+                <div class="archive-choice-grid">
+                    <label
+                        class="drop-zone"
+                        id="drop-zone"
+                        for="archive"
                     >
-                </label>
-                <button
-                    id="drive-archive-picker"
-                    class="secondary-button"
-                    type="button"
-                    hidden
-                >
-                    Choose ZIP from Google Drive
-                </button>
+                        <div class="drop-icon">⇧</div>
+
+                        <div>
+                            <div
+                                class="drop-primary"
+                                id="file-name"
+                            >
+                                Upload local export.zip
+                            </div>
+
+                            <div class="drop-secondary">
+                                Browse or drop a ZIP from this device
+                            </div>
+                        </div>
+
+                        <input
+                            id="archive"
+                            type="file"
+                            accept=".zip,application/zip"
+                        >
+                    </label>
+
+                    <button
+                        id="drive-archive-picker"
+                        class="drive-archive-card"
+                        type="button"
+                        hidden
+                    >
+                        <span
+                            class="drive-archive-icon"
+                            aria-hidden="true"
+                        >
+                            ☁
+                        </span>
+
+                        <span>
+                            <span class="drop-primary">
+                                Choose ZIP from Google Drive
+                            </span>
+
+                            <span class="drop-secondary">
+                                Pick an Apple Health export already in Drive
+                            </span>
+                        </span>
+                    </button>
+                </div>
 
                 <div
                     class="archive-source-status"
@@ -1492,7 +1723,11 @@
                             Optional. Upload a custom configuration file or
                             override source names for this report generation.
                         </p>
-                        <div class="config-profile-controls">
+                        <div
+                            class="config-profile-controls"
+                            id="config-profile-controls"
+                            hidden
+                        >
                             <div class="config-profile-row">
                                 <label class="config-profile-field">
                                     <span class="field-label">
@@ -1533,16 +1768,24 @@
                                     >
                                 </label>
 
-                                <label class="config-autosave-control">
-                                    <input
-                                        id="config-autosave"
-                                        type="checkbox"
-                                        checked
-                                    >
-
+                                <label
+                                    class="toggle-control"
+                                    id="config-autosave-control"
+                                    hidden
+                                >
                                     <span>
                                         Automatically save configurations
                                     </span>
+
+                                    <input
+                                        id="config-autosave"
+                                        type="checkbox"
+                                    >
+
+                                    <span
+                                        class="toggle-switch"
+                                        aria-hidden="true"
+                                    ></span>
                                 </label>
                             </div>
                         </div>
@@ -1562,14 +1805,14 @@
                                 >
                                     <div>
                                         <div class="config-upload-primary">
-                                            Optional config.toml
+                                            Upload local config.toml
                                         </div>
 
                                         <div
                                             class="config-upload-secondary"
                                             id="config-file-name"
                                         >
-                                            Choose config.toml
+                                            Choose a config file from this device
                                         </div>
                                     </div>
 
@@ -1848,21 +2091,52 @@
                         Summary JSON
                     </label>
                 </div>
-                <label
-                    class="config-autosave-control"
-                    id="report-autosave-control"
+                <div
+                    class="toggle-stack"
+                    id="report-drive-controls"
                     hidden
                 >
-                    <input
-                        id="report-autosave"
-                        type="checkbox"
-                        checked
+                    <label
+                        class="toggle-control"
+                        id="report-autosave-control"
                     >
+                        <span>
+                            Automatically save reports
+                        </span>
 
-                    <span>
-                        Automatically save reports
-                    </span>
-                </label>
+                        <input
+                            id="report-autosave"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span
+                            class="toggle-switch"
+                            aria-hidden="true"
+                        ></span>
+                    </label>
+
+                    <label
+                        class="toggle-control"
+                        id="replacement-enforcement-control"
+                        title="Automatically replace conflicting saved report months without asking."
+                    >
+                        <span>
+                            Enforce report replacement
+                        </span>
+
+                        <input
+                            id="enforce-report-replacement"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span
+                            class="toggle-switch"
+                            aria-hidden="true"
+                        ></span>
+                    </label>
+                </div>
             </div>
             <div
                 class="generation-summary"
@@ -1889,6 +2163,50 @@
                 id="status"
             ></div>
         </section>
+
+
+        <div
+            class="replacement-modal"
+            id="replacement-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="replacement-modal-title"
+            hidden
+        >
+            <div class="replacement-dialog">
+                <h2 id="replacement-modal-title">
+                    Replace saved reports?
+                </h2>
+
+                <p>
+                    Reports already exist for the following periods.
+                    Replacing them will make the new generation current
+                    and archive the previous generation.
+                </p>
+
+                <div
+                    class="replacement-periods"
+                    id="replacement-modal-periods"
+                ></div>
+
+                <div class="replacement-actions">
+                    <button
+                        id="replacement-modal-cancel"
+                        type="button"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        class="replacement-confirm"
+                        id="replacement-modal-confirm"
+                        type="button"
+                    >
+                        Replace reports
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <section
             class="results"
@@ -1987,9 +2305,19 @@
                 "config-profile-select",
             );
 
+        const configProfileControls =
+            document.getElementById(
+                "config-profile-controls",
+            );
+
         const configAutosave =
             document.getElementById(
                 "config-autosave",
+            );
+
+        const configAutosaveControl =
+            document.getElementById(
+                "config-autosave-control",
             );
 
         const reportAutosave =
@@ -2001,6 +2329,38 @@
             document.getElementById(
                 "report-autosave-control",
             );
+
+        const reportDriveControls =
+            document.getElementById(
+                "report-drive-controls",
+            );
+
+        const enforceReportReplacement =
+            document.getElementById(
+                "enforce-report-replacement",
+            );
+
+        const replacementModal =
+            document.getElementById(
+                "replacement-modal",
+            );
+
+        const replacementModalPeriods =
+            document.getElementById(
+                "replacement-modal-periods",
+            );
+
+        const replacementModalCancel =
+            document.getElementById(
+                "replacement-modal-cancel",
+            );
+
+        const replacementModalConfirm =
+            document.getElementById(
+                "replacement-modal-confirm",
+            );
+
+        let replacementModalResolve = null;
 
         const configProfileNone =
             document.getElementById(
@@ -2135,12 +2495,21 @@
             }
 
             const autosaveState =
-                reportAutosaveControl.hidden
+                reportDriveControls.hidden
                     ? "Local only"
                     : (
                         reportAutosave.checked
                             ? "Drive autosave ON"
                             : "Drive autosave OFF"
+                    );
+
+            const replacementState =
+                reportDriveControls.hidden
+                    ? "Not applicable"
+                    : (
+                        enforceReportReplacement.checked
+                            ? "Automatic replacement"
+                            : "Ask before replacement"
                     );
 
             const periods =
@@ -2164,6 +2533,7 @@
                     || "None"
                 }`,
                 `Persistence: ${autosaveState}`,
+                `Replacement: ${replacementState}`,
             ];
 
             generationSummary.replaceChildren(
@@ -2225,7 +2595,7 @@
                 fileName.textContent =
                     file
                         ? file.name
-                        : "Choose export.zip";
+                        : "Upload local export.zip";
 
                 updateArchiveSourceStatus();
             },
@@ -2273,7 +2643,7 @@
                 configFileName.textContent =
                     file
                         ? file.name
-                        : "Choose config.toml";
+                        : "Choose a config file from this device";
 
                 updateConfigSourceStatus();
             },
@@ -2567,7 +2937,9 @@
             googleConnect.hidden = false;
             googleConnectionStatus.hidden = true;
             driveArchivePicker.hidden = true;
-            reportAutosaveControl.hidden = true;
+            reportDriveControls.hidden = true;
+            configProfileControls.hidden = true;
+            configAutosaveControl.hidden = true;
 
             configProfileSelect.innerHTML =
                 '<option value="">Application defaults</option>';
@@ -2688,7 +3060,9 @@
 
                 googleConnectionStatus.hidden = false;
                 driveArchivePicker.hidden = false;
-                reportAutosaveControl.hidden = false;
+                reportDriveControls.hidden = false;
+                configProfileControls.hidden = false;
+                configAutosaveControl.hidden = false;
 
                 await loadConfigProfileState();
                 await loadReportAutosaveState();
@@ -2706,7 +3080,9 @@
                 googleConnect.hidden = false;
                 googleConnectionStatus.hidden = true;
                 driveArchivePicker.hidden = true;
-                reportAutosaveControl.hidden = true;
+                reportDriveControls.hidden = true;
+                configProfileControls.hidden = true;
+                configAutosaveControl.hidden = true;
 
                 showReconnectRecovery();
                 updateGenerationSummary();
@@ -2784,6 +3160,8 @@
 
             reportAutosave.checked =
                 payload.autosave_enabled;
+
+            updateGenerationSummary();
         }
 
         async function selectConfigProfile(
@@ -2955,7 +3333,7 @@
 
                                 archiveInput.value = "";
                                 fileName.textContent =
-                                    "Choose export.zip";
+                                    "Upload local export.zip";
 
                                 updateArchiveSourceStatus();
 
@@ -3136,6 +3514,75 @@
                     );
                 }
             },
+        );
+
+        function closeReplacementModal(
+            confirmed,
+        ) {
+            replacementModal.hidden = true;
+
+            const resolve =
+                replacementModalResolve;
+
+            replacementModalResolve = null;
+
+            if (resolve) {
+                resolve(confirmed);
+            }
+        }
+
+        function confirmReportReplacement(
+            replacePeriods,
+        ) {
+            replacementModalPeriods.textContent =
+                replacePeriods.join(", ");
+
+            replacementModal.hidden = false;
+            replacementModalConfirm.focus();
+
+            return new Promise((resolve) => {
+                replacementModalResolve = resolve;
+            });
+        }
+
+        replacementModalCancel.addEventListener(
+            "click",
+            () => {
+                closeReplacementModal(false);
+            },
+        );
+
+        replacementModalConfirm.addEventListener(
+            "click",
+            () => {
+                closeReplacementModal(true);
+            },
+        );
+
+        replacementModal.addEventListener(
+            "click",
+            (event) => {
+                if (event.target === replacementModal) {
+                    closeReplacementModal(false);
+                }
+            },
+        );
+
+        document.addEventListener(
+            "keydown",
+            (event) => {
+                if (
+                    event.key === "Escape"
+                    && !replacementModal.hidden
+                ) {
+                    closeReplacementModal(false);
+                }
+            },
+        );
+
+        enforceReportReplacement.addEventListener(
+            "change",
+            updateGenerationSummary,
         );
 
         function buildGenerationFormData(
@@ -3612,12 +4059,15 @@
                             );
 
                         if (replacePeriods.length > 0) {
-                            const confirmed =
-                                window.confirm(
-                                    "Saved reports already exist for: "
-                                    + replacePeriods.join(", ")
-                                    + ". Replace them?",
-                                );
+                            let confirmed =
+                                enforceReportReplacement.checked;
+
+                            if (!confirmed) {
+                                confirmed =
+                                    await confirmReportReplacement(
+                                        replacePeriods,
+                                    );
+                            }
 
                             if (!confirmed) {
                                 showStatus(
