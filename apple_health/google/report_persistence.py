@@ -1,4 +1,5 @@
 from apple_health.application.monthly_reports import MonthlyReports
+from apple_health.google.current_report_generation import discover_current_generation
 from apple_health.google.drive import (
     DriveClient,
     DriveConflictError,
@@ -195,3 +196,241 @@ def save_new_report_month(
         period=period,
         generation_id=report.metadata.generation_id,
     )
+
+
+def create_report_staging_folder(
+    drive_client: DriveClient,
+    *,
+    month_id: str,
+    period: str,
+    generation_id: str,
+) -> DriveFileMetadata:
+    return drive_client.create_folder(
+        name=f"staging-{generation_id}",
+        parent_id=month_id,
+        app_properties={
+            "ahm_type": "report_staging",
+            "ahm_period": period,
+            "ahm_generation_id": generation_id,
+        },
+    )
+
+
+def stage_report_generation(
+    drive_client: DriveClient,
+    *,
+    month_id: str,
+    report: MonthlyReports,
+) -> tuple[
+    DriveFileMetadata,
+    tuple[DriveFileMetadata, ...],
+]:
+    period = f"{report.period.year}-" f"{report.period.month:02d}"
+
+    staging = create_report_staging_folder(
+        drive_client,
+        month_id=month_id,
+        period=period,
+        generation_id=report.metadata.generation_id,
+    )
+
+    uploaded = upload_report_artifacts(
+        drive_client,
+        month_id=staging.file_id,
+        report=report,
+    )
+
+    return staging, uploaded
+
+
+def verify_staged_generation(
+    drive_client: DriveClient,
+    *,
+    report: MonthlyReports,
+    uploaded: tuple[DriveFileMetadata, ...],
+) -> None:
+    verify_report_artifacts(
+        drive_client,
+        report=report,
+        uploaded=uploaded,
+    )
+
+
+def prepare_staged_generation_activation(
+    drive_client: DriveClient,
+    *,
+    month_id: str,
+    staging_id: str,
+    artifacts: tuple[DriveFileMetadata, ...],
+) -> tuple[DriveFileMetadata, ...]:
+    return tuple(
+        drive_client.move(
+            artifact.file_id,
+            add_parent_id=month_id,
+            remove_parent_id=staging_id,
+        )
+        for artifact in artifacts
+    )
+
+
+def commit_staged_generation(
+    drive_client: DriveClient,
+    *,
+    month_id: str,
+    period: str,
+    generation_id: str,
+) -> DriveFileMetadata:
+    return mark_generation_current(
+        drive_client,
+        month_id=month_id,
+        period=period,
+        generation_id=generation_id,
+    )
+
+
+def ensure_report_archive_container(
+    drive_client: DriveClient,
+    *,
+    month_id: str,
+) -> DriveFileMetadata:
+    page_token: str | None = None
+
+    while True:
+        page = drive_client.list_children(
+            month_id,
+            page_token=page_token,
+        )
+
+        for child in page.files:
+            if (
+                not child.trashed
+                and child.name == "archive"
+                and child.mime_type == "application/vnd.google-apps.folder"
+            ):
+                return child
+
+        if page.next_page_token is None:
+            break
+
+        page_token = page.next_page_token
+
+    return drive_client.create_folder(
+        name="archive",
+        parent_id=month_id,
+    )
+
+
+def archive_previous_generation(
+    drive_client: DriveClient,
+    *,
+    month_id: str,
+    artifacts: tuple[DriveFileMetadata, ...],
+) -> tuple[DriveFileMetadata, ...]:
+    if not artifacts:
+        return ()
+
+    generated_at = artifacts[0].app_properties.get("ahm_generated_at")
+
+    if generated_at is None:
+        raise ValueError("Previous report generation is missing generated timestamp.")
+
+    archive = ensure_report_archive_container(
+        drive_client,
+        month_id=month_id,
+    )
+
+    archive_name = generated_at.replace(
+        ":",
+        "-",
+    )
+
+    archive_generation = drive_client.create_folder(
+        name=archive_name,
+        parent_id=archive.file_id,
+    )
+
+    return tuple(
+        drive_client.move(
+            artifact.file_id,
+            add_parent_id=archive_generation.file_id,
+            remove_parent_id=month_id,
+        )
+        for artifact in artifacts
+    )
+
+
+def replace_report_month(
+    drive_client: DriveClient,
+    *,
+    month: DriveFileMetadata,
+    report: MonthlyReports,
+) -> None:
+    current = discover_current_generation(
+        drive_client,
+        month=month,
+    )
+
+    staging, uploaded = stage_report_generation(
+        drive_client,
+        month_id=month.file_id,
+        report=report,
+    )
+
+    try:
+        verify_staged_generation(
+            drive_client,
+            report=report,
+            uploaded=uploaded,
+        )
+
+        prepare_staged_generation_activation(
+            drive_client,
+            month_id=month.file_id,
+            staging_id=staging.file_id,
+            artifacts=uploaded,
+        )
+
+        period = f"{report.period.year}-" f"{report.period.month:02d}"
+
+        commit_staged_generation(
+            drive_client,
+            month_id=month.file_id,
+            period=period,
+            generation_id=report.metadata.generation_id,
+        )
+    except Exception:
+        try:
+            cleanup_staging_generation(
+                drive_client,
+                staging_id=staging.file_id,
+            )
+        except Exception:
+            pass
+
+        raise
+
+    if current is not None:
+        try:
+            archive_previous_generation(
+                drive_client,
+                month_id=month.file_id,
+                artifacts=current.artifacts,
+            )
+        except Exception:
+            pass
+
+    try:
+        cleanup_staging_generation(
+            drive_client,
+            staging_id=staging.file_id,
+        )
+    except Exception:
+        pass
+
+
+def cleanup_staging_generation(
+    drive_client: DriveClient,
+    *,
+    staging_id: str,
+) -> DriveFileMetadata:
+    return drive_client.trash(staging_id)
