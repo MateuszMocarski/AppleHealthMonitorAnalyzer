@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -496,3 +497,89 @@ def test_new_session_uses_expected_autosave_defaults() -> None:
     assert session is not None
     assert session.config_autosave_enabled is False
     assert session.report_autosave_enabled is True
+
+
+# =====================================================================
+# Verifies that session mutators reject missing or expired sessions
+# instead of silently creating partial state.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        lambda store: store.set_oauth_state("missing", "state"),
+        lambda store: store.clear_oauth_state("missing"),
+        lambda store: store.set_google_identity(
+            session_id="missing",
+            google_sub="sub",
+            google_email="user@example.com",
+        ),
+        lambda store: store.set_google_access_credentials(
+            session_id="missing",
+            access_token="token",
+            granted_scopes=frozenset(),
+            expires_in_seconds=3600,
+        ),
+        lambda store: store.set_selected_config_profile(
+            session_id="missing",
+            profile_id="profile",
+        ),
+        lambda store: store.clear_selected_config_profile("missing"),
+        lambda store: store.set_config_autosave_enabled(
+            session_id="missing",
+            enabled=True,
+        ),
+        lambda store: store.set_report_autosave_enabled(
+            session_id="missing",
+            enabled=False,
+        ),
+    ],
+)
+def test_session_mutators_reject_missing_session(operation) -> None:
+    store = SessionStore()
+
+    with pytest.raises(
+        ValueError,
+        match="Session does not exist or has expired",
+    ):
+        operation(store)
+
+
+# =====================================================================
+# Verifies Google mode is not ready until scope and token-expiry state
+# are both present in addition to identity and access token data.
+# =====================================================================
+
+
+def test_google_mode_ready_requires_scope_and_expiry_state() -> None:
+    now = datetime(2026, 9, 13, 12, 0, tzinfo=timezone.utc)
+    store = SessionStore(clock=lambda: now)
+    session_id = store.create()
+
+    store.set_google_identity(
+        session_id=session_id,
+        google_sub="sub",
+        google_email="user@example.com",
+    )
+
+    session = store.get(session_id)
+    assert session is not None
+
+    store._sessions[session_id] = replace(
+        session,
+        google_access_token="token",
+        google_granted_scopes=None,
+        google_access_token_expires_at=None,
+    )
+
+    assert store.is_google_mode_ready(session_id, frozenset()) is False
+
+    session = store.get(session_id)
+    assert session is not None
+    store._sessions[session_id] = replace(
+        session,
+        google_granted_scopes=frozenset(),
+    )
+
+    assert store.is_google_mode_ready(session_id, frozenset()) is False

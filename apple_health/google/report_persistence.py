@@ -411,13 +411,11 @@ def replace_report_month(
             generation_id=report.metadata.generation_id,
         )
     except Exception:
-        try:
-            cleanup_staging_generation(
-                drive_client,
-                staging_id=staging.file_id,
-            )
-        except Exception:
-            pass
+        cleanup_failed_staged_generation(
+            drive_client,
+            staging_id=staging.file_id,
+            artifacts=uploaded,
+        )
 
         raise
 
@@ -446,6 +444,27 @@ def cleanup_staging_generation(
     staging_id: str,
 ) -> None:
     drive_client.delete(staging_id)
+
+
+def cleanup_failed_staged_generation(
+    drive_client: DriveClient,
+    *,
+    staging_id: str,
+    artifacts: tuple[DriveFileMetadata, ...],
+) -> None:
+    for artifact in artifacts:
+        try:
+            drive_client.delete(artifact.file_id)
+        except Exception:
+            pass
+
+    try:
+        cleanup_staging_generation(
+            drive_client,
+            staging_id=staging_id,
+        )
+    except Exception:
+        pass
 
 
 def report_month_exists(

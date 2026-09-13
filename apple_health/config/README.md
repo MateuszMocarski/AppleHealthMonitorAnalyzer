@@ -910,7 +910,7 @@ Run the complete project test suite with:
 pytest
 ```
 
-The current repository collects **741 tests**.
+The current repository collects **768 tests**.
 
 Code quality checks:
 
