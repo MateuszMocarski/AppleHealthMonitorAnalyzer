@@ -7669,8 +7669,10 @@ def test_web_interface_exposes_unified_config_source_status() -> None:
 
     assert 'id="config-source-status"' in html
     assert "Application defaults" in html
-    assert "Saved profile:" in html
-    assert "Uploaded config:" in html
+    assert "Configuration from Google Drive:" in html
+    assert "Configuration from this device:" in html
+    assert 'id="config-source-clear"' in html
+    assert "Select configuration from Google Drive" in html
 
 
 # =====================================================================

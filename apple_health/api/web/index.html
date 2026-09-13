@@ -282,7 +282,8 @@
         #drive-archive-picker[hidden],
         #report-drive-controls[hidden],
         #config-autosave-control[hidden],
-        #config-profile-controls[hidden] {
+        #config-profile-controls[hidden],
+        #config-save-controls[hidden] {
             display: none !important;
         }
 
@@ -341,13 +342,68 @@
             background: rgba(255, 255, 255, 0.07);
         }
 
-        .archive-source-status,
-        .config-source-status {
+        .archive-source-status {
             margin-top: 10px;
 
             color: var(--text-secondary);
             font-size: 12px;
             line-height: 1.5;
+        }
+
+        .config-source-status {
+            margin: 0 0 18px;
+            padding: 11px 13px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+
+        .config-source-status.active {
+            border-color: rgba(35, 134, 54, 0.42);
+            background: rgba(35, 134, 54, 0.14);
+            color: #63d47c;
+        }
+
+        .config-source-clear {
+            flex: 0 0 auto;
+
+            width: 28px;
+            height: 28px;
+
+            display: grid;
+            place-items: center;
+
+            border: 1px solid rgba(35, 134, 54, 0.42);
+            border-radius: 999px;
+
+            background: rgba(35, 134, 54, 0.14);
+            color: #63d47c;
+
+            cursor: pointer;
+            font-size: 15px;
+            line-height: 1;
+        }
+
+        .config-source-clear:hover {
+            border-color: rgba(35, 134, 54, 0.58);
+            background: rgba(35, 134, 54, 0.22);
+            color: #7be08f;
+        }
+
+        .config-source-clear[hidden] {
+            display: none !important;
         }
 
         .brand-icon {
@@ -657,7 +713,8 @@
             line-height: 1.55;
         }
 
-        .config-profile-controls {
+        .config-profile-controls,
+        .config-save-controls {
             display: flex;
             flex-direction: column;
             gap: 14px;
@@ -669,6 +726,10 @@
             border-radius: var(--radius-small);
 
             background: rgba(255, 255, 255, 0.02);
+        }
+
+        .config-save-controls {
+            margin-top: 18px;
         }
 
         .config-profile-row {
@@ -1734,6 +1795,26 @@
                             override source names for this report generation.
                         </p>
                         <div
+                            class="config-source-status"
+                            id="config-source-status"
+                        >
+                            <span id="config-source-status-text">
+                                Application defaults
+                            </span>
+
+                            <button
+                                class="config-source-clear"
+                                id="config-source-clear"
+                                type="button"
+                                title="Return to application defaults"
+                                aria-label="Return to application defaults"
+                                hidden
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div
                             class="config-profile-controls"
                             id="config-profile-controls"
                             hidden
@@ -1747,11 +1828,7 @@
                                     <select
                                         id="config-profile-select"
                                         class="config-profile-select"
-                                    >
-                                        <option value="">
-                                            Application defaults
-                                        </option>
-                                    </select>
+                                    ></select>
                                 </label>
 
                                 <button
@@ -1762,49 +1839,6 @@
                                     Use application defaults
                                 </button>
                             </div>
-
-                            <div class="config-profile-row">
-                                <label class="config-profile-field">
-                                    <span class="field-label">
-                                        Save configuration as
-                                    </span>
-
-                                    <input
-                                        id="save-config-as"
-                                        class="text-input"
-                                        type="text"
-                                        autocomplete="off"
-                                        placeholder="Profile name"
-                                    >
-                                </label>
-
-                                <label
-                                    class="toggle-control"
-                                    id="config-autosave-control"
-                                    hidden
-                                >
-                                    <span>
-                                        Automatically save configurations
-                                    </span>
-
-                                    <input
-                                        id="config-autosave"
-                                        type="checkbox"
-                                    >
-
-                                    <span
-                                        class="toggle-switch"
-                                        aria-hidden="true"
-                                    ></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div
-                            class="config-source-status"
-                            id="config-source-status"
-                        >
-                            Application defaults
                         </div>
 
                         <div class="config-tools">
@@ -1841,6 +1875,48 @@
                                 >
                                     Download example config
                                 </a>
+                        </div>
+
+                        <div
+                            class="config-save-controls"
+                            id="config-save-controls"
+                            hidden
+                        >
+                            <div class="config-profile-row">
+                                <label class="config-profile-field">
+                                    <span class="field-label">
+                                        Save configuration as
+                                    </span>
+
+                                    <input
+                                        id="save-config-as"
+                                        class="text-input"
+                                        type="text"
+                                        autocomplete="off"
+                                        placeholder="Profile name"
+                                    >
+                                </label>
+
+                                <label
+                                    class="toggle-control"
+                                    id="config-autosave-control"
+                                    hidden
+                                >
+                                    <span>
+                                        Automatically save configurations
+                                    </span>
+
+                                    <input
+                                        id="config-autosave"
+                                        type="checkbox"
+                                    >
+
+                                    <span
+                                        class="toggle-switch"
+                                        aria-hidden="true"
+                                    ></span>
+                                </label>
+                            </div>
                         </div>
 
                         <p class="precedence-note">
@@ -2277,6 +2353,16 @@
                 "config-source-status",
             );
 
+        const configSourceStatusText =
+            document.getElementById(
+                "config-source-status-text",
+            );
+
+        const configSourceClear =
+            document.getElementById(
+                "config-source-clear",
+            );
+
         const appleWatchSource =
             document.getElementById(
                 "apple-watch-source",
@@ -2319,6 +2405,11 @@
         const configProfileControls =
             document.getElementById(
                 "config-profile-controls",
+            );
+
+        const configSaveControls =
+            document.getElementById(
+                "config-save-controls",
             );
 
         const configAutosave =
@@ -2515,7 +2606,7 @@
 
             if (uploadedConfig) {
                 configSource =
-                    `Uploaded config: ${uploadedConfig.name}`;
+                    `Configuration from this device: ${uploadedConfig.name}`;
             } else {
                 const selectedOption =
                     configProfileSelect.selectedOptions[0];
@@ -2525,7 +2616,7 @@
                     && selectedOption.value
                 ) {
                     configSource =
-                        `Saved profile: ${selectedOption.textContent}`;
+                        `Configuration from Google Drive: ${selectedOption.textContent}`;
                 }
             }
 
@@ -2654,13 +2745,31 @@
             },
         );
 
+        function setConfigSourceStatus(
+            message,
+            isActive,
+        ) {
+            configSourceStatusText.textContent =
+                message;
+
+            configSourceStatus.classList.toggle(
+                "active",
+                isActive,
+            );
+
+            configSourceClear.hidden =
+                !isActive;
+        }
+
         function updateConfigSourceStatus() {
             const uploadedConfig =
                 configInput.files[0];
 
             if (uploadedConfig) {
-                configSourceStatus.textContent =
-                    `Uploaded config: ${uploadedConfig.name}`;
+                setConfigSourceStatus(
+                    `Configuration from this device: ${uploadedConfig.name}`,
+                    true,
+                );
 
                 updateGenerationSummary();
 
@@ -2674,29 +2783,41 @@
                 selectedOption
                 && selectedOption.value
             ) {
-                configSourceStatus.textContent =
-                    `Saved profile: ${selectedOption.textContent}`;
+                setConfigSourceStatus(
+                    `Configuration from Google Drive: ${selectedOption.textContent}`,
+                    true,
+                );
 
                 updateGenerationSummary();
 
                 return;
             }
 
-            configSourceStatus.textContent =
-                "Application defaults";
+            setConfigSourceStatus(
+                "Application defaults",
+                false,
+            );
 
             updateGenerationSummary();
         }
 
         configInput.addEventListener(
             "change",
-            () => {
+            async () => {
                 const file = configInput.files[0];
 
                 configFileName.textContent =
                     file
                         ? file.name
                         : "Choose a config file from this device";
+
+                if (
+                    file
+                    && !configProfileControls.hidden
+                    && configProfileSelect.value
+                ) {
+                    await clearConfigProfileSelection();
+                }
 
                 updateConfigSourceStatus();
             },
@@ -2992,11 +3113,10 @@
             driveArchivePicker.hidden = true;
             reportDriveControls.hidden = true;
             configProfileControls.hidden = true;
+            configSaveControls.hidden = true;
             configAutosaveControl.hidden = true;
 
-            configProfileSelect.innerHTML =
-                '<option value="">Application defaults</option>';
-
+            configProfileSelect.innerHTML = "";
             configProfileSelect.value = "";
             configAutosave.checked = false;
             reportAutosave.checked = false;
@@ -3114,7 +3234,7 @@
                 googleConnectionStatus.hidden = false;
                 driveArchivePicker.hidden = false;
                 reportDriveControls.hidden = false;
-                configProfileControls.hidden = false;
+                configSaveControls.hidden = false;
                 configAutosaveControl.hidden = false;
 
                 await loadConfigProfileState();
@@ -3135,6 +3255,7 @@
                 driveArchivePicker.hidden = true;
                 reportDriveControls.hidden = true;
                 configProfileControls.hidden = true;
+                configSaveControls.hidden = true;
                 configAutosaveControl.hidden = true;
 
                 showReconnectRecovery();
@@ -3166,25 +3287,44 @@
             const payload =
                 await response.json();
 
-            configProfileSelect.innerHTML =
-                '<option value="">Application defaults</option>';
+            configProfileSelect.innerHTML = "";
 
-            payload.profiles.forEach(
-                (profile) => {
-                    const option =
-                        document.createElement("option");
+            if (payload.profiles.length === 0) {
+                configProfileControls.hidden = true;
+            } else {
+                configProfileControls.hidden = false;
 
-                    option.value = profile.file_id;
-                    option.textContent = profile.name;
+                const placeholder =
+                    document.createElement("option");
 
-                    configProfileSelect.appendChild(
-                        option,
-                    );
-                },
-            );
+                placeholder.value = "";
+                placeholder.textContent =
+                    "Select configuration from Google Drive";
+                placeholder.disabled = true;
+                placeholder.selected =
+                    !payload.selected_profile_id;
 
-            configProfileSelect.value =
-                payload.selected_profile_id ?? "";
+                configProfileSelect.appendChild(
+                    placeholder,
+                );
+
+                payload.profiles.forEach(
+                    (profile) => {
+                        const option =
+                            document.createElement("option");
+
+                        option.value = profile.file_id;
+                        option.textContent = profile.name;
+
+                        configProfileSelect.appendChild(
+                            option,
+                        );
+                    },
+                );
+
+                configProfileSelect.value =
+                    payload.selected_profile_id ?? "";
+            }
 
             configAutosave.checked =
                 payload.autosave_enabled;
@@ -3447,19 +3587,43 @@
             },
         );
 
+        configSourceClear.addEventListener(
+            "click",
+            async () => {
+                configInput.value = "";
+                configFileName.textContent =
+                    "Choose a config file from this device";
+
+                if (
+                    !configProfileControls.hidden
+                    && configProfileSelect.value
+                ) {
+                    await clearConfigProfileSelection();
+                } else {
+                    configProfileSelect.value = "";
+
+                    updateConfigSourceStatus();
+                }
+            },
+        );
+
         configProfileSelect.addEventListener(
             "change",
-            () => {
+            async () => {
                 const profileId =
                     configProfileSelect.value;
 
-                if (profileId) {
-                    selectConfigProfile(
-                        profileId,
-                    );
-                } else {
-                    clearConfigProfileSelection();
+                if (!profileId) {
+                    return;
                 }
+
+                configInput.value = "";
+                configFileName.textContent =
+                    "Choose a config file from this device";
+
+                await selectConfigProfile(
+                    profileId,
+                );
             },
         );
 
