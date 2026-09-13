@@ -879,11 +879,11 @@
             margin-top: 14px;
             padding: 10px 12px;
 
-            border: 1px solid rgba(35, 134, 54, 0.35);
+            border: 1px solid var(--border);
             border-radius: var(--radius-small);
 
-            background: rgba(35, 134, 54, 0.12);
-            color: #63d47c;
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text-secondary);
 
             font-size: 13px;
             font-weight: 650;
@@ -912,6 +912,16 @@
 
         .replacement-actions button:hover {
             background: rgba(255, 255, 255, 0.08);
+        }
+
+        .replacement-actions .replacement-cancel {
+            border-color: rgba(255, 90, 101, 0.5);
+            background: rgba(255, 90, 101, 0.12);
+            color: var(--error);
+        }
+
+        .replacement-actions .replacement-cancel:hover {
+            background: rgba(255, 90, 101, 0.2);
         }
 
         .replacement-actions .replacement-confirm {
@@ -2191,6 +2201,7 @@
 
                 <div class="replacement-actions">
                     <button
+                        class="replacement-cancel"
                         id="replacement-modal-cancel"
                         type="button"
                     >
@@ -2202,7 +2213,7 @@
                         id="replacement-modal-confirm"
                         type="button"
                     >
-                        Replace reports
+                        OK
                     </button>
                 </div>
             </div>
@@ -2423,6 +2434,48 @@
             );
 
         let lastGoogleRetryAction = null;
+        let googleOAuthPopup = null;
+
+        function openGoogleOAuthPopup(event) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            googleOAuthPopup = window.open(
+                "/auth/google/start?popup=true",
+                "ahm-google-oauth",
+                "popup=yes,width=520,height=720,resizable=yes,scrollbars=yes",
+            );
+
+            if (googleOAuthPopup === null) {
+                window.location.href = "/auth/google/start";
+            }
+        }
+
+        window.addEventListener(
+            "message",
+            async (event) => {
+                if (
+                    event.origin !== window.location.origin
+                    || event.data?.type !== "google-oauth-complete"
+                ) {
+                    return;
+                }
+
+                googleOAuthPopup = null;
+                await loadGoogleConnectionState();
+            },
+        );
+
+        googleConnect.addEventListener(
+            "click",
+            openGoogleOAuthPopup,
+        );
+
+        googleRecoveryReconnect.addEventListener(
+            "click",
+            openGoogleOAuthPopup,
+        );
 
         const outputFullText =
             document.getElementById("output-full-text");

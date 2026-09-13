@@ -5788,6 +5788,10 @@ def test_web_interface_exposes_google_connect_control() -> None:
     assert 'id="google-connect"' in html
     assert 'href="/auth/google/start"' in html
     assert "Connect Google" in html
+    assert "window.open(" in html
+    assert '"/auth/google/start?popup=true"' in html
+    assert '"google-oauth-complete"' in html
+    assert "await loadGoogleConnectionState();" in html
 
 
 # =====================================================================
@@ -5899,6 +5903,96 @@ def test_google_callback_redirects_to_application_root(
 # Verifies that saved Google Drive config profiles are loaded only
 # after the frontend confirms an active Google connection.
 # =====================================================================
+
+
+# =====================================================================
+# Verifies that popup OAuth start marks the flow without changing the
+# normal backend session cookie contract.
+# =====================================================================
+
+
+def test_google_oauth_start_marks_popup_flow(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/start?popup=true",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.cookies["ahm_google_oauth_popup"] == "1"
+
+
+# =====================================================================
+# Verifies that a successful popup OAuth callback notifies the opener
+# and closes itself instead of reloading the main application page.
+# =====================================================================
+
+
+def test_google_callback_completes_popup_without_root_redirect(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        api_app_module.session_store,
+        "get",
+        lambda _: object(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleOAuthService,
+        "complete",
+        lambda self, **_: None,
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleSettings,
+        "load",
+        lambda: SimpleNamespace(
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        ),
+    )
+
+    response = client.get(
+        "/auth/google/callback",
+        params={
+            "code": "test-code",
+            "state": "test-state",
+        },
+        cookies={
+            "ahm_session": "test-session",
+            "ahm_google_oauth_popup": "1",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    assert "google-oauth-complete" in response.text
+    assert "window.opener.postMessage(" in response.text
+    assert "window.close();" in response.text
+    assert "ahm_google_oauth_popup" in response.headers["set-cookie"]
 
 
 def test_web_interface_loads_config_profiles_only_when_google_connected() -> None:
@@ -7250,6 +7344,10 @@ def test_web_interface_confirms_report_replacement() -> None:
     assert 'id="replacement-modal"' in html
     assert 'id="replacement-modal-cancel"' in html
     assert 'id="replacement-modal-confirm"' in html
+    assert 'class="replacement-cancel"' in html
+    assert "OK" in html
+    assert "color: var(--text-secondary);" in html
+    assert "color: var(--error);" in html
 
     assert "function confirmReportReplacement(" in html
 

@@ -12,7 +12,7 @@ from fastapi import (
     Response,
     UploadFile,
 )
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from apple_health.api.models import (
     MonthlyReportResponse,
@@ -579,6 +579,7 @@ def get_report_autosave(
     include_in_schema=False,
 )
 def google_oauth_start(
+    popup: bool = False,
     ahm_session: str | None = Cookie(default=None),
 ) -> RedirectResponse:
     settings = GoogleSettings.load()
@@ -616,6 +617,19 @@ def google_oauth_start(
         samesite=cookie_settings.same_site,
     )
 
+    if popup:
+        response.set_cookie(
+            key="ahm_google_oauth_popup",
+            value="1",
+            httponly=True,
+            secure=cookie_settings.secure,
+            samesite=cookie_settings.same_site,
+        )
+    else:
+        response.delete_cookie(
+            key="ahm_google_oauth_popup",
+        )
+
     return response
 
 
@@ -628,7 +642,8 @@ def google_oauth_callback(
     code: str | None = None,
     error: str | None = None,
     ahm_session: str | None = Cookie(default=None),
-) -> RedirectResponse:
+    ahm_google_oauth_popup: str | None = Cookie(default=None),
+) -> Response:
     if ahm_session is None:
         raise HTTPException(
             status_code=400,
@@ -677,6 +692,26 @@ def google_oauth_callback(
             status_code=502,
             detail="Google OAuth connection failed.",
         ) from exc
+
+    if ahm_google_oauth_popup == "1":
+        response = HTMLResponse(
+            content=(
+                "<!DOCTYPE html><html><head><title>Google connected</title></head>"
+                "<body><script>"
+                "if (window.opener) {"
+                "window.opener.postMessage("
+                "{type: 'google-oauth-complete'}, window.location.origin"
+                ");"
+                "}"
+                "window.close();"
+                "</script>Google connected. You can close this window.</body></html>"
+            ),
+            status_code=200,
+        )
+        response.delete_cookie(
+            key="ahm_google_oauth_popup",
+        )
+        return response
 
     return RedirectResponse(
         url="/",
