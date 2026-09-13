@@ -107,8 +107,99 @@
             margin-left: auto;
 
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
+        }
+
+        .brand-utility-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+        }
+
+        .diagnostics-toggle {
+            min-height: 34px;
+            padding: 0 10px;
+
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+
+            border: 1px solid var(--border);
+            border-radius: 10px;
+
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text-secondary);
+
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .diagnostics-toggle:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+        }
+
+        .diagnostics-toggle input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .diagnostics-switch {
+            width: 30px;
+            height: 17px;
+            flex: 0 0 auto;
+
+            position: relative;
+
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+
+            background: rgba(255, 255, 255, 0.08);
+
+            transition:
+                background 150ms ease,
+                border-color 150ms ease;
+        }
+
+        .diagnostics-switch::after {
+            content: "";
+
+            width: 11px;
+            height: 11px;
+
+            position: absolute;
+            top: 2px;
+            left: 2px;
+
+            border-radius: 50%;
+
+            background: var(--text-secondary);
+
+            transition:
+                transform 150ms ease,
+                background 150ms ease;
+        }
+
+        .diagnostics-toggle input:checked + .diagnostics-switch {
+            border-color: #238636;
+            background: rgba(35, 134, 54, 0.25);
+        }
+
+        .diagnostics-toggle input:checked + .diagnostics-switch::after {
+            transform: translateX(13px);
+            background: #238636;
+        }
+
+        .diagnostics-toggle input:focus-visible + .diagnostics-switch {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
         }
 
         .repo-link {
@@ -189,7 +280,129 @@
         #google-connect[hidden],
         #google-connection-status[hidden],
         #drive-archive-picker[hidden],
-        #report-autosave-control[hidden] {
+        #report-drive-controls[hidden],
+        #config-autosave-control[hidden],
+        #config-profile-controls[hidden],
+        #config-save-controls[hidden] {
+            display: none !important;
+        }
+
+        .google-recovery {
+            margin-bottom: 22px;
+            padding: 14px 16px;
+
+            border: 1px solid rgba(255, 193, 7, 0.32);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 193, 7, 0.07);
+        }
+
+        .google-recovery[hidden] {
+            display: none !important;
+        }
+
+        .google-recovery-message {
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .google-recovery-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+
+            margin-top: 12px;
+        }
+
+        .google-recovery-actions button,
+        .google-recovery-actions a {
+            min-height: 34px;
+            padding: 0 11px;
+
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            border: 1px solid var(--border);
+            border-radius: 8px;
+
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .google-recovery-actions button:hover,
+        .google-recovery-actions a:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .archive-source-status {
+            margin-top: 10px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .config-source-status {
+            margin: 0 0 18px;
+            padding: 11px 13px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+
+        .config-source-status.active {
+            border-color: rgba(35, 134, 54, 0.42);
+            background: rgba(35, 134, 54, 0.14);
+            color: #63d47c;
+        }
+
+        .config-source-clear {
+            flex: 0 0 auto;
+
+            width: 28px;
+            height: 28px;
+
+            display: grid;
+            place-items: center;
+
+            border: 1px solid rgba(35, 134, 54, 0.42);
+            border-radius: 999px;
+
+            background: rgba(35, 134, 54, 0.14);
+            color: #63d47c;
+
+            cursor: pointer;
+            font-size: 15px;
+            line-height: 1;
+        }
+
+        .config-source-clear:hover {
+            border-color: rgba(35, 134, 54, 0.58);
+            background: rgba(35, 134, 54, 0.22);
+            color: #7be08f;
+        }
+
+        .config-source-clear[hidden] {
             display: none !important;
         }
 
@@ -268,24 +481,33 @@
             font-size: 13px;
         }
 
-        .drop-zone {
+        .archive-choice-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .drop-zone,
+        .drive-archive-card {
             position: relative;
 
             display: flex;
             align-items: center;
-            gap: 18px;
+            gap: 14px;
 
             width: 100%;
-            min-height: 108px;
+            min-height: 78px;
 
-            padding: 20px 22px;
+            padding: 16px 18px;
 
-            border: 1px dashed var(--border-strong);
+            border: 1px solid var(--border);
             border-radius: var(--radius-medium);
 
-            background: rgba(255, 255, 255, 0.018);
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text);
 
             cursor: pointer;
+            text-align: left;
 
             transition:
                 border-color 160ms ease,
@@ -294,29 +516,42 @@
         }
 
         .drop-zone:hover,
-        .drop-zone.dragging {
-            border-color: rgba(255, 55, 95, 0.48);
-            background: var(--accent-soft);
+        .drop-zone.dragging,
+        .drive-archive-card:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.065);
         }
 
-        .drop-zone:active {
+        .drop-zone:active,
+        .drive-archive-card:active {
             transform: scale(0.997);
         }
 
-        .drop-icon {
+        .drop-icon,
+        .drive-archive-icon {
             flex: 0 0 auto;
 
-            width: 52px;
-            height: 52px;
+            width: 42px;
+            height: 42px;
 
             display: grid;
             place-items: center;
 
-            border-radius: 14px;
+            border-radius: 12px;
 
             background: rgba(255, 255, 255, 0.05);
 
-            font-size: 24px;
+            font-size: 20px;
+        }
+
+        .drive-archive-card {
+            height: auto;
+            font: inherit;
+        }
+
+        .drive-archive-card .drop-secondary {
+            display: block;
+            margin-top: 5px;
         }
 
         .drop-primary {
@@ -400,12 +635,12 @@
 
             padding: 8px 10px 8px 12px;
 
-            border: 1px solid rgba(255, 55, 95, 0.2);
+            border: 1px solid rgba(35, 134, 54, 0.42);
             border-radius: 999px;
 
-            background: var(--accent-soft);
+            background: rgba(35, 134, 54, 0.18);
 
-            color: #ff8aa1;
+            color: #63d47c;
             font-size: 13px;
             font-weight: 600;
         }
@@ -415,7 +650,7 @@
             border: 0;
             background: transparent;
 
-            color: #ff8aa1;
+            color: #63d47c;
 
             cursor: pointer;
             opacity: 0.65;
@@ -478,7 +713,8 @@
             line-height: 1.55;
         }
 
-        .config-profile-controls {
+        .config-profile-controls,
+        .config-save-controls {
             display: flex;
             flex-direction: column;
             gap: 14px;
@@ -490,6 +726,10 @@
             border-radius: var(--radius-small);
 
             background: rgba(255, 255, 255, 0.02);
+        }
+
+        .config-save-controls {
+            margin-top: 18px;
         }
 
         .config-profile-row {
@@ -558,6 +798,201 @@
 
         .config-autosave-control input {
             margin: 0;
+        }
+
+        .toggle-control {
+            min-height: 44px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+
+            padding: 0 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.025);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-control:hover {
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.055);
+            color: var(--text);
+        }
+
+        .toggle-control input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle-switch {
+            width: 34px;
+            height: 19px;
+            flex: 0 0 auto;
+
+            position: relative;
+
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+
+            background: rgba(255, 255, 255, 0.09);
+
+            transition:
+                background 150ms ease,
+                border-color 150ms ease;
+        }
+
+        .toggle-switch::after {
+            content: "";
+
+            width: 13px;
+            height: 13px;
+
+            position: absolute;
+            top: 2px;
+            left: 2px;
+
+            border-radius: 50%;
+
+            background: var(--text-secondary);
+
+            transition:
+                transform 150ms ease,
+                background 150ms ease;
+        }
+
+        .toggle-control input:checked + .toggle-switch {
+            border-color: #238636;
+            background: rgba(35, 134, 54, 0.25);
+        }
+
+        .toggle-control input:checked + .toggle-switch::after {
+            transform: translateX(15px);
+            background: #32d583;
+        }
+
+        .toggle-control input:focus-visible + .toggle-switch {
+            outline: 2px solid #238636;
+            outline-offset: 2px;
+        }
+
+        .toggle-stack {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .replacement-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+
+            display: grid;
+            place-items: center;
+
+            padding: 20px;
+
+            background: rgba(0, 0, 0, 0.66);
+            backdrop-filter: blur(10px);
+        }
+
+        .replacement-modal[hidden] {
+            display: none !important;
+        }
+
+        .replacement-dialog {
+            width: min(460px, 100%);
+            padding: 22px;
+
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-medium);
+
+            background: #12151c;
+
+            box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+        }
+
+        .replacement-dialog h2 {
+            margin: 0 0 10px;
+
+            font-size: 20px;
+            letter-spacing: -0.02em;
+        }
+
+        .replacement-dialog p {
+            margin: 0;
+
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .replacement-periods {
+            margin-top: 14px;
+            padding: 10px 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text-secondary);
+
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .replacement-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+
+            margin-top: 20px;
+        }
+
+        .replacement-actions button {
+            min-height: 40px;
+            padding: 0 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+
+            cursor: pointer;
+        }
+
+        .replacement-actions button:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .replacement-actions .replacement-cancel {
+            border-color: rgba(255, 90, 101, 0.5);
+            background: rgba(255, 90, 101, 0.12);
+            color: var(--error);
+        }
+
+        .replacement-actions .replacement-cancel:hover {
+            background: rgba(255, 90, 101, 0.2);
+        }
+
+        .replacement-actions .replacement-confirm {
+            border-color: rgba(35, 134, 54, 0.5);
+            background: rgba(35, 134, 54, 0.22);
+            color: #7be08f;
+        }
+
+        .replacement-actions .replacement-confirm:hover {
+            background: rgba(35, 134, 54, 0.32);
         }
 
         .source-warning {
@@ -684,7 +1119,7 @@
             min-height: 48px;
             padding: 0 14px;
 
-            border: 1px dashed var(--border-strong);
+            border: 1px solid var(--border);
             border-radius: var(--radius-small);
 
             background: rgba(255, 255, 255, 0.025);
@@ -697,8 +1132,8 @@
         }
 
         .config-upload-label:hover {
-            border-color: rgba(255, 55, 95, 0.48);
-            background: var(--accent-soft);
+            border-color: var(--border-strong);
+            background: rgba(255, 255, 255, 0.065);
         }
 
         .config-upload-primary {
@@ -856,6 +1291,25 @@
             color: var(--text-muted);
             font-size: 11px;
             line-height: 1.5;
+        }
+
+        .generation-summary {
+            margin-top: 24px;
+            padding: 14px 16px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+
+            background: rgba(255, 255, 255, 0.02);
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .generation-summary strong {
+            color: var(--text);
+            font-weight: 600;
         }
 
         .generate-row {
@@ -1044,6 +1498,10 @@
                 flex-direction: column;
             }
 
+            .archive-choice-grid {
+                grid-template-columns: 1fr;
+            }
+
             .config-example-button {
                 width: 100%;
             }
@@ -1133,14 +1591,34 @@
                         <span id="google-connection-label"></span>
                     </span>
 
-                    <a
-                        class="repo-link"
-                        href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        View on GitHub ↗
-                    </a>
+                    <div class="brand-utility-actions">
+                        <a
+                            class="repo-link"
+                            href="https://github.com/MateuszMocarski/AppleHealthMonitorAnalyzer"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            View on GitHub ↗
+                        </a>
+
+                        <label
+                            class="diagnostics-toggle"
+                            title="Show technical timing details after report generation"
+                        >
+                            <span>Technical diagnostics</span>
+
+                            <input
+                                id="technical-diagnostics"
+                                type="checkbox"
+                                checked
+                            >
+
+                            <span
+                                class="diagnostics-switch"
+                                aria-hidden="true"
+                            ></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -1156,6 +1634,47 @@
         </header>
 
         <section class="panel">
+            <div
+                class="google-recovery"
+                id="google-recovery"
+                hidden
+            >
+                <div
+                    class="google-recovery-message"
+                    id="google-recovery-message"
+                ></div>
+
+                <div class="google-recovery-actions">
+                    <a
+                        id="google-recovery-reconnect"
+                        href="/auth/google/start"
+                    >
+                        Reconnect Google
+                    </a>
+
+                    <button
+                        id="google-recovery-retry"
+                        type="button"
+                    >
+                        Retry Google Drive
+                    </button>
+
+                    <button
+                        id="google-recovery-local"
+                        type="button"
+                    >
+                        Choose local ZIP
+                    </button>
+
+                    <button
+                        id="google-recovery-anonymous"
+                        type="button"
+                    >
+                        Continue without Google
+                    </button>
+                </div>
+            </div>
+
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">
@@ -1167,40 +1686,65 @@
                     </div>
                 </div>
 
-                <label
-                    class="drop-zone"
-                    id="drop-zone"
-                    for="archive"
-                >
-                    <div class="drop-icon">⇧</div>
-
-                    <div>
-                        <div
-                            class="drop-primary"
-                            id="file-name"
-                        >
-                            Choose export.zip
-                        </div>
-
-                        <div class="drop-secondary">
-                            Click to browse or drop the file here
-                        </div>
-                    </div>
-
-                    <input
-                        id="archive"
-                        type="file"
-                        accept=".zip,application/zip"
+                <div class="archive-choice-grid">
+                    <label
+                        class="drop-zone"
+                        id="drop-zone"
+                        for="archive"
                     >
-                </label>
-                <button
-                    id="drive-archive-picker"
-                    class="secondary-button"
-                    type="button"
-                    hidden
+                        <div class="drop-icon">⇧</div>
+
+                        <div>
+                            <div
+                                class="drop-primary"
+                                id="file-name"
+                            >
+                                Upload local export.zip
+                            </div>
+
+                            <div class="drop-secondary">
+                                Browse or drop a ZIP from this device
+                            </div>
+                        </div>
+
+                        <input
+                            id="archive"
+                            type="file"
+                            accept=".zip,application/zip"
+                        >
+                    </label>
+
+                    <button
+                        id="drive-archive-picker"
+                        class="drive-archive-card"
+                        type="button"
+                        hidden
+                    >
+                        <span
+                            class="drive-archive-icon"
+                            aria-hidden="true"
+                        >
+                            ☁
+                        </span>
+
+                        <span>
+                            <span class="drop-primary">
+                                Choose ZIP from Google Drive
+                            </span>
+
+                            <span class="drop-secondary">
+                                Pick an Apple Health export already in Drive
+                            </span>
+                        </span>
+                    </button>
+                </div>
+
+                <div
+                    class="archive-source-status"
+                    id="archive-source-status"
                 >
-                    Choose ZIP from Google Drive
-                </button>
+                    No ZIP selected.
+                </div>
             </div>
 
             <div class="section">
@@ -1250,7 +1794,31 @@
                             Optional. Upload a custom configuration file or
                             override source names for this report generation.
                         </p>
-                        <div class="config-profile-controls">
+                        <div
+                            class="config-source-status"
+                            id="config-source-status"
+                        >
+                            <span id="config-source-status-text">
+                                Application defaults
+                            </span>
+
+                            <button
+                                class="config-source-clear"
+                                id="config-source-clear"
+                                type="button"
+                                title="Return to application defaults"
+                                aria-label="Return to application defaults"
+                                hidden
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div
+                            class="config-profile-controls"
+                            id="config-profile-controls"
+                            hidden
+                        >
                             <div class="config-profile-row">
                                 <label class="config-profile-field">
                                     <span class="field-label">
@@ -1260,11 +1828,7 @@
                                     <select
                                         id="config-profile-select"
                                         class="config-profile-select"
-                                    >
-                                        <option value="">
-                                            Application defaults
-                                        </option>
-                                    </select>
+                                    ></select>
                                 </label>
 
                                 <button
@@ -1274,34 +1838,6 @@
                                 >
                                     Use application defaults
                                 </button>
-                            </div>
-
-                            <div class="config-profile-row">
-                                <label class="config-profile-field">
-                                    <span class="field-label">
-                                        Save configuration as
-                                    </span>
-
-                                    <input
-                                        id="save-config-as"
-                                        class="text-input"
-                                        type="text"
-                                        autocomplete="off"
-                                        placeholder="Profile name"
-                                    >
-                                </label>
-
-                                <label class="config-autosave-control">
-                                    <input
-                                        id="config-autosave"
-                                        type="checkbox"
-                                        checked
-                                    >
-
-                                    <span>
-                                        Automatically save configurations
-                                    </span>
-                                </label>
                             </div>
                         </div>
 
@@ -1313,14 +1849,14 @@
                                 >
                                     <div>
                                         <div class="config-upload-primary">
-                                            Optional config.toml
+                                            Upload local config.toml
                                         </div>
 
                                         <div
                                             class="config-upload-secondary"
                                             id="config-file-name"
                                         >
-                                            Choose config.toml
+                                            Choose a config file from this device
                                         </div>
                                     </div>
 
@@ -1339,6 +1875,48 @@
                                 >
                                     Download example config
                                 </a>
+                        </div>
+
+                        <div
+                            class="config-save-controls"
+                            id="config-save-controls"
+                            hidden
+                        >
+                            <div class="config-profile-row">
+                                <label class="config-profile-field">
+                                    <span class="field-label">
+                                        Save configuration as
+                                    </span>
+
+                                    <input
+                                        id="save-config-as"
+                                        class="text-input"
+                                        type="text"
+                                        autocomplete="off"
+                                        placeholder="Profile name"
+                                    >
+                                </label>
+
+                                <label
+                                    class="toggle-control"
+                                    id="config-autosave-control"
+                                    hidden
+                                >
+                                    <span>
+                                        Automatically save configurations
+                                    </span>
+
+                                    <input
+                                        id="config-autosave"
+                                        type="checkbox"
+                                    >
+
+                                    <span
+                                        class="toggle-switch"
+                                        aria-hidden="true"
+                                    ></span>
+                                </label>
+                            </div>
                         </div>
 
                         <p class="precedence-note">
@@ -1599,22 +2177,58 @@
                         Summary JSON
                     </label>
                 </div>
-                <label
-                    class="config-autosave-control"
-                    id="report-autosave-control"
+                <div
+                    class="toggle-stack"
+                    id="report-drive-controls"
                     hidden
                 >
-                    <input
-                        id="report-autosave"
-                        type="checkbox"
-                        checked
+                    <label
+                        class="toggle-control"
+                        id="report-autosave-control"
                     >
+                        <span>
+                            Automatically save reports
+                        </span>
 
-                    <span>
-                        Automatically save reports
-                    </span>
-                </label>
+                        <input
+                            id="report-autosave"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span
+                            class="toggle-switch"
+                            aria-hidden="true"
+                        ></span>
+                    </label>
+
+                    <label
+                        class="toggle-control"
+                        id="replacement-enforcement-control"
+                        title="Automatically replace conflicting saved report months without asking."
+                    >
+                        <span>
+                            Enforce report replacement
+                        </span>
+
+                        <input
+                            id="enforce-report-replacement"
+                            type="checkbox"
+                            checked
+                        >
+
+                        <span
+                            class="toggle-switch"
+                            aria-hidden="true"
+                        ></span>
+                    </label>
+                </div>
             </div>
+            <div
+                class="generation-summary"
+                id="generation-summary"
+            ></div>
+
             <div class="generate-row">
                 <div class="privacy-note">
                     The uploaded archive is used only to generate the selected
@@ -1635,6 +2249,51 @@
                 id="status"
             ></div>
         </section>
+
+
+        <div
+            class="replacement-modal"
+            id="replacement-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="replacement-modal-title"
+            hidden
+        >
+            <div class="replacement-dialog">
+                <h2 id="replacement-modal-title">
+                    Replace saved reports?
+                </h2>
+
+                <p>
+                    Reports already exist for the following periods.
+                    Replacing them will make the new generation current
+                    and archive the previous generation.
+                </p>
+
+                <div
+                    class="replacement-periods"
+                    id="replacement-modal-periods"
+                ></div>
+
+                <div class="replacement-actions">
+                    <button
+                        class="replacement-cancel"
+                        id="replacement-modal-cancel"
+                        type="button"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        class="replacement-confirm"
+                        id="replacement-modal-confirm"
+                        type="button"
+                    >
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <section
             class="results"
@@ -1662,7 +2321,14 @@
             document.getElementById(
                 "drive-archive-picker",
             );
+
+        const archiveSourceStatus =
+            document.getElementById(
+                "archive-source-status",
+            );
+
         let selectedDriveFileId = null;
+        let selectedDriveFileName = null;
 
         const monthInput =
             document.getElementById("month-input");
@@ -1680,6 +2346,21 @@
         const configFileName =
             document.getElementById(
                 "config-file-name",
+            );
+
+        const configSourceStatus =
+            document.getElementById(
+                "config-source-status",
+            );
+
+        const configSourceStatusText =
+            document.getElementById(
+                "config-source-status-text",
+            );
+
+        const configSourceClear =
+            document.getElementById(
+                "config-source-clear",
             );
 
         const appleWatchSource =
@@ -1704,6 +2385,16 @@
         const resultList =
             document.getElementById("result-list");
 
+        const generationSummary =
+            document.getElementById(
+                "generation-summary",
+            );
+
+        const technicalDiagnostics =
+            document.getElementById(
+                "technical-diagnostics",
+            );
+
         const selectedMonths = new Set();
 
         const configProfileSelect =
@@ -1711,9 +2402,24 @@
                 "config-profile-select",
             );
 
+        const configProfileControls =
+            document.getElementById(
+                "config-profile-controls",
+            );
+
+        const configSaveControls =
+            document.getElementById(
+                "config-save-controls",
+            );
+
         const configAutosave =
             document.getElementById(
                 "config-autosave",
+            );
+
+        const configAutosaveControl =
+            document.getElementById(
+                "config-autosave-control",
             );
 
         const reportAutosave =
@@ -1725,6 +2431,38 @@
             document.getElementById(
                 "report-autosave-control",
             );
+
+        const reportDriveControls =
+            document.getElementById(
+                "report-drive-controls",
+            );
+
+        const enforceReportReplacement =
+            document.getElementById(
+                "enforce-report-replacement",
+            );
+
+        const replacementModal =
+            document.getElementById(
+                "replacement-modal",
+            );
+
+        const replacementModalPeriods =
+            document.getElementById(
+                "replacement-modal-periods",
+            );
+
+        const replacementModalCancel =
+            document.getElementById(
+                "replacement-modal-cancel",
+            );
+
+        const replacementModalConfirm =
+            document.getElementById(
+                "replacement-modal-confirm",
+            );
+
+        let replacementModalResolve = null;
 
         const configProfileNone =
             document.getElementById(
@@ -1756,6 +2494,80 @@
                 "google-connection-label",
             );
 
+        const googleRecovery =
+            document.getElementById(
+                "google-recovery",
+            );
+
+        const googleRecoveryMessage =
+            document.getElementById(
+                "google-recovery-message",
+            );
+
+        const googleRecoveryReconnect =
+            document.getElementById(
+                "google-recovery-reconnect",
+            );
+
+        const googleRecoveryRetry =
+            document.getElementById(
+                "google-recovery-retry",
+            );
+
+        const googleRecoveryLocal =
+            document.getElementById(
+                "google-recovery-local",
+            );
+
+        const googleRecoveryAnonymous =
+            document.getElementById(
+                "google-recovery-anonymous",
+            );
+
+        let lastGoogleRetryAction = null;
+        let googleOAuthPopup = null;
+
+        function openGoogleOAuthPopup(event) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            googleOAuthPopup = window.open(
+                "/auth/google/start?popup=true",
+                "ahm-google-oauth",
+                "popup=yes,width=520,height=720,resizable=yes,scrollbars=yes",
+            );
+
+            if (googleOAuthPopup === null) {
+                window.location.href = "/auth/google/start";
+            }
+        }
+
+        window.addEventListener(
+            "message",
+            async (event) => {
+                if (
+                    event.origin !== window.location.origin
+                    || event.data?.type !== "google-oauth-complete"
+                ) {
+                    return;
+                }
+
+                googleOAuthPopup = null;
+                await loadGoogleConnectionState();
+            },
+        );
+
+        googleConnect.addEventListener(
+            "click",
+            openGoogleOAuthPopup,
+        );
+
+        googleRecoveryReconnect.addEventListener(
+            "click",
+            openGoogleOAuthPopup,
+        );
+
         const outputFullText =
             document.getElementById("output-full-text");
 
@@ -1768,6 +2580,152 @@
         const outputSummaryJson =
             document.getElementById("output-summary-json");
 
+        function updateGenerationSummary() {
+            const localFile =
+                archiveInput.files[0];
+
+            let archiveSource =
+                "No ZIP selected";
+
+            if (localFile) {
+                archiveSource =
+                    `Local file: ${localFile.name}`;
+            } else if (selectedDriveFileId) {
+                archiveSource =
+                    `Google Drive: ${
+                        selectedDriveFileName
+                        ?? "Selected ZIP"
+                    }`;
+            }
+
+            const uploadedConfig =
+                configInput.files[0];
+
+            let configSource =
+                "Application defaults";
+
+            if (uploadedConfig) {
+                configSource =
+                    `Configuration from this device: ${uploadedConfig.name}`;
+            } else {
+                const selectedOption =
+                    configProfileSelect.selectedOptions[0];
+
+                if (
+                    selectedOption
+                    && selectedOption.value
+                ) {
+                    configSource =
+                        `Configuration from Google Drive: ${selectedOption.textContent}`;
+                }
+            }
+
+            const selectedOutputs = [];
+
+            if (outputFullText.checked) {
+                selectedOutputs.push("Full TXT");
+            }
+
+            if (outputFullJson.checked) {
+                selectedOutputs.push("Full JSON");
+            }
+
+            if (outputSummaryText.checked) {
+                selectedOutputs.push("Summary TXT");
+            }
+
+            if (outputSummaryJson.checked) {
+                selectedOutputs.push("Summary JSON");
+            }
+
+            const autosaveState =
+                reportDriveControls.hidden
+                    ? "Local only"
+                    : (
+                        reportAutosave.checked
+                            ? "Drive autosave ON"
+                            : "Drive autosave OFF"
+                    );
+
+            const replacementState =
+                reportDriveControls.hidden
+                    ? "Not applicable"
+                    : (
+                        enforceReportReplacement.checked
+                            ? "Automatic replacement"
+                            : "Ask before replacement"
+                    );
+
+            const periods =
+                [...selectedMonths]
+                    .sort()
+                    .join(", ")
+                || "None";
+
+            const summaryTitle =
+                document.createElement("strong");
+
+            summaryTitle.textContent =
+                "Generation summary";
+
+            const summaryLines = [
+                `ZIP: ${archiveSource}`,
+                `Periods: ${periods}`,
+                `Config: ${configSource}`,
+                `Outputs: ${
+                    selectedOutputs.join(", ")
+                    || "None"
+                }`,
+                `Persistence: ${autosaveState}`,
+                `Replacement: ${replacementState}`,
+            ];
+
+            generationSummary.replaceChildren(
+                summaryTitle,
+            );
+
+            summaryLines.forEach((line) => {
+                generationSummary.appendChild(
+                    document.createElement("br"),
+                );
+
+                generationSummary.appendChild(
+                    document.createTextNode(line),
+                );
+            });
+        }
+
+        function updateArchiveSourceStatus() {
+            const localFile =
+                archiveInput.files[0];
+
+            if (localFile) {
+                archiveSourceStatus.textContent =
+                    `Local file: ${localFile.name}`;
+
+                updateGenerationSummary();
+
+                return;
+            }
+
+            if (selectedDriveFileId) {
+                archiveSourceStatus.textContent =
+                    `Google Drive: ${
+                        selectedDriveFileName
+                        ?? "Selected ZIP"
+                    }`;
+
+                updateGenerationSummary();
+
+                return;
+            }
+
+            archiveSourceStatus.textContent =
+                "No ZIP selected.";
+
+            updateGenerationSummary();
+        }
+
         archiveInput.addEventListener(
             "change",
             () => {
@@ -1775,24 +2733,93 @@
 
                 if (file) {
                     selectedDriveFileId = null;
+                    selectedDriveFileName = null;
                 }
 
                 fileName.textContent =
                     file
                         ? file.name
-                        : "Choose export.zip";
+                        : "Upload local export.zip";
+
+                updateArchiveSourceStatus();
             },
         );
 
+        function setConfigSourceStatus(
+            message,
+            isActive,
+        ) {
+            configSourceStatusText.textContent =
+                message;
+
+            configSourceStatus.classList.toggle(
+                "active",
+                isActive,
+            );
+
+            configSourceClear.hidden =
+                !isActive;
+        }
+
+        function updateConfigSourceStatus() {
+            const uploadedConfig =
+                configInput.files[0];
+
+            if (uploadedConfig) {
+                setConfigSourceStatus(
+                    `Configuration from this device: ${uploadedConfig.name}`,
+                    true,
+                );
+
+                updateGenerationSummary();
+
+                return;
+            }
+
+            const selectedOption =
+                configProfileSelect.selectedOptions[0];
+
+            if (
+                selectedOption
+                && selectedOption.value
+            ) {
+                setConfigSourceStatus(
+                    `Configuration from Google Drive: ${selectedOption.textContent}`,
+                    true,
+                );
+
+                updateGenerationSummary();
+
+                return;
+            }
+
+            setConfigSourceStatus(
+                "Application defaults",
+                false,
+            );
+
+            updateGenerationSummary();
+        }
+
         configInput.addEventListener(
             "change",
-            () => {
+            async () => {
                 const file = configInput.files[0];
 
                 configFileName.textContent =
                     file
                         ? file.name
-                        : "Choose config.toml";
+                        : "Choose a config file from this device";
+
+                if (
+                    file
+                    && !configProfileControls.hidden
+                    && configProfileSelect.value
+                ) {
+                    await clearConfigProfileSelection();
+                }
+
+                updateConfigSourceStatus();
             },
         );
 
@@ -1832,8 +2859,10 @@
                 archiveInput.files = transfer.files;
 
                 selectedDriveFileId = null;
+                selectedDriveFileName = null;
 
                 fileName.textContent = file.name;
+                updateArchiveSourceStatus();
             },
         );
 
@@ -1887,6 +2916,8 @@
 
                     monthChips.appendChild(chip);
                 });
+
+            updateGenerationSummary();
         }
 
         function showStatus(
@@ -2037,13 +3068,154 @@
             results.classList.add("visible");
         }
 
-        async function loadGoogleConnectionState() {
+        function hideGoogleRecovery() {
+            googleRecovery.hidden = true;
+            lastGoogleRetryAction = null;
+        }
+
+        function showGoogleRecovery(
+            message,
+            {
+                reconnect = false,
+                retryAction = null,
+            } = {},
+        ) {
+            googleRecoveryMessage.textContent =
+                message;
+
+            googleRecoveryReconnect.hidden =
+                !reconnect;
+
+            googleRecoveryRetry.hidden =
+                retryAction === null;
+
+            lastGoogleRetryAction =
+                retryAction;
+
+            googleRecovery.hidden = false;
+        }
+
+        function resetDriveArchiveSelection() {
+            selectedDriveFileId = null;
+            selectedDriveFileName = null;
+
+            updateArchiveSourceStatus();
+        }
+
+        function applyAnonymousGoogleState() {
+            resetDriveArchiveSelection();
+
+            googleConnectLabel.textContent =
+                "Connect Google";
+
+            googleConnect.hidden = false;
+            googleConnectionStatus.hidden = true;
+            driveArchivePicker.hidden = true;
+            reportDriveControls.hidden = true;
+            configProfileControls.hidden = true;
+            configSaveControls.hidden = true;
+            configAutosaveControl.hidden = true;
+
+            configProfileSelect.innerHTML = "";
+            configProfileSelect.value = "";
+            configAutosave.checked = false;
+            reportAutosave.checked = false;
+
+            updateConfigSourceStatus();
+            updateGenerationSummary();
+        }
+
+        async function continueWithoutGoogle() {
             const response =
                 await fetch(
-                    "/auth/google/status",
+                    "/auth/sign-out",
+                    {
+                        method: "POST",
+                    },
                 );
 
             if (!response.ok) {
+                throw new Error(
+                    "Could not switch to local mode.",
+                );
+            }
+
+            applyAnonymousGoogleState();
+            hideGoogleRecovery();
+
+            showStatus(
+                "Continuing locally without Google Drive.",
+                "success",
+            );
+        }
+
+        async function retryGoogleAction() {
+            if (lastGoogleRetryAction === null) {
+                return;
+            }
+
+            const retryAction =
+                lastGoogleRetryAction;
+
+            hideGoogleRecovery();
+
+            try {
+                await retryAction();
+            } catch (error) {
+                if (googleRecovery.hidden) {
+                    showGoogleRecovery(
+                        "Google Drive is temporarily unavailable. Retry or choose a local ZIP.",
+                        {
+                            retryAction,
+                        },
+                    );
+                }
+
+                showStatus(
+                    error.message,
+                    "error",
+                );
+            }
+        }
+
+        function showReconnectRecovery() {
+            showGoogleRecovery(
+                "Google needs to be reconnected before Drive features can be used.",
+                {
+                    reconnect: true,
+                },
+            );
+        }
+
+        function showTransientDriveRecovery(
+            retryAction,
+        ) {
+            showGoogleRecovery(
+                "Google Drive is temporarily unavailable. Retry or choose a local ZIP.",
+                {
+                    retryAction,
+                },
+            );
+        }
+
+        async function loadGoogleConnectionState() {
+            let response;
+
+            try {
+                response = await fetch(
+                    "/auth/google/status",
+                );
+            } catch {
+                showTransientDriveRecovery(
+                    loadGoogleConnectionState,
+                );
+                return;
+            }
+
+            if (!response.ok) {
+                showTransientDriveRecovery(
+                    loadGoogleConnectionState,
+                );
                 return;
             }
 
@@ -2053,6 +3225,7 @@
             if (
                 googleStatus.status === "connected"
             ) {
+                hideGoogleRecovery();
                 googleConnect.hidden = true;
 
                 googleConnectionLabel.textContent =
@@ -2060,10 +3233,13 @@
 
                 googleConnectionStatus.hidden = false;
                 driveArchivePicker.hidden = false;
-                reportAutosaveControl.hidden = false;
+                reportDriveControls.hidden = false;
+                configSaveControls.hidden = false;
+                configAutosaveControl.hidden = false;
 
                 await loadConfigProfileState();
                 await loadReportAutosaveState();
+                updateGenerationSummary();
 
                 return;
             }
@@ -2077,60 +3253,98 @@
                 googleConnect.hidden = false;
                 googleConnectionStatus.hidden = true;
                 driveArchivePicker.hidden = true;
-                reportAutosaveControl.hidden = true;
+                reportDriveControls.hidden = true;
+                configProfileControls.hidden = true;
+                configSaveControls.hidden = true;
+                configAutosaveControl.hidden = true;
+
+                showReconnectRecovery();
+                updateGenerationSummary();
 
                 return;
             }
 
-            googleConnectLabel.textContent =
-                "Connect Google";
-
-            googleConnect.hidden = false;
-            googleConnectionStatus.hidden = true;
-            driveArchivePicker.hidden = true;
-            reportAutosaveControl.hidden = true;
+            hideGoogleRecovery();
+            applyAnonymousGoogleState();
         }
 
         async function loadConfigProfileState() {
             const response =
                 await fetch("/config/profiles");
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    loadConfigProfileState,
+                );
                 return;
             }
 
             const payload =
                 await response.json();
 
-            configProfileSelect.innerHTML =
-                '<option value="">Application defaults</option>';
+            configProfileSelect.innerHTML = "";
 
-            payload.profiles.forEach(
-                (profile) => {
-                    const option =
-                        document.createElement("option");
+            if (payload.profiles.length === 0) {
+                configProfileControls.hidden = true;
+            } else {
+                configProfileControls.hidden = false;
 
-                    option.value = profile.file_id;
-                    option.textContent = profile.name;
+                const placeholder =
+                    document.createElement("option");
 
-                    configProfileSelect.appendChild(
-                        option,
-                    );
-                },
-            );
+                placeholder.value = "";
+                placeholder.textContent =
+                    "Select configuration from Google Drive";
+                placeholder.disabled = true;
+                placeholder.selected =
+                    !payload.selected_profile_id;
 
-            configProfileSelect.value =
-                payload.selected_profile_id ?? "";
+                configProfileSelect.appendChild(
+                    placeholder,
+                );
+
+                payload.profiles.forEach(
+                    (profile) => {
+                        const option =
+                            document.createElement("option");
+
+                        option.value = profile.file_id;
+                        option.textContent = profile.name;
+
+                        configProfileSelect.appendChild(
+                            option,
+                        );
+                    },
+                );
+
+                configProfileSelect.value =
+                    payload.selected_profile_id ?? "";
+            }
 
             configAutosave.checked =
                 payload.autosave_enabled;
+
+            updateConfigSourceStatus();
         }
 
         async function loadReportAutosaveState() {
             const response =
                 await fetch("/reports/autosave");
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    loadReportAutosaveState,
+                );
                 return;
             }
 
@@ -2139,6 +3353,8 @@
 
             reportAutosave.checked =
                 payload.autosave_enabled;
+
+            updateGenerationSummary();
         }
 
         async function selectConfigProfile(
@@ -2161,12 +3377,24 @@
                     },
                 );
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    () => selectConfigProfile(
+                        profileId,
+                    ),
+                );
                 return;
             }
 
             configProfileSelect.value =
                 profileId;
+
+            updateConfigSourceStatus();
         }
 
         async function clearConfigProfileSelection() {
@@ -2178,11 +3406,21 @@
                     },
                 );
 
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
             if (!response.ok) {
+                showTransientDriveRecovery(
+                    clearConfigProfileSelection,
+                );
                 return;
             }
 
             configProfileSelect.value = "";
+
+            updateConfigSourceStatus();
         }
 
         async function loadGooglePickerCredentials() {
@@ -2196,12 +3434,22 @@
                     "/google/picker/token",
                 );
 
+            if (tokenResponse.status === 401) {
+                showReconnectRecovery();
+                throw new Error(
+                    "Reconnect Google to use Drive.",
+                );
+            }
+
             if (
                 !configResponse.ok
                 || !tokenResponse.ok
             ) {
+                showTransientDriveRecovery(
+                    openGoogleDrivePicker,
+                );
                 throw new Error(
-                    "Google Picker credentials are unavailable.",
+                    "Google Drive is temporarily unavailable.",
                 );
             }
 
@@ -2272,7 +3520,15 @@
                                 selectedDriveFileId =
                                     data.docs[0].id;
 
+                                selectedDriveFileName =
+                                    data.docs[0].name
+                                    ?? "Selected ZIP";
+
                                 archiveInput.value = "";
+                                fileName.textContent =
+                                    "Upload local export.zip";
+
+                                updateArchiveSourceStatus();
 
                                 showStatus(
                                     "Google Drive ZIP selected.",
@@ -2295,19 +3551,79 @@
             picker.setVisible(true);
         }
 
+        googleRecoveryRetry.addEventListener(
+            "click",
+            retryGoogleAction,
+        );
+
+        async function chooseLocalArchiveRecovery() {
+            try {
+                await continueWithoutGoogle();
+                archiveInput.click();
+            } catch (error) {
+                showStatus(
+                    error.message,
+                    "error",
+                );
+            }
+        }
+
+        googleRecoveryLocal.addEventListener(
+            "click",
+            chooseLocalArchiveRecovery,
+        );
+
+        googleRecoveryAnonymous.addEventListener(
+            "click",
+            async () => {
+                try {
+                    await continueWithoutGoogle();
+                } catch (error) {
+                    showStatus(
+                        error.message,
+                        "error",
+                    );
+                }
+            },
+        );
+
+        configSourceClear.addEventListener(
+            "click",
+            async () => {
+                configInput.value = "";
+                configFileName.textContent =
+                    "Choose a config file from this device";
+
+                if (
+                    !configProfileControls.hidden
+                    && configProfileSelect.value
+                ) {
+                    await clearConfigProfileSelection();
+                } else {
+                    configProfileSelect.value = "";
+
+                    updateConfigSourceStatus();
+                }
+            },
+        );
+
         configProfileSelect.addEventListener(
             "change",
-            () => {
+            async () => {
                 const profileId =
                     configProfileSelect.value;
 
-                if (profileId) {
-                    selectConfigProfile(
-                        profileId,
-                    );
-                } else {
-                    clearConfigProfileSelection();
+                if (!profileId) {
+                    return;
                 }
+
+                configInput.value = "";
+                configFileName.textContent =
+                    "Choose a config file from this device";
+
+                await selectConfigProfile(
+                    profileId,
+                );
             },
         );
 
@@ -2341,13 +3657,36 @@
                 if (!response.ok) {
                     configAutosave.checked =
                         !configAutosave.checked;
+
+                    if (response.status === 401) {
+                        showReconnectRecovery();
+                    } else {
+                        showTransientDriveRecovery(
+                            loadConfigProfileState,
+                        );
+                    }
                 }
+            },
+        );
+
+        [
+            outputFullText,
+            outputFullJson,
+            outputSummaryText,
+            outputSummaryJson,
+        ].forEach(
+            (output) => {
+                output.addEventListener(
+                    "change",
+                    updateGenerationSummary,
+                );
             },
         );
 
         reportAutosave.addEventListener(
             "change",
             async () => {
+                updateGenerationSummary();
                 const formData =
                     new FormData();
 
@@ -2368,6 +3707,14 @@
                 if (!response.ok) {
                     reportAutosave.checked =
                         !reportAutosave.checked;
+
+                    if (response.status === 401) {
+                        showReconnectRecovery();
+                    } else {
+                        showTransientDriveRecovery(
+                            loadReportAutosaveState,
+                        );
+                    }
                 }
             },
         );
@@ -2385,6 +3732,466 @@
                 }
             },
         );
+
+        function closeReplacementModal(
+            confirmed,
+        ) {
+            replacementModal.hidden = true;
+
+            const resolve =
+                replacementModalResolve;
+
+            replacementModalResolve = null;
+
+            if (resolve) {
+                resolve(confirmed);
+            }
+        }
+
+        function confirmReportReplacement(
+            replacePeriods,
+        ) {
+            replacementModalPeriods.textContent =
+                replacePeriods.join(", ");
+
+            replacementModal.hidden = false;
+            replacementModalConfirm.focus();
+
+            return new Promise((resolve) => {
+                replacementModalResolve = resolve;
+            });
+        }
+
+        replacementModalCancel.addEventListener(
+            "click",
+            () => {
+                closeReplacementModal(false);
+            },
+        );
+
+        replacementModalConfirm.addEventListener(
+            "click",
+            () => {
+                closeReplacementModal(true);
+            },
+        );
+
+        replacementModal.addEventListener(
+            "click",
+            (event) => {
+                if (event.target === replacementModal) {
+                    closeReplacementModal(false);
+                }
+            },
+        );
+
+        document.addEventListener(
+            "keydown",
+            (event) => {
+                if (
+                    event.key === "Escape"
+                    && !replacementModal.hidden
+                ) {
+                    closeReplacementModal(false);
+                }
+            },
+        );
+
+        enforceReportReplacement.addEventListener(
+            "change",
+            updateGenerationSummary,
+        );
+
+        function buildGenerationFormData(
+            replacePeriods = [],
+        ) {
+            const formData =
+                new FormData();
+
+            const localFile =
+                archiveInput.files[0];
+
+            if (selectedDriveFileId) {
+                formData.append(
+                    "drive_file_id",
+                    selectedDriveFileId,
+                );
+            } else if (localFile) {
+                formData.append(
+                    "archive",
+                    localFile,
+                );
+            }
+
+            formData.append(
+                "periods",
+                [...selectedMonths]
+                    .sort()
+                    .join(","),
+            );
+
+            formData.append(
+                "full_text",
+                String(outputFullText.checked),
+            );
+
+            formData.append(
+                "full_json",
+                String(outputFullJson.checked),
+            );
+
+            formData.append(
+                "summary_text",
+                String(outputSummaryText.checked),
+            );
+
+            formData.append(
+                "summary_json",
+                String(outputSummaryJson.checked),
+            );
+
+            const configFile =
+                configInput.files[0];
+
+            if (configFile) {
+                formData.append(
+                    "config",
+                    configFile,
+                );
+            }
+
+            formData.append(
+                "apple_watch_source",
+                appleWatchSource.value,
+            );
+
+            formData.append(
+                "apple_health_app_source",
+                appleHealthAppSource.value,
+            );
+
+            const saveConfigName =
+                saveConfigAs.value.trim();
+
+            if (saveConfigName) {
+                formData.append(
+                    "save_config_as",
+                    saveConfigName,
+                );
+            }
+
+            if (replacePeriods.length > 0) {
+                formData.append(
+                    "replace_periods",
+                    replacePeriods.join(","),
+                );
+            }
+
+            return formData;
+        }
+
+        async function readResponseError(
+            response,
+        ) {
+            let message =
+                `Request failed with status ${response.status}`;
+
+            try {
+                const errorPayload =
+                    await response.json();
+
+                if (errorPayload.detail) {
+                    message = errorPayload.detail;
+                }
+            } catch {
+                // Keep the generic HTTP status message.
+            }
+
+            return message;
+        }
+
+        async function submitGenerationRequest(
+            replacePeriods = [],
+        ) {
+            return fetch(
+                "/reports/generate",
+                {
+                    method: "POST",
+                    body: buildGenerationFormData(
+                        replacePeriods,
+                    ),
+                },
+            );
+        }
+
+        function formatPerformanceSummary(
+            serverTiming,
+        ) {
+            if (!serverTiming) {
+                return null;
+            }
+
+            const timings = new Map();
+
+            serverTiming.split(",").forEach((entry) => {
+                const parts =
+                    entry.trim().split(";");
+
+                const name = parts[0];
+                const durationPart =
+                    parts.find(
+                        (part) => part.startsWith("dur="),
+                    );
+
+                if (!durationPart) {
+                    return;
+                }
+
+                const milliseconds = Number(
+                    durationPart.slice(4),
+                );
+
+                if (Number.isFinite(milliseconds)) {
+                    timings.set(
+                        name,
+                        milliseconds / 1000,
+                    );
+                }
+            });
+
+            const details = [];
+            const accountedTimingNames = [];
+
+            if (timings.has("local_copy")) {
+                details.push(
+                    `local ZIP copy ${timings.get("local_copy").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("local_copy");
+            }
+
+            if (timings.has("drive_verify")) {
+                details.push(
+                    `Drive verify ${timings.get("drive_verify").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("drive_verify");
+            }
+
+            if (timings.has("drive_wait")) {
+                details.push(
+                    `Drive wait ${timings.get("drive_wait").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("drive_wait");
+            }
+
+            if (timings.has("drive_body")) {
+                details.push(
+                    `Drive body ${timings.get("drive_body").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("drive_body");
+            }
+
+            if (timings.has("write")) {
+                details.push(
+                    `temp write ${timings.get("write").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("write");
+            }
+
+            if (timings.has("config_copy")) {
+                details.push(
+                    `config copy ${timings.get("config_copy").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("config_copy");
+            }
+
+            if (timings.has("config_load")) {
+                details.push(
+                    `Drive config ${timings.get("config_load").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("config_load");
+            }
+
+            if (timings.has("archive")) {
+                details.push(
+                    `ZIP open ${timings.get("archive").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("archive");
+            }
+
+            if (timings.has("parse")) {
+                details.push(
+                    `XML parse ${timings.get("parse").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("parse");
+            }
+
+            if (timings.has("reports")) {
+                details.push(
+                    `reports ${timings.get("reports").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("reports");
+            }
+
+            if (timings.has("report_save")) {
+                details.push(
+                    `report save ${timings.get("report_save").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("report_save");
+            }
+
+            if (timings.has("config_save")) {
+                details.push(
+                    `config save ${timings.get("config_save").toFixed(1)}s`,
+                );
+                accountedTimingNames.push("config_save");
+            }
+
+            if (timings.has("total")) {
+                const accountedSeconds =
+                    accountedTimingNames.reduce(
+                        (sum, name) => sum + timings.get(name),
+                        0,
+                    );
+
+                const otherSeconds = Math.max(
+                    0,
+                    timings.get("total") - accountedSeconds,
+                );
+
+                if (otherSeconds >= 0.05) {
+                    details.push(
+                        `other backend ${otherSeconds.toFixed(1)}s`,
+                    );
+                }
+
+                return `Total ${timings.get("total").toFixed(1)}s`
+                    + (
+                        details.length > 0
+                            ? ` · ${details.join(" · ")}`
+                            : ""
+                    );
+            }
+
+            return details.length > 0
+                ? details.join(" · ")
+                : null;
+        }
+
+        async function handleSuccessfulGeneration(
+            response,
+        ) {
+            const payload =
+                await response.json();
+
+            renderReports(
+                payload.reports,
+            );
+
+            await loadGoogleConnectionState();
+
+            const performanceSummary =
+                technicalDiagnostics.checked
+                    ? formatPerformanceSummary(
+                        response.headers.get("Server-Timing"),
+                    )
+                    : null;
+
+            const successMessage =
+                `Generated ${payload.reports.length} monthly report set(s).`
+                + (
+                    performanceSummary
+                        ? ` ${performanceSummary}`
+                        : ""
+                );
+
+            showStatus(
+                successMessage,
+                "success",
+            );
+        }
+
+        async function handleGenerationRecovery(
+            response,
+            retryAction,
+        ) {
+            if (!selectedDriveFileId) {
+                return false;
+            }
+
+            if (response.status === 401) {
+                showReconnectRecovery();
+
+                showStatus(
+                    "Reconnect Google to use the selected Drive ZIP.",
+                    "error",
+                );
+
+                return true;
+            }
+
+            if (response.status === 502) {
+                showTransientDriveRecovery(
+                    retryAction,
+                );
+
+                showStatus(
+                    "Google Drive is temporarily unavailable.",
+                    "error",
+                );
+
+                return true;
+            }
+
+            if (response.status === 422) {
+                const detail =
+                    await readResponseError(
+                        response.clone(),
+                    );
+
+                if (
+                    detail.includes(
+                        "Google Drive file",
+                    )
+                ) {
+                    showGoogleRecovery(
+                        "The selected Google Drive ZIP is no longer available. Choose it again or use a local ZIP.",
+                        {
+                            retryAction: openGoogleDrivePicker,
+                        },
+                    );
+
+                    showStatus(
+                        detail,
+                        "error",
+                    );
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function parseReplacementPeriods(
+            conflictDetail,
+        ) {
+            const conflictPrefix =
+                "Report months already exist:";
+
+            if (
+                !conflictDetail.startsWith(
+                    conflictPrefix,
+                )
+            ) {
+                return [];
+            }
+
+            return conflictDetail
+                .slice(conflictPrefix.length)
+                .split(",")
+                .map((period) => period.trim())
+                .filter(Boolean);
+        }
 
         generateButton.addEventListener(
             "click",
@@ -2426,78 +4233,6 @@
                     return;
                 }
 
-                const formData =
-                    new FormData();
-
-                if (selectedDriveFileId) {
-                    formData.append(
-                        "drive_file_id",
-                        selectedDriveFileId,
-                    );
-                } else {
-                    formData.append(
-                        "archive",
-                        file,
-                    );
-                }
-
-                formData.append(
-                    "periods",
-                    [...selectedMonths]
-                        .sort()
-                        .join(","),
-                );
-
-                formData.append(
-                    "full_text",
-                    String(outputFullText.checked),
-                );
-
-                formData.append(
-                    "full_json",
-                    String(outputFullJson.checked),
-                );
-
-                formData.append(
-                    "summary_text",
-                    String(outputSummaryText.checked),
-                );
-
-                formData.append(
-                    "summary_json",
-                    String(outputSummaryJson.checked),
-                );
-
-                const configFile =
-                    configInput.files[0];
-
-                if (configFile) {
-                    formData.append(
-                        "config",
-                        configFile,
-                    );
-                }
-
-                formData.append(
-                    "apple_watch_source",
-                    appleWatchSource.value,
-                );
-
-                formData.append(
-                    "apple_health_app_source",
-                    appleHealthAppSource.value,
-                );
-
-                const saveConfigName =
-                    saveConfigAs.value.trim();
-
-                if (saveConfigName) {
-                    formData.append(
-                        "save_config_as",
-                        saveConfigName,
-                    );
-                }
-
                 generateButton.disabled = true;
                 generateButton.textContent =
                     "Generating…";
@@ -2505,54 +4240,51 @@
                 results.classList.remove("visible");
 
                 showStatus(
-                    "Parsing Apple Health data and generating reports…",
+                    selectedDriveFileId
+                        ? (
+                            "Downloading the Apple Health ZIP from Google Drive "
+                            + "and generating reports…"
+                        )
+                        : (
+                            "Parsing Apple Health data and generating reports…"
+                        ),
                     "success",
                 );
 
                 try {
                     const response =
-                        await fetch(
-                            "/reports/generate",
-                            {
-                                method: "POST",
-                                body: formData,
-                            },
-                        );
+                        await submitGenerationRequest();
+
+                    if (
+                        await handleGenerationRecovery(
+                            response,
+                            () => generateButton.click(),
+                        )
+                    ) {
+                        return;
+                    }
 
                     if (response.status === 409) {
-                        let conflictDetail = "";
+                        const conflictDetail =
+                            await readResponseError(
+                                response,
+                            );
 
-                        try {
-                            const errorPayload =
-                                await response.json();
+                        const replacePeriods =
+                            parseReplacementPeriods(
+                                conflictDetail,
+                            );
 
-                            conflictDetail =
-                                errorPayload.detail ?? "";
-                        } catch {
-                            // Keep the conflict detail empty.
-                        }
+                        if (replacePeriods.length > 0) {
+                            let confirmed =
+                                enforceReportReplacement.checked;
 
-                        const conflictPrefix =
-                            "Report months already exist:";
-
-                        if (
-                            conflictDetail.startsWith(
-                                conflictPrefix,
-                            )
-                        ) {
-                            const replacePeriods =
-                                conflictDetail
-                                    .slice(conflictPrefix.length)
-                                    .split(",")
-                                    .map((period) => period.trim())
-                                    .filter(Boolean);
-
-                            const confirmed =
-                                window.confirm(
-                                    "Saved reports already exist for: "
-                                    + replacePeriods.join(", ")
-                                    + ". Replace them?",
-                                );
+                            if (!confirmed) {
+                                confirmed =
+                                    await confirmReportReplacement(
+                                        replacePeriods,
+                                    );
+                            }
 
                             if (!confirmed) {
                                 showStatus(
@@ -2562,50 +4294,30 @@
                                 return;
                             }
 
-                            formData.set(
-                                "replace_periods",
-                                replacePeriods.join(","),
-                            );
-
                             const replacementResponse =
-                                await fetch(
-                                    "/reports/generate",
-                                    {
-                                        method: "POST",
-                                        body: formData,
-                                    },
+                                await submitGenerationRequest(
+                                    replacePeriods,
                                 );
 
-                            if (!replacementResponse.ok) {
-                                let message =
-                                    `Request failed with status ${replacementResponse.status}`;
-
-                                try {
-                                    const errorPayload =
-                                        await replacementResponse.json();
-
-                                    if (errorPayload.detail) {
-                                        message = errorPayload.detail;
-                                    }
-                                } catch {
-                                    // Keep the generic HTTP status message.
-                                }
-
-                                throw new Error(message);
+                            if (
+                                await handleGenerationRecovery(
+                                    replacementResponse,
+                                    () => generateButton.click(),
+                                )
+                            ) {
+                                return;
                             }
 
-                            const payload =
-                                await replacementResponse.json();
+                            if (!replacementResponse.ok) {
+                                throw new Error(
+                                    await readResponseError(
+                                        replacementResponse,
+                                    ),
+                                );
+                            }
 
-                            renderReports(
-                                payload.reports,
-                            );
-
-                            await loadGoogleConnectionState();
-
-                            showStatus(
-                                `Generated ${payload.reports.length} monthly report set(s).`,
-                                "success",
+                            await handleSuccessfulGeneration(
+                                replacementResponse,
                             );
 
                             return;
@@ -2613,35 +4325,15 @@
                     }
 
                     if (!response.ok) {
-                        let message =
-                            `Request failed with status ${response.status}`;
-
-                        try {
-                            const errorPayload =
-                                await response.json();
-
-                            if (errorPayload.detail) {
-                                message = errorPayload.detail;
-                            }
-                        } catch {
-                            // Keep the generic HTTP status message.
-                        }
-
-                        throw new Error(message);
+                        throw new Error(
+                            await readResponseError(
+                                response,
+                            ),
+                        );
                     }
 
-                    const payload =
-                        await response.json();
-
-                    renderReports(
-                        payload.reports,
-                    );
-
-                    await loadGoogleConnectionState();
-
-                    showStatus(
-                        `Generated ${payload.reports.length} monthly report set(s).`,
-                        "success",
+                    await handleSuccessfulGeneration(
+                        response,
                     );
                 } catch (error) {
                     showStatus(
@@ -2655,6 +4347,7 @@
                 }
             },
         );
+        updateGenerationSummary();
         loadGoogleConnectionState();
     </script>
 </body>

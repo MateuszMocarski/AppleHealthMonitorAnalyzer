@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from secrets import token_urlsafe
 from typing import Protocol
 from urllib.parse import urlencode
@@ -18,7 +18,10 @@ class GoogleOAuthStateError(GoogleOAuthError):
 
 @dataclass(frozen=True)
 class GoogleTokenResponse:
-    access_token: str
+    access_token: str = field(
+        repr=False,
+    )
+
     expires_in_seconds: int
     granted_scopes: frozenset[str]
 

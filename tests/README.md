@@ -2,7 +2,7 @@
 
 The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **386 collected test cases**.
+The suite currently contains **741 collected test cases**.
 
 ## Test structure
 
@@ -12,12 +12,15 @@ The suite currently contains **386 collected test cases**.
 | `ActivityAnalyzer` | 9 |
 | `MetricsAnalyzer` | 17 |
 | `HealthAnalyzer` | 14 |
-| FastAPI | 40 |
+| FastAPI / browser / Google integration | 163 |
 | `AppleHealthParser` | 36 |
 | CLI | 5 |
-| `AppleHealthApplication` | 4 |
+| `AppleHealthApplication` | 10 |
+| Effective configuration resolver | 6 |
+| Report-generation metadata | 1 |
+| Report-output selection | 3 |
 | `ReportPeriod` | 10 |
-| `RunOptions` | 1 |
+| `RunOptions` | 2 |
 | `RunOptionsResolver` | 9 |
 | `RunProfile` | 1 |
 | `RunProfileLoader` | 8 |
@@ -25,13 +28,23 @@ The suite currently contains **386 collected test cases**.
 | `ConfigLoader` | 40 |
 | `SleepConfig` | 3 |
 | Sleep Score configuration | 39 |
+| TOML renderer | 16 |
+| Google config profiles | 18 |
+| Current report generation | 9 |
+| Google Drive client | 31 |
+| Google Drive structure | 25 |
+| Google settings | 12 |
+| Google OAuth | 52 |
+| Report persistence | 26 |
+| Google sessions | 20 |
 | Report models | 26 |
 | `TextRenderer` | 23 |
 | `JsonRenderer` | 32 |
 | `AppleHealthImporter` | 11 |
 | Packaging | 1 |
-| Integration tests | 11 |
-| **Total** | **386** |
+| Full report pipeline integration | 11 |
+| Final integration matrix | 6 |
+| **Total** | **741** |
 
 Counts are based on `pytest --collect-only -q`, so parameterized cases are counted individually.
 
@@ -191,39 +204,27 @@ The CLI tests focus on the command-line adapter boundary. Application execution,
 
 ## FastAPI
 
-`tests/api/test_api.py` contains **40 collected test cases** covering the HTTP boundary and browser-facing report-generation behavior.
+`tests/api/test_app.py` contains **163 collected test cases** covering the HTTP boundary, browser UI contract, Google authentication/Drive workflows, and report-generation behavior.
 
-The suite verifies:
+The suite verifies, among other behavior:
 
-- the `/health` endpoint
-- availability of the browser favicon
-- successful report generation through the real application pipeline
-- multi-month requests and four report variants per month
-- strict period validation, whitespace handling, duplicate rejection, and the maximum requested-period limit
-- missing uploads
-- chunked archive upload handling and the compressed upload-size limit
-- malformed, empty, and otherwise invalid ZIP archives
-- missing and multiple eligible Apple Health export XML entries
-- malformed XML and non-Apple-Health XML roots
-- localized/non-standard filenames without trusting the client filename or MIME type as proof of validity
-- the uncompressed export XML size limit
-- deletion of the temporary archive after both successful and failed processing
-- stable client-facing mappings for known upload/XML errors
-- preservation of unexpected server exceptions as server errors
-- prevention of internal exception messages and local filesystem paths leaking into 500 responses
-- `Cache-Control: no-store` on responses containing generated health reports
-- forwarding explicit Apple Watch and Apple Health source overrides
-- normalization of blank/whitespace source fields to “no override”
-- presence of source-override controls and built-in Apple Watch family/NBSP guidance in the browser UI
-- canonical `/config.example.toml` download backed by the packaged example file
-- optional `config.toml` upload and forwarding through `config_path`
-- deletion of the temporary uploaded configuration after request completion
-- malformed and non-finite TOML mapping to HTTP 422
-- semantically invalid/non-finite Apple Health XML mapping to the stable invalid-XML HTTP 422 response
-- the dedicated uploaded-config size limit and HTTP 413 behavior
-- request-scoped temporary-directory cleanup while keeping files reopenable by path during application processing
+- `/health`, browser assets, and downloadable example configuration
+- successful local and Drive-backed report generation through the real application pipeline
+- strict multi-month validation, selected output variants, and one-parse generation behavior
+- archive/config upload limits, temporary-file cleanup, invalid ZIP/XML/TOML handling, and stable HTTP error mapping
+- no leakage of internal exception messages, filesystem paths, tokens, or other sensitive values
+- `Cache-Control: no-store` for generated health-report responses
+- Google OAuth start/callback/status, popup completion flow, reconnect/disconnect/sign-out behavior, and session handling
+- Google Picker configuration/token boundaries and Drive ZIP selection
+- saved Drive configuration profile listing/selection/clearing and configuration autosave
+- effective configuration precedence across UI overrides, local TOML, selected Drive profile, and defaults
+- report autosave state and persistence of only the selected output variants
+- existing-month conflict detection, explicit replacement authorization, safe staged replacement, archival of the previous generation, and staging cleanup
+- friendly Google/Drive recovery UX for access and transient failures
+- frontend behavior for local-vs-Drive source status, connected-only Drive controls, replacement modal, autosave toggles, technical diagnostics, and OAuth popup state preservation
+- `Server-Timing` instrumentation for Drive and generation phases
 
-API tests intentionally exercise both synthetic real-pipeline requests and isolated error/orchestration cases. This keeps the HTTP contract explicit without duplicating analyzer and renderer business-rule coverage.
+API tests intentionally mix real-pipeline requests with focused orchestration/error tests so the external contract remains explicit without duplicating analyzer and renderer business rules.
 
 ## Application layer
 
@@ -231,7 +232,7 @@ Application-layer tests cover both the original single-month CLI execution contr
 
 ### AppleHealthApplication
 
-`tests/application/test_application.py` contains **4 collected test cases**.
+`tests/application/test_application.py` contains **10 collected test cases**.
 
 The suite verifies:
 
@@ -568,6 +569,8 @@ tests/integration/fixtures/expected_report.txt
 
 The fixture contains synthetic test data only and does not contain a real Apple Health export.
 
+`tests/integration/test_integration_matrix.py` contains **6 final integration regression tests** covering the cross-feature combinations introduced by the Google/Drive phase. The matrix protects anonymous generation, connected local generation, Drive-backed generation, selected configuration profiles and autosave, report autosave, replacement behavior, and the intended local fallback semantics when a Google-backed session switches back to local input.
+
 ## Golden report
 
 The golden-report integration test compares the complete generated report against the approved `expected_report.txt` fixture.
@@ -633,7 +636,7 @@ Measure statement coverage for the application package:
 pytest --cov=apple_health --cov-report=term-missing
 ```
 
-The final PRE5.6 suite collects **386 tests** and currently reports **97% statement coverage** for `apple_health`.
+The current Phase 5 suite collects **741 tests**. Coverage can be measured with the command above; this README does not pin a percentage because the exact value may change as integration coverage evolves.
 
 ## Code quality
 

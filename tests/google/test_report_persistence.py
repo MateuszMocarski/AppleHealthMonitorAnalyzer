@@ -1537,40 +1537,26 @@ def test_replace_report_month_does_not_commit_or_archive_when_verify_fails(
 
 
 # =====================================================================
-# Verifies that orphan staging data is cleaned up by trashing the
-# staging folder after a replacement fails before commit.
+# Verifies that orphan staging data is permanently deleted instead of
+# being moved to the user's Google Drive trash.
 # =====================================================================
 
 
-def test_cleanup_staging_generation_trashes_staging_folder() -> None:
+def test_cleanup_staging_generation_deletes_staging_folder() -> None:
     calls = []
 
     class FakeDriveClient:
-        def trash(
+        def delete(
             self,
             file_id: str,
-        ) -> DriveFileMetadata:
+        ) -> None:
             calls.append(file_id)
 
-            return DriveFileMetadata(
-                file_id=file_id,
-                name="staging-generation-new",
-                mime_type="application/vnd.google-apps.folder",
-                size_bytes=None,
-                trashed=True,
-                app_properties={
-                    "ahm_type": "report_staging",
-                    "ahm_period": "2026-08",
-                    "ahm_generation_id": "generation-new",
-                },
-            )
-
-    cleaned = cleanup_staging_generation(
+    cleanup_staging_generation(
         FakeDriveClient(),
         staging_id="staging-id",
     )
 
-    assert cleaned.trashed is True
     assert calls == [
         "staging-id",
     ]

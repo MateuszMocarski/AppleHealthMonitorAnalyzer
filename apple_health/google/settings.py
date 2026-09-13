@@ -1,6 +1,6 @@
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 
@@ -76,11 +76,18 @@ def _get_cloud_project_number(environment: Mapping[str, str]) -> str:
 class GoogleSettings:
     environment: str
     client_id: str
-    client_secret: str
+
+    client_secret: str = field(
+        repr=False,
+    )
+
     redirect_uri: str
     picker_api_key: str
     cloud_project_number: str
-    session_secret: str
+
+    session_secret: str = field(
+        repr=False,
+    )
 
     @classmethod
     def load(cls) -> "GoogleSettings":

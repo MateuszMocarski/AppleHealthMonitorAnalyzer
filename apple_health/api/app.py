@@ -1,8 +1,18 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import perf_counter
 
-from fastapi import Cookie, FastAPI, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi import (
+    Cookie,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from apple_health.api.models import (
     MonthlyReportResponse,
@@ -10,6 +20,9 @@ from apple_health.api.models import (
 )
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.report_generation_result import (
+    ReportGenerationTimings,
+)
 from apple_health.application.report_outputs import ReportOutputs
 from apple_health.application.report_period import ReportPeriod
 from apple_health.config.app_config import AppConfig
@@ -30,6 +43,7 @@ from apple_health.google.config_profiles import (
 from apple_health.google.drive import (
     DriveAccessError,
     DriveConflictError,
+    DriveDownloadTimings,
     DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveNotFoundError,
@@ -69,6 +83,33 @@ app = FastAPI(
     title="Apple Health Monitor Analyzer",
     version="0.1.0",
 )
+
+
+@app.exception_handler(DriveAccessError)
+async def handle_drive_access_error(
+    _request: Request,
+    _exc: DriveAccessError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={
+            "detail": "Google reconnect is required.",
+        },
+    )
+
+
+@app.exception_handler(DriveTransientError)
+async def handle_drive_transient_error(
+    _request: Request,
+    _exc: DriveTransientError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=502,
+        content={
+            "detail": ("Google Drive is temporarily unavailable."),
+        },
+    )
+
 
 session_store = SessionStore()
 
@@ -253,13 +294,16 @@ def verify_drive_archive(
         metadata = drive_client.get_metadata(
             file_id,
         )
-    except (
-        DriveAccessError,
-        DriveNotFoundError,
-    ) as exc:
+    except DriveAccessError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        ) from exc
+
+    except DriveNotFoundError as exc:
         raise HTTPException(
             status_code=422,
-            detail="Selected Google Drive file is unavailable.",
+            detail=("Selected Google Drive file " "is unavailable."),
         ) from exc
 
     if metadata.trashed:
@@ -288,11 +332,15 @@ def download_drive_archive(
     access_token: str,
     file_id: str,
     destination: Path,
-) -> None:
+) -> DriveDownloadTimings:
+    verification_started = perf_counter()
+
     verify_drive_archive(
         access_token=access_token,
         file_id=file_id,
     )
+
+    verification_seconds = perf_counter() - verification_started
 
     drive_client = HttpGoogleDriveClient(
         access_token,
@@ -309,19 +357,45 @@ def download_drive_archive(
             status_code=413,
             detail="Selected Google Drive archive is too large.",
         ) from exc
-    except (
-        DriveAccessError,
-        DriveNotFoundError,
-    ) as exc:
+    except DriveAccessError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        ) from exc
+
+    except DriveNotFoundError as exc:
         raise HTTPException(
             status_code=422,
-            detail="Selected Google Drive file is unavailable.",
+            detail=("Selected Google Drive file " "is unavailable."),
         ) from exc
     except DriveTransientError as exc:
         raise HTTPException(
             status_code=502,
             detail="Google Drive is temporarily unavailable.",
         ) from exc
+
+    timings = getattr(
+        drive_client,
+        "last_download_timings",
+        None,
+    )
+
+    if timings is not None:
+        return DriveDownloadTimings(
+            downloaded_bytes=(timings.downloaded_bytes),
+            verification_seconds=(verification_seconds),
+            response_wait_seconds=(timings.response_wait_seconds),
+            body_transfer_seconds=(timings.body_transfer_seconds),
+            write_seconds=(timings.write_seconds),
+        )
+
+    return DriveDownloadTimings(
+        downloaded_bytes=(destination.stat().st_size),
+        verification_seconds=(verification_seconds),
+        response_wait_seconds=0.0,
+        body_transfer_seconds=0.0,
+        write_seconds=0.0,
+    )
 
 
 @app.get("/")
@@ -505,6 +579,7 @@ def get_report_autosave(
     include_in_schema=False,
 )
 def google_oauth_start(
+    popup: bool = False,
     ahm_session: str | None = Cookie(default=None),
 ) -> RedirectResponse:
     settings = GoogleSettings.load()
@@ -542,6 +617,19 @@ def google_oauth_start(
         samesite=cookie_settings.same_site,
     )
 
+    if popup:
+        response.set_cookie(
+            key="ahm_google_oauth_popup",
+            value="1",
+            httponly=True,
+            secure=cookie_settings.secure,
+            samesite=cookie_settings.same_site,
+        )
+    else:
+        response.delete_cookie(
+            key="ahm_google_oauth_popup",
+        )
+
     return response
 
 
@@ -554,7 +642,8 @@ def google_oauth_callback(
     code: str | None = None,
     error: str | None = None,
     ahm_session: str | None = Cookie(default=None),
-) -> RedirectResponse:
+    ahm_google_oauth_popup: str | None = Cookie(default=None),
+) -> Response:
     if ahm_session is None:
         raise HTTPException(
             status_code=400,
@@ -603,6 +692,26 @@ def google_oauth_callback(
             status_code=502,
             detail="Google OAuth connection failed.",
         ) from exc
+
+    if ahm_google_oauth_popup == "1":
+        response = HTMLResponse(
+            content=(
+                "<!DOCTYPE html><html><head><title>Google connected</title></head>"
+                "<body><script>"
+                "if (window.opener) {"
+                "window.opener.postMessage("
+                "{type: 'google-oauth-complete'}, window.location.origin"
+                ");"
+                "}"
+                "window.close();"
+                "</script>Google connected. You can close this window.</body></html>"
+            ),
+            status_code=200,
+        )
+        response.delete_cookie(
+            key="ahm_google_oauth_popup",
+        )
+        return response
 
     return RedirectResponse(
         url="/",
@@ -843,6 +952,16 @@ def generate_report(
     try:
         parsed_periods = _parse_periods(periods)
 
+        request_started = perf_counter()
+
+        drive_download_timings: DriveDownloadTimings | None = None
+
+        local_archive_copy_seconds: float | None = None
+        config_copy_seconds: float | None = None
+        config_load_seconds: float | None = None
+        report_persistence_seconds: float | None = None
+        config_persistence_seconds: float | None = None
+
         confirmed_replace_periods = {
             period.strip() for period in replace_periods.split(",") if period.strip()
         }
@@ -877,19 +996,23 @@ def generate_report(
                         detail="Google session is unavailable.",
                     )
 
-                download_drive_archive(
-                    access_token=session.google_access_token,
+                drive_download_timings = download_drive_archive(
+                    access_token=(session.google_access_token),
                     file_id=drive_file_id,
                     destination=archive_path,
                 )
 
             elif archive is not None:
+                local_archive_copy_started = perf_counter()
+
                 _copy_upload_to_path(
                     archive,
                     archive_path,
                     max_size=MAX_UPLOAD_SIZE,
                     too_large_detail=("Uploaded archive is too large."),
                 )
+
+                local_archive_copy_seconds = perf_counter() - local_archive_copy_started
 
             else:
                 raise HTTPException(
@@ -901,6 +1024,7 @@ def generate_report(
 
             if config is not None:
                 config_path = temporary_directory_path / "config.toml"
+                config_copy_started = perf_counter()
 
                 _copy_upload_to_path(
                     config,
@@ -908,6 +1032,8 @@ def generate_report(
                     max_size=MAX_CONFIG_UPLOAD_SIZE,
                     too_large_detail=("Uploaded configuration is too large."),
                 )
+
+                config_copy_seconds = perf_counter() - config_copy_started
 
             selected_drive_config = None
 
@@ -921,9 +1047,13 @@ def generate_report(
                     and session.selected_config_profile_id is not None
                     and config_path is None
                 ):
+                    config_load_started = perf_counter()
+
                     selected_drive_config = load_selected_config_for_session(
                         session,
                     )
+
+                    config_load_seconds = perf_counter() - config_load_started
 
             try:
                 outputs = ReportOutputs(
@@ -968,6 +1098,8 @@ def generate_report(
                     )
 
                     if session is not None:
+                        report_persistence_started = perf_counter()
+
                         try:
                             _persist_generated_reports(
                                 session=session,
@@ -976,10 +1108,14 @@ def generate_report(
                             )
 
                         except DriveConflictError as exc:
+                            report_persistence_seconds = perf_counter() - report_persistence_started
+
                             raise HTTPException(
                                 status_code=409,
                                 detail=str(exc),
                             ) from exc
+
+                        report_persistence_seconds = perf_counter() - report_persistence_started
 
                 if (
                     save_config_as is not None
@@ -991,11 +1127,15 @@ def generate_report(
                     )
 
                     if session is not None:
+                        config_persistence_started = perf_counter()
+
                         save_config_profile_for_session(
                             session,
                             name=save_config_as.strip(),
                             config=(generation_result.effective_config),
                         )
+
+                        config_persistence_seconds = perf_counter() - config_persistence_started
 
                 elif ahm_session is not None:
                     session = session_store.get(
@@ -1003,11 +1143,15 @@ def generate_report(
                     )
 
                     if session is not None and session.config_autosave_enabled:
+                        config_persistence_started = perf_counter()
+
                         save_config_profile_for_session(
                             session,
                             name="Autosave",
                             config=(generation_result.effective_config),
                         )
+
+                        config_persistence_seconds = perf_counter() - config_persistence_started
 
             except ConfigurationError as exc:
                 raise HTTPException(
@@ -1044,6 +1188,132 @@ def generate_report(
                     status_code=422,
                     detail=("Invalid Apple Health export XML."),
                 ) from exc
+
+        total_seconds = perf_counter() - request_started
+
+        generation_timings = getattr(
+            generation_result,
+            "timings",
+            ReportGenerationTimings(),
+        )
+
+        timing_parts = [
+            (
+                "archive",
+                "ZIP open",
+                (generation_timings.archive_open_seconds),
+            ),
+            (
+                "parse",
+                "XML parse",
+                (generation_timings.xml_parse_seconds),
+            ),
+            (
+                "reports",
+                "Report generation",
+                (generation_timings.report_render_seconds),
+            ),
+        ]
+
+        if local_archive_copy_seconds is not None:
+            timing_parts.insert(
+                0,
+                (
+                    "local_copy",
+                    "Local archive copy",
+                    local_archive_copy_seconds,
+                ),
+            )
+
+        if config_copy_seconds is not None:
+            timing_parts.append(
+                (
+                    "config_copy",
+                    "Config upload copy",
+                    config_copy_seconds,
+                )
+            )
+
+        if config_load_seconds is not None:
+            timing_parts.append(
+                (
+                    "config_load",
+                    "Drive config load",
+                    config_load_seconds,
+                )
+            )
+
+        if report_persistence_seconds is not None:
+            timing_parts.append(
+                (
+                    "report_save",
+                    "Report persistence",
+                    report_persistence_seconds,
+                )
+            )
+
+        if config_persistence_seconds is not None:
+            timing_parts.append(
+                (
+                    "config_save",
+                    "Config persistence",
+                    config_persistence_seconds,
+                )
+            )
+
+        if drive_download_timings is not None:
+            timing_parts.insert(
+                0,
+                (
+                    "drive_verify",
+                    "Drive metadata verification",
+                    (drive_download_timings.verification_seconds),
+                ),
+            )
+
+            timing_parts.insert(
+                1,
+                (
+                    "drive_wait",
+                    "Drive response wait",
+                    (drive_download_timings.response_wait_seconds),
+                ),
+            )
+
+            timing_parts.insert(
+                2,
+                (
+                    "drive_body",
+                    "Drive body transfer",
+                    (drive_download_timings.body_transfer_seconds),
+                ),
+            )
+
+            timing_parts.insert(
+                3,
+                (
+                    "write",
+                    "Temporary file write",
+                    (drive_download_timings.write_seconds),
+                ),
+            )
+
+        timing_parts.append(
+            (
+                "total",
+                "Total request",
+                total_seconds,
+            )
+        )
+
+        response.headers["Server-Timing"] = ", ".join(
+            (f"{name};" f"dur={seconds * 1000:.1f};" f'desc="{description}"')
+            for (
+                name,
+                description,
+                seconds,
+            ) in timing_parts
+        )
 
         return MultiMonthReportResponse(
             reports=[

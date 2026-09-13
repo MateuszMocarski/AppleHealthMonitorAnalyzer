@@ -444,8 +444,8 @@ def cleanup_staging_generation(
     drive_client: DriveClient,
     *,
     staging_id: str,
-) -> DriveFileMetadata:
-    return drive_client.trash(staging_id)
+) -> None:
+    drive_client.delete(staging_id)
 
 
 def report_month_exists(

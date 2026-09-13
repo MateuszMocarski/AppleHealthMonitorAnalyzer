@@ -1,10 +1,22 @@
 import json
+from atexit import register
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Protocol
 
 import httpx
+
+_HTTP_CLIENT = httpx.Client(
+    limits=httpx.Limits(
+        max_connections=20,
+        max_keepalive_connections=10,
+        keepalive_expiry=60.0,
+    ),
+)
+
+register(_HTTP_CLIENT.close)
 
 
 @dataclass(frozen=True)
@@ -21,6 +33,15 @@ class DriveFileMetadata:
 class DriveFilePage:
     files: tuple[DriveFileMetadata, ...]
     next_page_token: str | None
+
+
+@dataclass(frozen=True)
+class DriveDownloadTimings:
+    downloaded_bytes: int
+    verification_seconds: float
+    response_wait_seconds: float
+    body_transfer_seconds: float
+    write_seconds: float
 
 
 class DriveClient(Protocol):
@@ -78,6 +99,11 @@ class DriveClient(Protocol):
         file_id: str,
     ) -> None: ...
 
+    def delete(
+        self,
+        file_id: str,
+    ) -> None: ...
+
     def download_file(
         self,
         file_id: str,
@@ -92,11 +118,19 @@ class HttpGoogleDriveClient:
     DOWNLOAD_TIMEOUT = 60.0
     READ_MAX_ATTEMPTS = 3
 
+    @property
+    def last_download_timings(
+        self,
+    ) -> DriveDownloadTimings | None:
+        return self._last_download_timings
+
     def __init__(
         self,
         access_token: str,
     ) -> None:
         self._access_token = access_token
+
+        self._last_download_timings: DriveDownloadTimings | None = None
 
     def get_metadata(
         self,
@@ -198,7 +232,7 @@ class HttpGoogleDriveClient:
             )
 
         try:
-            response = httpx.post(
+            response = _HTTP_CLIENT.post(
                 f"{self.API_BASE_URL}/files",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -270,7 +304,7 @@ class HttpGoogleDriveClient:
         ]
 
         try:
-            response = httpx.post(
+            response = _HTTP_CLIENT.post(
                 "https://www.googleapis.com/upload/drive/v3/files",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -319,7 +353,7 @@ class HttpGoogleDriveClient:
             )
 
         try:
-            response = httpx.patch(
+            response = _HTTP_CLIENT.patch(
                 f"{self.API_BASE_URL}/files/{file_id}",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -357,7 +391,7 @@ class HttpGoogleDriveClient:
         remove_parent_id: str,
     ) -> DriveFileMetadata:
         try:
-            response = httpx.patch(
+            response = _HTTP_CLIENT.patch(
                 f"{self.API_BASE_URL}/files/{file_id}",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -393,7 +427,7 @@ class HttpGoogleDriveClient:
         file_id: str,
     ) -> None:
         try:
-            response = httpx.patch(
+            response = _HTTP_CLIENT.patch(
                 f"{self.API_BASE_URL}/files/{file_id}",
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
@@ -416,6 +450,28 @@ class HttpGoogleDriveClient:
                 exc,
             )
 
+    def delete(
+        self,
+        file_id: str,
+    ) -> None:
+        try:
+            response = _HTTP_CLIENT.delete(
+                f"{self.API_BASE_URL}/files/{file_id}",
+                headers={
+                    "Authorization": (f"Bearer {self._access_token}"),
+                },
+                timeout=self.REQUEST_TIMEOUT,
+            )
+        except httpx.RequestError as exc:
+            raise DriveTransientError("Google Drive request failed temporarily") from exc
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            self._raise_http_error(
+                exc,
+            )
+
     def download_file(
         self,
         file_id: str,
@@ -423,11 +479,18 @@ class HttpGoogleDriveClient:
         max_bytes: int,
     ) -> int:
         downloaded_bytes = 0
+        response_wait_seconds = 0.0
+        body_transfer_seconds = 0.0
+        write_seconds = 0.0
+
+        self._last_download_timings = None
+
+        response_wait_started = perf_counter()
 
         try:
-            with httpx.stream(
+            with _HTTP_CLIENT.stream(
                 "GET",
-                f"{self.API_BASE_URL}/files/{file_id}",
+                (f"{self.API_BASE_URL}" f"/files/{file_id}"),
                 headers={
                     "Authorization": (f"Bearer {self._access_token}"),
                 },
@@ -436,29 +499,63 @@ class HttpGoogleDriveClient:
                 },
                 timeout=self.DOWNLOAD_TIMEOUT,
             ) as response:
+                response_wait_seconds = perf_counter() - response_wait_started
+
                 try:
                     response.raise_for_status()
+
                 except httpx.HTTPStatusError as exc:
                     self._raise_http_error(
                         exc,
                     )
 
                 try:
-                    with destination.open("wb") as output:
-                        for chunk in response.iter_bytes():
-                            downloaded_bytes += len(chunk)
+                    chunks = iter(
+                        response.iter_bytes(),
+                    )
 
-                            if downloaded_bytes > max_bytes:
-                                raise DriveDownloadTooLargeError(
-                                    "Google Drive download exceeds size limit"
+                    with destination.open(
+                        "wb",
+                    ) as output:
+                        while True:
+                            body_transfer_started = perf_counter()
+
+                            try:
+                                chunk = next(
+                                    chunks,
                                 )
 
-                            output.write(chunk)
+                            except StopIteration:
+                                body_transfer_seconds += perf_counter() - body_transfer_started
+
+                                break
+
+                            body_transfer_seconds += perf_counter() - body_transfer_started
+
+                            downloaded_bytes += len(
+                                chunk,
+                            )
+
+                            if downloaded_bytes > max_bytes:
+                                raise (
+                                    DriveDownloadTooLargeError(
+                                        "Google Drive download " "exceeds size limit"
+                                    )
+                                )
+
+                            write_started = perf_counter()
+
+                            output.write(
+                                chunk,
+                            )
+
+                            write_seconds += perf_counter() - write_started
 
                 except DriveDownloadTooLargeError:
                     destination.unlink(
                         missing_ok=True,
                     )
+
                     raise
 
         except httpx.RequestError as exc:
@@ -466,7 +563,15 @@ class HttpGoogleDriveClient:
                 missing_ok=True,
             )
 
-            raise DriveTransientError("Google Drive request failed temporarily") from exc
+            raise DriveTransientError("Google Drive request failed " "temporarily") from exc
+
+        self._last_download_timings = DriveDownloadTimings(
+            downloaded_bytes=(downloaded_bytes),
+            verification_seconds=0.0,
+            response_wait_seconds=(response_wait_seconds),
+            body_transfer_seconds=(body_transfer_seconds),
+            write_seconds=(write_seconds),
+        )
 
         return downloaded_bytes
 
@@ -552,7 +657,7 @@ class HttpGoogleDriveClient:
             self.READ_MAX_ATTEMPTS,
         ):
             try:
-                response = httpx.get(
+                response = _HTTP_CLIENT.get(
                     url,
                     headers={
                         "Authorization": (f"Bearer {self._access_token}"),

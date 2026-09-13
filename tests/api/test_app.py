@@ -4282,6 +4282,11 @@ def test_report_generation_autosaves_effective_config(
     sessions = SessionStore()
     session_id = sessions.create()
 
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=True,
+    )
+
     sessions.set_report_autosave_enabled(
         session_id=session_id,
         enabled=False,
@@ -4997,12 +5002,12 @@ def test_verify_drive_archive_rejects_blank_file_id(
 
 
 # =====================================================================
-# Verifies that inaccessible Google Drive files are exposed as a
-# controlled validation error instead of leaking Drive client errors.
+# Verifies that Drive authorization failure during archive verification
+# requests Google reconnection instead of treating the file as missing.
 # =====================================================================
 
 
-def test_verify_drive_archive_rejects_inaccessible_file(
+def test_verify_drive_archive_requires_reconnect_when_access_is_denied(
     monkeypatch,
 ) -> None:
     class FakeDriveClient:
@@ -5032,8 +5037,8 @@ def test_verify_drive_archive_rejects_inaccessible_file(
             file_id="drive-file-id",
         )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == ("Google reconnect is required.")
 
 
 # =====================================================================
@@ -5454,12 +5459,12 @@ def test_report_generation_cleans_up_drive_archive_after_failure(
 
 
 # =====================================================================
-# Verifies that a Drive file becoming inaccessible during download is
-# exposed as a controlled validation error.
+# Verifies that Drive authorization failure during archive download
+# requests Google reconnection instead of treating the file as missing.
 # =====================================================================
 
 
-def test_download_drive_archive_rejects_inaccessible_download(
+def test_download_drive_archive_requires_reconnect_when_access_is_denied(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -5508,8 +5513,8 @@ def test_download_drive_archive_rejects_inaccessible_download(
             destination=destination,
         )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == ("Selected Google Drive file is unavailable.")
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == ("Google reconnect is required.")
 
 
 # =====================================================================
@@ -5783,6 +5788,10 @@ def test_web_interface_exposes_google_connect_control() -> None:
     assert 'id="google-connect"' in html
     assert 'href="/auth/google/start"' in html
     assert "Connect Google" in html
+    assert "window.open(" in html
+    assert '"/auth/google/start?popup=true"' in html
+    assert '"google-oauth-complete"' in html
+    assert "await loadGoogleConnectionState();" in html
 
 
 # =====================================================================
@@ -5894,6 +5903,96 @@ def test_google_callback_redirects_to_application_root(
 # Verifies that saved Google Drive config profiles are loaded only
 # after the frontend confirms an active Google connection.
 # =====================================================================
+
+
+# =====================================================================
+# Verifies that popup OAuth start marks the flow without changing the
+# normal backend session cookie contract.
+# =====================================================================
+
+
+def test_google_oauth_start_marks_popup_flow(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("AHM_ENV", "development")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "dev-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "dev-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_REDIRECT_URI",
+        "http://localhost:8000/auth/google/callback",
+    )
+    monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
+    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
+
+    sessions = SessionStore()
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    auth_client = TestClient(app)
+
+    response = auth_client.get(
+        "/auth/google/start?popup=true",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.cookies["ahm_google_oauth_popup"] == "1"
+
+
+# =====================================================================
+# Verifies that a successful popup OAuth callback notifies the opener
+# and closes itself instead of reloading the main application page.
+# =====================================================================
+
+
+def test_google_callback_completes_popup_without_root_redirect(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        api_app_module.session_store,
+        "get",
+        lambda _: object(),
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleOAuthService,
+        "complete",
+        lambda self, **_: None,
+    )
+
+    monkeypatch.setattr(
+        api_app_module.GoogleSettings,
+        "load",
+        lambda: SimpleNamespace(
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+            redirect_uri="http://localhost:8000/auth/google/callback",
+        ),
+    )
+
+    response = client.get(
+        "/auth/google/callback",
+        params={
+            "code": "test-code",
+            "state": "test-state",
+        },
+        cookies={
+            "ahm_session": "test-session",
+            "ahm_google_oauth_popup": "1",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    assert "google-oauth-complete" in response.text
+    assert "window.opener.postMessage(" in response.text
+    assert "window.close();" in response.text
+    assert "ahm_google_oauth_popup" in response.headers["set-cookie"]
 
 
 def test_web_interface_loads_config_profiles_only_when_google_connected() -> None:
@@ -7228,8 +7327,8 @@ def test_generate_reports_persists_confirmed_and_new_months_together(
 
 
 # =====================================================================
-# Verifies that the web interface confirms existing report replacement
-# and retries generation with the confirmed replacement periods.
+# Verifies that report replacement uses the in-page confirmation flow
+# and supports automatic replacement when enforcement is enabled.
 # =====================================================================
 
 
@@ -7240,10 +7339,25 @@ def test_web_interface_confirms_report_replacement() -> None:
 
     html = response.text
 
-    assert "Report months already exist:" in html
-    assert "window.confirm(" in html
+    assert "window.confirm(" not in html
+
+    assert 'id="replacement-modal"' in html
+    assert 'id="replacement-modal-cancel"' in html
+    assert 'id="replacement-modal-confirm"' in html
+    assert 'class="replacement-cancel"' in html
+    assert "OK" in html
+    assert "color: var(--text-secondary);" in html
+    assert "color: var(--error);" in html
+
+    assert "function confirmReportReplacement(" in html
+
+    assert "enforceReportReplacement.checked" in html
+
+    assert "await confirmReportReplacement(" in html
+
+    assert "await submitGenerationRequest(" in html
+
     assert '"replace_periods"' in html
-    assert "formData.set(" in html
 
 
 # =====================================================================
@@ -7520,3 +7634,703 @@ def test_generate_reports_allows_partial_multi_month_persistence(
         (2026, 7),
         (2026, 8),
     ]
+
+
+# =====================================================================
+# Verifies that the web interface exposes one visible archive-source
+# status shared by local upload and Google Drive selection.
+# =====================================================================
+
+
+def test_web_interface_exposes_unified_archive_source_status() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="archive-source-status"' in html
+    assert "Local file:" in html
+    assert "Google Drive:" in html
+
+
+# =====================================================================
+# Verifies that the web interface exposes one visible configuration
+# source status for defaults, saved profiles and uploaded config files.
+# =====================================================================
+
+
+def test_web_interface_exposes_unified_config_source_status() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="config-source-status"' in html
+    assert "Application defaults" in html
+    assert "Configuration from Google Drive:" in html
+    assert "Configuration from this device:" in html
+    assert 'id="config-source-clear"' in html
+    assert "Select configuration from Google Drive" in html
+
+
+# =====================================================================
+# Verifies that the web interface exposes one generation summary with
+# archive source, periods, config source, outputs and persistence state.
+# =====================================================================
+
+
+def test_web_interface_exposes_generation_summary() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="generation-summary"' in html
+    assert "Generation summary" in html
+    assert "Persistence:" in html
+    assert "Outputs:" in html
+
+
+# =====================================================================
+# Verifies that report generation uses one shared request-building and
+# submission flow for normal generation and replacement retries.
+# =====================================================================
+
+
+def test_web_interface_uses_unified_generation_request_flow() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "function buildGenerationFormData(" in html
+    assert "async function submitGenerationRequest(" in html
+    assert "async function readResponseError(" in html
+    assert "async function handleSuccessfulGeneration(" in html
+
+
+# =====================================================================
+# Verifies that Drive authorization failures become a controlled
+# reconnect response instead of an internal server error.
+# =====================================================================
+
+
+def test_config_profiles_returns_reconnect_response_for_drive_access_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    def fail_profile_discovery(
+        session,
+    ):
+        raise DriveAccessError("access denied")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_profiles_for_session",
+        fail_profile_discovery,
+    )
+
+    recovery_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    recovery_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = recovery_client.get(
+        "/config/profiles",
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Google reconnect is required.",
+    }
+
+
+# =====================================================================
+# Verifies that transient Drive failures become a controlled retryable
+# response instead of an internal server error.
+# =====================================================================
+
+
+def test_config_profiles_returns_retryable_response_for_transient_drive_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(
+            GoogleOAuthService.SCOPES,
+        ),
+        expires_in_seconds=3600,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    def fail_profile_discovery(
+        session,
+    ):
+        raise DriveTransientError("temporary failure")
+
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_config_profiles_for_session",
+        fail_profile_discovery,
+    )
+
+    recovery_client = TestClient(
+        app,
+        raise_server_exceptions=False,
+    )
+
+    recovery_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    response = recovery_client.get(
+        "/config/profiles",
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": ("Google Drive is temporarily unavailable."),
+    }
+
+
+# =====================================================================
+# Verifies that the web interface exposes explicit reconnect, retry,
+# local ZIP and anonymous recovery actions for Google Drive failures.
+# =====================================================================
+
+
+def test_web_interface_exposes_google_drive_recovery_actions() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="google-recovery"' in html
+    assert 'id="google-recovery-reconnect"' in html
+    assert 'id="google-recovery-retry"' in html
+    assert 'id="google-recovery-local"' in html
+    assert 'id="google-recovery-anonymous"' in html
+
+    assert "Reconnect Google" in html
+    assert "Retry Google Drive" in html
+    assert "Choose local ZIP" in html
+    assert "Continue without Google" in html
+
+
+# =====================================================================
+# Verifies that Google recovery copy is user-facing and avoids exposing
+# Picker credential or access-token terminology to the user.
+# =====================================================================
+
+
+def test_web_interface_uses_friendly_google_drive_recovery_copy() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "Google needs to be reconnected before Drive " "features can be used." in html
+
+    assert "Google Drive is temporarily unavailable. " "Retry or choose a local ZIP." in html
+
+    assert "Google Picker credentials are unavailable." not in html
+
+
+# =====================================================================
+# Verifies that retry is initiated only by an explicit user action and
+# does not create an automatic frontend retry loop.
+# =====================================================================
+
+
+def test_web_interface_uses_manual_google_drive_retry() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "let lastGoogleRetryAction = null;" in html
+
+    assert "async function retryGoogleAction()" in html
+
+    assert "googleRecoveryRetry.addEventListener(" in html
+
+    assert "await retryAction();" in html
+    assert "setInterval(" not in html
+
+
+# =====================================================================
+# Verifies that anonymous fallback signs out the local Google-backed
+# session so local generation cannot silently keep Drive persistence.
+# =====================================================================
+
+
+def test_web_interface_anonymous_fallback_signs_out_google_session() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "async function continueWithoutGoogle()" in html
+
+    assert '"/auth/sign-out"' in html
+    assert 'method: "POST"' in html
+
+    assert "applyAnonymousGoogleState();" in html
+
+    assert "Continuing locally without Google Drive." in html
+
+
+# =====================================================================
+# Verifies that Drive-backed generation failures expose reconnect,
+# retry or local-file recovery instead of only surfacing raw API errors.
+# =====================================================================
+
+
+def test_web_interface_recovers_from_drive_generation_failures() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "async function handleGenerationRecovery(" in html
+
+    assert "response.status === 401" in html
+    assert "response.status === 502" in html
+    assert "response.status === 422" in html
+
+    assert "The selected Google Drive ZIP is no longer " "available." in html
+
+
+# =====================================================================
+# Verifies that temporary uploaded configuration files are deleted after
+# successful report generation together with the temporary archive.
+# =====================================================================
+
+
+def test_report_generation_deletes_temporary_config_after_success(
+    monkeypatch,
+) -> None:
+    temporary_config_path = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal temporary_config_path
+
+        temporary_config_path = options.config_path
+
+        assert temporary_config_path is not None
+        assert temporary_config_path.exists()
+
+        return _generation_result()
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[source]\n",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 200
+    assert temporary_config_path is not None
+    assert not temporary_config_path.exists()
+
+
+# =====================================================================
+# Verifies that temporary uploaded configuration files are deleted when
+# report generation fails.
+# =====================================================================
+
+
+def test_report_generation_deletes_temporary_config_after_failure(
+    monkeypatch,
+) -> None:
+    temporary_config_path = None
+
+    def fake_generate_reports(
+        self,
+        options,
+    ):
+        nonlocal temporary_config_path
+
+        temporary_config_path = options.config_path
+
+        assert temporary_config_path is not None
+        assert temporary_config_path.exists()
+
+        raise InvalidArchiveError
+
+    monkeypatch.setattr(
+        AppleHealthApplication,
+        "generate_reports",
+        fake_generate_reports,
+    )
+
+    response = client.post(
+        "/reports/generate",
+        files={
+            "archive": (
+                "export.zip",
+                b"fake-archive",
+                "application/zip",
+            ),
+            "config": (
+                "config.toml",
+                b"[source]\n",
+                "application/toml",
+            ),
+        },
+        data={
+            "periods": "2026-08",
+        },
+    )
+
+    assert response.status_code == 422
+    assert temporary_config_path is not None
+    assert not temporary_config_path.exists()
+
+
+# =====================================================================
+# Verifies that user-controlled archive and configuration names are not
+# interpolated into generation-summary HTML.
+# =====================================================================
+
+
+def test_web_interface_renders_generation_summary_without_inner_html() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "generationSummary.innerHTML" not in html
+    assert "generationSummary.replaceChildren(" in html
+    assert "document.createTextNode(line)" in html
+
+
+# =====================================================================
+# Verifies that successful report generation exposes phase timings via
+# the standard Server-Timing response header without changing the body.
+# =====================================================================
+
+
+def test_report_generation_exposes_server_timing_header(
+    tmp_path: Path,
+) -> None:
+    archive_path = _create_export_archive(tmp_path)
+
+    with archive_path.open("rb") as archive:
+        response = client.post(
+            "/reports/generate",
+            data={
+                "periods": "2026-08",
+            },
+            files={
+                "archive": (
+                    "export.zip",
+                    archive,
+                    "application/zip",
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+
+    server_timing = response.headers["Server-Timing"]
+
+    assert "archive;dur=" in server_timing
+    assert "parse;dur=" in server_timing
+    assert "reports;dur=" in server_timing
+    assert "total;dur=" in server_timing
+
+    assert "drive_verify;dur=" not in server_timing
+    assert "drive_wait;dur=" not in server_timing
+    assert "drive_body;dur=" not in server_timing
+    assert "write;dur=" not in server_timing
+
+
+# =====================================================================
+# Verifies that Drive-backed archive downloads expose measured transfer
+# and temporary-file write timings to the report-generation response.
+# =====================================================================
+
+
+def test_download_drive_archive_returns_download_timings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from apple_health.google.drive import DriveDownloadTimings
+
+    client_timings = DriveDownloadTimings(
+        downloaded_bytes=11,
+        verification_seconds=0.0,
+        response_wait_seconds=5.0,
+        body_transfer_seconds=2.5,
+        write_seconds=0.3,
+    )
+
+    class FakeDriveClient:
+        def __init__(
+            self,
+            access_token: str,
+        ) -> None:
+            assert access_token == "drive-token"
+
+            self.last_download_timings = client_timings
+
+        def download_file(
+            self,
+            file_id: str,
+            destination: Path,
+            max_bytes: int,
+        ) -> int:
+            assert file_id == "drive-file-id"
+            assert max_bytes == MAX_UPLOAD_SIZE
+
+            destination.write_bytes(
+                b"hello world",
+            )
+
+            return 11
+
+    monkeypatch.setattr(
+        api_app_module,
+        "verify_drive_archive",
+        lambda **kwargs: None,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "HttpGoogleDriveClient",
+        FakeDriveClient,
+    )
+
+    verification_clock = iter(
+        (
+            10.0,
+            12.0,
+        )
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "perf_counter",
+        lambda: next(verification_clock),
+    )
+
+    timings = download_drive_archive(
+        access_token="drive-token",
+        file_id="drive-file-id",
+        destination=(tmp_path / "archive.zip"),
+    )
+
+    assert timings == DriveDownloadTimings(
+        downloaded_bytes=11,
+        verification_seconds=2.0,
+        response_wait_seconds=5.0,
+        body_transfer_seconds=2.5,
+        write_seconds=0.3,
+    )
+
+
+# =====================================================================
+# Verifies that the web UI distinguishes Drive transfer from local
+# parsing and renders backend performance diagnostics after generation.
+# =====================================================================
+
+
+def test_web_interface_exposes_drive_transfer_progress_and_timings() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert 'id="technical-diagnostics"' in html
+
+    assert "Technical diagnostics" in html
+
+    assert "function formatPerformanceSummary(" in html
+
+    assert 'response.headers.get("Server-Timing")' in html
+
+    assert "Downloading the Apple Health ZIP " "from Google Drive" in html
+
+    assert 'Drive verify ${timings.get("drive_verify").toFixed(1)}s' in html
+
+    assert 'Drive wait ${timings.get("drive_wait").toFixed(1)}s' in html
+
+    assert 'Drive body ${timings.get("drive_body").toFixed(1)}s' in html
+
+    assert 'temp write ${timings.get("write").toFixed(1)}s' in html
+
+    assert "other backend ${otherSeconds.toFixed(1)}s" in html
+
+    assert "technicalDiagnostics.checked" in html
+
+
+# =====================================================================
+# Verifies that request diagnostics account for local archive copying
+# and report persistence outside the core report-generation pipeline.
+# =====================================================================
+
+
+def test_report_generation_server_timing_accounts_for_persistence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(),
+        expires_in_seconds=3600,
+    )
+
+    sessions.set_config_autosave_enabled(
+        session_id=session_id,
+        enabled=False,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "session_store",
+        sessions,
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "_persist_generated_reports",
+        lambda **kwargs: None,
+    )
+
+    clock = iter(
+        (
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            8.0,
+            10.0,
+        )
+    )
+
+    monkeypatch.setattr(
+        api_app_module,
+        "perf_counter",
+        lambda: next(clock),
+    )
+
+    archive_path = _create_export_archive(tmp_path)
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set(
+        "ahm_session",
+        session_id,
+    )
+
+    with archive_path.open("rb") as archive:
+        response = auth_client.post(
+            "/reports/generate",
+            data={
+                "periods": "2026-08",
+            },
+            files={
+                "archive": (
+                    "export.zip",
+                    archive,
+                    "application/zip",
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+
+    server_timing = response.headers["Server-Timing"]
+
+    assert "local_copy;dur=1000.0" in server_timing
+    assert "report_save;dur=5000.0" in server_timing
+    assert "total;dur=10000.0" in server_timing
+
+
+# =====================================================================
+# Verifies that technical diagnostics are presented as a toggle switch
+# below the GitHub link in the header utility controls.
+# =====================================================================
+
+
+def test_web_interface_places_diagnostics_toggle_below_github_link() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    github_position = html.index("View on GitHub")
+    diagnostics_position = html.index("Technical diagnostics")
+
+    assert github_position < diagnostics_position
+    assert 'class="diagnostics-switch"' in html
+    assert 'id="technical-diagnostics"' in html

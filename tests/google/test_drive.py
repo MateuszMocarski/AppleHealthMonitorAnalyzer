@@ -139,7 +139,7 @@ def test_http_drive_client_gets_file_metadata(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -210,7 +210,7 @@ def test_http_drive_client_maps_http_failures(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -248,7 +248,7 @@ def test_http_drive_client_maps_network_failure(
         )
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -297,7 +297,7 @@ def test_http_drive_client_rejects_malformed_metadata_response(
             return payload
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         lambda *args, **kwargs: FakeResponse(),
     )
 
@@ -362,7 +362,7 @@ def test_http_drive_client_searches_files(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -502,7 +502,7 @@ def test_http_drive_client_creates_folder(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.post",
+        "apple_health.google.drive._HTTP_CLIENT.post",
         fake_post,
     )
 
@@ -589,7 +589,7 @@ def test_http_drive_client_uploads_file(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.post",
+        "apple_health.google.drive._HTTP_CLIENT.post",
         fake_post,
     )
 
@@ -672,7 +672,7 @@ def test_http_drive_client_updates_metadata(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.patch",
+        "apple_health.google.drive._HTTP_CLIENT.patch",
         fake_patch,
     )
 
@@ -742,7 +742,7 @@ def test_http_drive_client_moves_file(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.patch",
+        "apple_health.google.drive._HTTP_CLIENT.patch",
         fake_patch,
     )
 
@@ -808,7 +808,7 @@ def test_http_drive_client_trashes_file(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.patch",
+        "apple_health.google.drive._HTTP_CLIENT.patch",
         fake_patch,
     )
 
@@ -874,7 +874,7 @@ def test_http_drive_client_downloads_file(
         return FakeStream()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.stream",
+        "apple_health.google.drive._HTTP_CLIENT.stream",
         fake_stream,
     )
 
@@ -926,7 +926,7 @@ def test_http_drive_client_rejects_oversized_download(
             pass
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.stream",
+        "apple_health.google.drive._HTTP_CLIENT.stream",
         lambda *args, **kwargs: FakeStream(),
     )
 
@@ -997,7 +997,7 @@ def test_http_drive_client_retries_transient_metadata_failure(
         return SuccessfulResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -1063,7 +1063,7 @@ def test_http_drive_client_retries_transient_search_failure(
         return SuccessfulResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -1120,7 +1120,7 @@ def test_http_drive_client_does_not_retry_conflicting_write(
         return ConflictResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.post",
+        "apple_health.google.drive._HTTP_CLIENT.post",
         fake_post,
     )
 
@@ -1174,7 +1174,7 @@ def test_http_drive_client_stops_after_max_read_attempts(
         return TransientResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.drive.httpx.get",
+        "apple_health.google.drive._HTTP_CLIENT.get",
         fake_get,
     )
 
@@ -1233,8 +1233,7 @@ def test_download_file_uses_extended_timeout(
         return FakeResponse()
 
     monkeypatch.setattr(
-        httpx,
-        "stream",
+        "apple_health.google.drive._HTTP_CLIENT.stream",
         fake_stream,
     )
 
@@ -1249,3 +1248,142 @@ def test_download_file_uses_extended_timeout(
     )
 
     assert captured_timeout == client.DOWNLOAD_TIMEOUT
+
+
+# =====================================================================
+# Verifies that Drive download diagnostics separate remote transfer wait
+# from local temporary-file write time without changing byte-limit logic.
+# =====================================================================
+
+
+def test_http_drive_client_records_download_transfer_and_write_timings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            pass
+
+        def iter_bytes(self):
+            yield b"hello "
+            yield b"world"
+
+    class FakeStream:
+        def __enter__(self) -> FakeResponse:
+            return FakeResponse()
+
+        def __exit__(
+            self,
+            exc_type,
+            exc_value,
+            traceback,
+        ) -> None:
+            pass
+
+    clock = iter(
+        (
+            0.0,
+            5.0,
+            5.0,
+            6.0,
+            6.0,
+            6.1,
+            6.1,
+            7.1,
+            7.1,
+            7.3,
+            7.3,
+            7.8,
+        )
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.drive._HTTP_CLIENT.stream",
+        lambda *args, **kwargs: FakeStream(),
+    )
+
+    monkeypatch.setattr(
+        "apple_health.google.drive.perf_counter",
+        lambda: next(clock),
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    destination = tmp_path / "download.bin"
+
+    downloaded_bytes = client.download_file(
+        file_id="file-123",
+        destination=destination,
+        max_bytes=100,
+    )
+
+    assert downloaded_bytes == 11
+    assert destination.read_bytes() == b"hello world"
+
+    timings = client.last_download_timings
+
+    assert timings is not None
+    assert timings.downloaded_bytes == 11
+    assert timings.verification_seconds == 0.0
+    assert timings.response_wait_seconds == pytest.approx(5.0)
+    assert timings.body_transfer_seconds == pytest.approx(2.5)
+    assert timings.write_seconds == pytest.approx(0.3)
+
+
+# =====================================================================
+# Verifies that permanent Drive deletion uses the files.delete endpoint
+# instead of moving temporary staging folders to trash.
+# =====================================================================
+
+
+def test_http_drive_client_permanently_deletes_file(
+    monkeypatch,
+) -> None:
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(
+            self,
+        ) -> None:
+            pass
+
+    def fake_delete(
+        url,
+        *,
+        headers,
+        timeout,
+    ):
+        calls.append(
+            (
+                url,
+                headers,
+                timeout,
+            )
+        )
+
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        "apple_health.google.drive._HTTP_CLIENT.delete",
+        fake_delete,
+    )
+
+    client = HttpGoogleDriveClient(
+        access_token="access-token",
+    )
+
+    client.delete(
+        "staging-id",
+    )
+
+    assert calls == [
+        (
+            ("https://www.googleapis.com/" "drive/v3/files/staging-id"),
+            {
+                "Authorization": ("Bearer access-token"),
+            },
+            client.REQUEST_TIMEOUT,
+        ),
+    ]

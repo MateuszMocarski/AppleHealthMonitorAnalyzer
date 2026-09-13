@@ -3,7 +3,8 @@
 ### Highlights
 
 - 📅 Daily and monthly reports
-- 🌐 Stateless browser interface and FastAPI report-generation API
+- 🌐 Browser interface and FastAPI report-generation API
+- ☁️ Optional Google sign-in with Google Drive ZIP selection, saved configurations, and report persistence
 - 🗓️ Multi-month generation from a single Apple Health parse
 - ⚙️ Optional `config.toml` upload plus per-request source overrides
 - 😴 Automatic sleep session reconstruction and configurable Sleep Score
@@ -107,10 +108,15 @@ independent verification, and AI-assisted interpretation.
 - One archive parse shared across all requested months
 - Optional per-request `config.toml` upload
 - Optional Apple Watch and Apple Health source-name overrides
-- Configuration precedence: UI source overrides > uploaded TOML > built-in defaults
+- Configuration precedence: UI source overrides > uploaded TOML > selected Drive profile > built-in defaults
 - Downloadable complete example configuration from the browser UI
 - Built-in configuration and workflow guide with a link to the public GitHub repository
-- Browser downloads for all four generated report variants
+- Selectable report outputs with browser downloads for generated artifacts
+- Google Drive report autosave with safe per-month replacement and archived previous generations
+- Saved Drive configuration profiles with explicit selection and optional configuration autosave
+- Popup-based Google OAuth that preserves locally selected ZIP/config files and form state
+- Friendly Google reconnect, retry, local-fallback, and anonymous recovery paths
+- Optional technical timing diagnostics backed by `Server-Timing`
 - Disposable temporary ZIP and TOML handling with cleanup after success or controlled failure
 - Health-check endpoint for deployment readiness
 - Application-level limits for archive size, config size, uncompressed export XML size, and requested periods
@@ -140,13 +146,38 @@ A runtime-only editable install can use `python -m pip install -e .`. The `dev` 
 
 ### Web Interface
 
+For local development, create a `.env` file in the project root based on
+`.env.example`. Local report generation works without Google, but Google OAuth
+and Drive features require the Google settings to be populated:
+
+```dotenv
+AHM_ENV=development
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+
+GOOGLE_PICKER_API_KEY=
+GOOGLE_CLOUD_PROJECT_NUMBER=
+
+AHM_SESSION_SECRET=
+```
+
+`GOOGLE_REDIRECT_URI` must also be registered as an authorized redirect URI for
+the OAuth client in Google Cloud. Keep real credentials and the session secret
+only in `.env`; do not commit them.
+
 Start the FastAPI application with Uvicorn:
 
 ```bash
-uvicorn apple_health.api.app:app --reload
+uvicorn apple_health.api.app:app --env-file .env
 ```
 
-Then open the local application in a browser, normally at `http://127.0.0.1:8000/`.
+Then open the application at `http://localhost:8000/`.
+
+Use `localhost` consistently for the browser and Google redirect URI rather than
+switching between `localhost` and `127.0.0.1`. The normal local command does not
+use Uvicorn's `--reload` mode.
 
 The browser workflow requires only:
 
@@ -155,19 +186,29 @@ The browser workflow requires only:
 
 The advanced settings section additionally supports:
 
-- an optional `config.toml` upload,
+- an optional local `config.toml` upload,
+- saved configuration profiles from Google Drive when Google is connected,
+- optional saving/autosaving of effective configurations back to Drive,
 - an optional Apple Watch `sourceName` override,
 - an optional Apple Health application `sourceName` override,
 - downloading the complete `config.example.toml`,
 - an in-page configuration/workflow guide, and
 - a link to the public GitHub repository.
 
-Source fields are intentionally blank by default. A blank field means “do not override this value”. The effective web configuration is resolved using:
+The active configuration source is always shown explicitly as one of:
+
+- `Application defaults`,
+- `Configuration from Google Drive: <name>`, or
+- `Configuration from this device: <name>`.
+
+A local TOML upload takes precedence over a selected Drive profile for that request. Runtime source fields are intentionally blank by default; blank means “do not override this value”. The effective web configuration is resolved using:
 
 ```text
 UI source overrides
         ↓
 uploaded config.toml
+        ↓
+selected Drive profile
         ↓
 built-in defaults
 ```
@@ -181,9 +222,13 @@ For every requested month the browser returns four downloadable artifacts:
 - `summary.txt`
 - `summary.json`
 
-The uploaded Apple Health ZIP and optional TOML file are copied into a request-scoped temporary directory, closed before application processing begins, and removed when the request completes. Generated report content is returned directly to the browser. The current anonymous workflow does not persist uploads or generated reports on the server.
+The uploaded Apple Health ZIP and optional TOML file are copied into a request-scoped temporary directory, closed before application processing begins, and removed when the request completes. Generated report content is always returned to the browser. Anonymous/local generation remains stateless.
 
-> **Current deployment status:** the application does not yet implement the planned Google identity/Drive mode or production access hardening. The current anonymous report-generation flow is intentionally stateless. Do not expose health-report generation publicly without an appropriate authentication, request-limiting, and deployment security layer.
+When Google is connected, the browser can also select the Apple Health ZIP directly from Google Drive, load saved configuration profiles, autosave configurations, and persist selected report outputs under the managed Apple Health Monitor Drive structure. Re-generating an existing month uses an explicit replacement flow: the new generation is staged and verified first, the previous current generation is archived, and temporary staging folders are permanently deleted after cleanup rather than being left in Drive trash.
+
+Google OAuth is opened in a popup so a locally selected ZIP, local TOML file, reporting periods, output choices, and source overrides remain intact while authentication completes. If Google access expires or Drive is temporarily unavailable, the UI offers reconnect/retry/local/anonymous recovery actions instead of silently looping.
+
+> **Deployment note:** Google identity and Drive integration are implemented, but application-level OAuth does not replace normal production hardening. Public deployment still requires appropriate HTTPS, request/rate/concurrency limits, secret management, and infrastructure security controls.
 
 ### Report Generation API
 
@@ -191,24 +236,31 @@ The uploaded Apple Health ZIP and optional TOML file are copied into a request-s
 
 | Field | Required | Description |
 | --- | :---: | --- |
-| `archive` | yes | Apple Health export ZIP archive |
+| `archive` | conditional | Local Apple Health export ZIP archive; required unless `drive_file_id` is supplied |
 | `periods` | yes | Comma-separated reporting periods in strict `YYYY-MM` format |
-| `config` | no | Optional TOML application configuration |
+| `config` | no | Optional local TOML application configuration |
 | `apple_watch_source` | no | Optional per-request Apple Watch `sourceName` override |
 | `apple_health_app_source` | no | Optional per-request Apple Health application `sourceName` override |
+| `save_config_as` | no | Optional Drive profile name for saving the effective configuration when Google is connected |
+| `drive_file_id` | conditional | Google Drive file ID for the Apple Health ZIP; mutually exclusive with local `archive` |
+| `full_text` | no | Generate `full.txt` (default `false`) |
+| `full_json` | no | Generate `full.json` (default `true`) |
+| `summary_text` | no | Generate `summary.txt` (default `false`) |
+| `summary_json` | no | Generate `summary.json` (default `false`) |
+| `replace_periods` | no | Comma-separated existing periods explicitly authorized for replacement |
 
 Blank or whitespace-only source override fields are normalized to “no override”.
 
 Basic request:
 
 ```bash
-curl -X POST   -F "archive=@export.zip"   -F "periods=2026-07,2026-08"   http://127.0.0.1:8000/reports/generate
+curl -X POST   -F "archive=@export.zip"   -F "periods=2026-07,2026-08"   http://localhost:8000/reports/generate
 ```
 
 Request with an uploaded application configuration and one explicit source override:
 
 ```bash
-curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@apple_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://127.0.0.1:8000/reports/generate
+curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@apple_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://localhost:8000/reports/generate
 ```
 
 For web/API execution the effective configuration is resolved in this order:
@@ -249,7 +301,7 @@ Known malformed client input is mapped to stable HTTP errors:
 
 Unexpected application exceptions are not reclassified as client errors and remain server failures; internal exception messages and local filesystem paths are not returned in the response body.
 
-Other HTTP endpoints:
+Other HTTP endpoints include:
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -257,6 +309,17 @@ Other HTTP endpoints:
 | `GET /health` | Lightweight API health check |
 | `GET /favicon.svg` | Web-interface favicon |
 | `GET /config.example.toml` | Canonical downloadable example application configuration |
+| `GET /auth/google/start` | Start Google OAuth, including popup mode used by the browser UI |
+| `GET /auth/google/callback` | Complete OAuth and return to the main window or close the popup |
+| `GET /auth/google/status` | Return current Google connection state |
+| `POST /auth/sign-out` | Clear the application session |
+| `POST /auth/google/disconnect` | Disconnect Google from the current session |
+| `GET /config/profiles` | List Drive configuration profiles and current selection/autosave state |
+| `POST /config/profiles/select` | Select a Drive configuration profile |
+| `POST /config/profiles/select-none` | Clear the selected Drive configuration profile |
+| `POST /config/autosave` | Enable or disable configuration autosave |
+| `GET/POST /reports/autosave` | Read or update report autosave state |
+| `GET /google/picker/config` | Return Google Picker configuration for the connected session |
 
 ### Upload and Processing Limits
 
@@ -509,9 +572,9 @@ The parser consumes the ZIP entry incrementally with `ElementTree.iterparse()`, 
 
 #### FastAPI Adapter
 
-Owns the HTTP boundary for the browser workflow. It validates reporting-period input, copies the Apple Health ZIP and optional TOML configuration in chunks into a request-scoped `TemporaryDirectory`, closes those temporary files before handing their paths to the application layer, normalizes optional source overrides, maps known malformed-upload/configuration conditions to stable client errors, closes uploaded files, and returns generated reports without persisting them.
+Owns the HTTP boundary for the browser workflow. It validates reporting-period input, accepts either a local ZIP upload or an authorized Google Drive ZIP selection, copies request-scoped local/Drive inputs into temporary files, normalizes optional source overrides, resolves local TOML versus selected Drive configuration precedence, maps known upload/configuration/Drive failures to stable client errors, closes temporary/upload resources, and returns the requested generated report artifacts.
 
-The adapter does not accept arbitrary server-side archive or configuration paths from remote clients. Multi-month requests are converted into `MultiMonthRunOptions` before being passed to the application layer.
+For connected sessions the adapter also coordinates OAuth/session state, Google Picker access, configuration-profile selection/autosave, report autosave, replacement confirmation, and Drive persistence. Report replacement is staged and verified before the new generation becomes current; previous current artifacts are archived and staging data is cleaned up permanently. Multi-month requests are converted into `MultiMonthRunOptions` before being passed to the application layer.
 
 #### Multi-month Application Contract
 
@@ -906,7 +969,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, configuration precedence, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The current suite contains **386 collected test cases** and passes completely on the final PRE5.6 codebase. The current measured statement coverage for `apple_health` is **97%**.
+The current Phase 5 suite contains **741 collected test cases**. The repository gate uses the full pytest suite together with Black, Ruff, and whitespace checks. Coverage can be measured locally with `pytest --cov=apple_health --cov-report=term-missing`; this README does not pin a percentage because it changes as integration coverage evolves.
 
 Coverage includes:
 
@@ -917,8 +980,8 @@ Coverage includes:
 - Apple Health XML parsing, root/required-field validation, semantic parse errors, and non-finite numeric rejection
 - typed ZIP/import error handling, localized export filenames, and uncompressed XML size limits
 - TOML configuration loading, finite-number validation, and runtime precedence
-- runtime source overrides and `UI > TOML > defaults` precedence
-- optional web `config.toml` upload, cleanup, and size limits
+- runtime source overrides and `UI > local TOML > selected Drive profile > defaults` precedence
+- local and Drive-backed configuration selection, config autosave, cleanup, and size limits
 - report models
 - text rendering, partial data, and conditional coverage labels
 - JSON rendering, explicit `*_count_days`, monthly total calorie balance, finite-number enforcement, and stable API-contract behavior
@@ -926,9 +989,9 @@ Coverage includes:
 - application execution and run-option resolution
 - strict `ReportPeriod` parsing and validation
 - multi-month application orchestration with one parse per archive
-- FastAPI upload, period, typed error mapping, portable temporary-directory cleanup, canonical example-config download, and privacy behavior
+- FastAPI local/Drive input handling, Google OAuth/session flows, report/config autosave, safe replacement, typed error mapping, temporary cleanup, diagnostics, and privacy behavior
 - run-profile loading, structure validation, and precedence
-- end-to-end single- and multi-month report generation
+- end-to-end single- and multi-month report generation plus the final anonymous/connected/Drive integration matrix
 - golden-report protection for deterministic text output
 
 Run the complete test suite with:
@@ -948,51 +1011,53 @@ For a detailed breakdown of the test suite, see [`tests/README.md`](tests/README
 
 ## Current Web-Application Boundary
 
-The current anonymous browser/API workflow is intentionally stateless:
+The browser/API supports both anonymous local generation and an optional Google-connected mode over the same processing core.
 
 ```text
+Anonymous/local mode
 Browser
-  ↓ multipart ZIP + selected periods
-  ↓ optional config.toml + source overrides
-FastAPI
-  ↓ request-scoped temporary directory (ZIP/TOML)
-AppleHealthApplication.generate_reports()
-  ↓ resolve AppConfig once
-  ↓ parse ZIP once
-AppleHealthData
-  ↓ analyze N months
-4 rendered reports per month
+  ↓ local ZIP + periods + optional local config.toml
+FastAPI temporary files
   ↓
-HTTP response / browser downloads
+AppleHealthApplication.generate_reports()
+  ↓ parse once / analyze selected months
+Selected report outputs
+  ↓
+Browser downloads
+
+Google-connected mode
+Browser + OAuth session
+  ↓ local ZIP or Google Drive ZIP
+  ↓ local config.toml or selected Drive profile
+FastAPI temporary files
+  ↓ same application pipeline
+Selected report outputs
+  ├──→ browser downloads
+  └──→ optional user-owned Google Drive persistence
 ```
 
-The Apple Health ZIP is never application-level durable storage. The optional uploaded TOML file is also temporary, and generated reports are not persisted by the current anonymous mode.
+The Apple Health ZIP remains disposable input in both modes: a Drive-selected archive is downloaded into request-scoped temporary storage for processing and is not copied into the application's managed report area. Local ZIP/TOML files are likewise temporary and are removed after the request.
 
-The web interface now provides configuration discoverability before the Google phase: users can upload `config.toml`, override source names, download the complete default example configuration, read an in-page workflow/configuration guide, and follow a link to the public repository.
-
-This boundary is intentionally designed so that the next Google mode can add identity and user-owned Drive persistence around the same tested processing core. The Apple Health ZIP itself remains disposable input even when report persistence is introduced.
+Google-connected features include saved configuration profiles, configuration autosave (default off), report autosave (default on), Google Picker ZIP selection, popup OAuth that preserves local form/file state, explicit active-config/source status, friendly Drive recovery actions, and optional technical timing diagnostics. Existing report months are replaced through a staged per-month flow: new artifacts are verified before becoming current, the previous generation is archived, and temporary staging folders are permanently deleted after cleanup.
 
 ## Future Development
 
-PRE5.6 preparation and correctness hardening are complete: missing-data semantics, source matching, optional TOML upload, canonical downloadable configuration, frontend guidance, partial-dataset handling, sleep edge cases, typed import/parser errors, portable temporary-file handling, package runtime assets, and finite-number validation are all part of the current web workflow.
+**Phase 5 — Google Identity + user-owned Drive is complete.** The application now supports Google OAuth, user-owned Drive ZIP selection, saved TOML profiles, configuration/report autosave, safe report replacement with archive retention, recovery UX, integration regression coverage, and transfer/generation diagnostics while keeping raw Apple Health input disposable.
 
-The planned application phases are:
+The next planned phases are:
 
-1. **P5 — Google Identity + user-owned Drive**  
-   Add Google Sign-In and persist generated report artifacts in the authenticated user's own Google Drive. The Apple Health ZIP remains disposable and is never persisted.
-
-2. **P6 — Persistent viewer**  
+1. **P6 — Persistent viewer**  
    Build a viewer over stored report artifacts, using `full.json` as the stable data contract for monthly/day-level presentation, charts, and downloads.
 
-3. **P7 — Security and access hardening**  
-   Harden authentication/authorization boundaries, error exposure, access rules, API behavior, and other controls required before broader exposure.
+2. **P7 — Security and access hardening**  
+   Harden authentication/authorization boundaries, access rules, API exposure, abuse controls, and other controls required before broader exposure.
 
-4. **P8 — Deployment and resource protection**  
-   Add production hosting, HTTPS, reverse-proxy/request limits, concurrency/rate controls, and deployment-level resource safeguards.
+3. **P8 — Deployment and resource protection**  
+   Add production hosting, HTTPS, reverse-proxy/request limits, concurrency/rate controls, secret management, and deployment-level resource safeguards.
 
-The intended persistent report layout remains one directory per month containing `full.json`, `full.txt`, `summary.json`, and `summary.txt`. Persistence belongs to user-owned Google Drive rather than an application database. No custom user/password database is planned.
+Persistent reports remain user-owned Google Drive data rather than application-database records. Previous generations are retained under per-month archives when replacement occurs. No custom user/password database is planned.
 
-Additional health metrics and presentation formats may be added when they provide concrete value, but they remain secondary to completing the identity, persistence, viewer, security, and deployment path.
+Additional health metrics and presentation formats may be added when they provide concrete value, but they remain secondary to the viewer, security, and deployment path.
 
 ## License
 
