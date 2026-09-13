@@ -4,7 +4,7 @@ The `apple_health.config` package defines the application's strongly typed confi
 
 Configuration is represented by Python `dataclass` objects rather than module-level globals. The root `AppConfig` object groups configuration by responsibility and can be injected into the components that depend on configurable behavior.
 
-Configuration values are defined by defaults in the dataclasses, may be overridden by an optional TOML file loaded through `ConfigLoader`, and may receive per-request source-name overrides from the web/API workflow.
+Configuration values are defined by defaults in the dataclasses, may be overridden by an optional TOML file loaded through `ConfigLoader`, and may receive per-request source-name overrides from the web/API workflow. In the connected browser flow, the TOML source may come from a saved Google Drive configuration profile or from a local upload.
 
 ## Overview
 
@@ -111,7 +111,9 @@ config = "path/to/config.toml"
 
 Run profiles configure *how the application is executed*; this package continues to define *how Apple Health data is interpreted and scored*. The two configuration concerns remain separate.
 
-The browser/API workflow can upload the same TOML configuration as multipart field `config`. The uploaded file is temporary and exists only for the request.
+The browser/API workflow can upload the same TOML configuration as multipart field `config`. The uploaded file is temporary and exists only for the request. When Google is connected, the browser can instead select a saved TOML profile from Google Drive. A local upload has higher precedence than the selected Drive profile for that generation request.
+
+The connected UI can also save the effective configuration back to Drive under a chosen profile name. Configuration autosave is disabled by default and can be enabled explicitly for the current session. This persistence layer stores TOML profiles, but it does not change the `AppConfig` object model or `ConfigLoader` validation rules.
 
 `ConfigLoader.load()` also accepts optional runtime source overrides:
 
@@ -125,7 +127,7 @@ config = ConfigLoader.load(
 
 These are intentionally limited to source-name selection rather than exposing every configuration setting as a separate HTTP field.
 
-The effective application configuration is resolved using:
+At the `ConfigLoader` boundary, the effective application configuration is still resolved using:
 
 ```text
 dataclass defaults
@@ -135,15 +137,19 @@ TOML overrides
 runtime source overrides
 ```
 
-Equivalently, when deciding which supplied value wins:
+The browser first chooses which TOML source is passed to that loader. The complete web precedence is therefore:
 
 ```text
-runtime/UI source override
+UI/API source override
         >
-TOML value
+local uploaded config.toml
+        >
+selected Google Drive profile
         >
 dataclass default
 ```
+
+A local TOML file replaces the selected Drive profile for that request; the two files are not layered together.
 
 A runtime source argument equal to `None` means “do not override”. At the FastAPI boundary, blank or whitespace-only source fields are normalized to `None`.
 
@@ -880,7 +886,7 @@ These limitations are deliberate: parser, analyzer, and renderer consumers depen
 
 Future loaders may construct the same `AppConfig` from other sources while keeping the configuration model stable.
 
-The planned Google identity/Drive phase does not require changing this configuration contract: uploaded TOML and runtime source overrides remain request-scoped inputs, while report persistence is a separate application concern.
+Google Drive configuration profiles now demonstrate this separation: Drive supplies a TOML source and persists named profiles, while `ConfigLoader` continues to produce the same validated `AppConfig`. Report persistence remains a separate concern from configuration interpretation.
 
 ## Testing
 
@@ -894,7 +900,7 @@ Configuration behavior is covered at several levels:
 - renderer tests verify configuration-dependent presentation behavior;
 - `test_config_loader.py` contains **40 collected cases** covering TOML loading, type conversion, finite-number rejection, blank-source rejection, partial overrides, error handling, final validation, committed example files, runtime source overrides, and `runtime override > TOML > default` precedence;
 - application tests verify that `MultiMonthRunOptions` forwards runtime source overrides into `ConfigLoader`;
-- FastAPI tests verify source-field normalization, optional TOML upload, temporary-file cleanup, malformed-config HTTP 422 behavior, and the dedicated 1 MiB config-upload limit;
+- FastAPI tests verify source-field normalization, local TOML upload, Drive profile selection, source precedence, configuration autosave state, temporary-file cleanup, malformed-config HTTP 422 behavior, and the dedicated 1 MiB config-upload limit;
 - full pipeline tests verify that one shared effective configuration instance flows through parser, analyzer, and renderer layers;
 - integration tests verify that TOML overrides produce observable report changes and that the reference example configuration remains loadable.
 
@@ -904,7 +910,7 @@ Run the complete project test suite with:
 pytest
 ```
 
-The current repository collects **386 tests**.
+The current repository collects **741 tests**.
 
 Code quality checks:
 
