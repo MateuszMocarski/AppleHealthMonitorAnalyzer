@@ -84,6 +84,31 @@ app = FastAPI(
     version="0.1.0",
 )
 
+_NO_STORE_PATHS = {
+    "/auth/google/status",
+    "/config/profiles",
+    "/config/autosave",
+    "/reports/autosave",
+}
+
+
+@app.middleware("http")
+async def add_browser_security_headers(
+    request: Request,
+    call_next,
+) -> Response:
+    response = await call_next(request)
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+
+    if request.url.path in _NO_STORE_PATHS:
+        response.headers["Cache-Control"] = "no-store"
+
+    return response
+
 
 @app.exception_handler(DriveAccessError)
 async def handle_drive_access_error(

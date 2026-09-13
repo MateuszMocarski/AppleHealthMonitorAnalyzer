@@ -125,6 +125,43 @@ def test_health_endpoint_returns_ok() -> None:
 
 
 # =====================================================================
+# Verifies that browser-facing responses include baseline security
+# headers that reduce MIME sniffing, framing, and referrer leakage.
+# =====================================================================
+
+
+def test_browser_security_headers_are_applied() -> None:
+    response = client.get("/health")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
+
+
+# =====================================================================
+# Verifies that Google/session state endpoints are marked no-store so
+# browsers and intermediaries do not cache private account state.
+# =====================================================================
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/auth/google/status",
+        "/config/profiles",
+        "/reports/autosave",
+    ],
+)
+def test_private_google_state_endpoints_are_not_cached(
+    path: str,
+) -> None:
+    response = client.get(path)
+
+    assert response.headers["cache-control"] == "no-store"
+
+
+# =====================================================================
 # Verifies that report generation processes a synthetic Apple Health
 # archive through the complete application pipeline.
 # =====================================================================
@@ -1705,7 +1742,6 @@ def test_google_oauth_start_redirects_with_backend_session(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
 
@@ -1762,7 +1798,6 @@ def test_google_oauth_callback_completes_backend_session(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -1863,7 +1898,6 @@ def test_google_oauth_callback_handles_access_denied(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -1917,7 +1951,6 @@ def test_google_oauth_callback_handles_missing_session(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     auth_client = TestClient(app)
 
@@ -1953,7 +1986,6 @@ def test_google_oauth_callback_handles_expired_session(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     current_time = datetime(
         2026,
@@ -2020,7 +2052,6 @@ def test_google_oauth_callback_handles_invalid_state(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -2077,7 +2108,6 @@ def test_google_oauth_callback_rejects_replayed_state(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -2176,7 +2206,6 @@ def test_google_oauth_callback_handles_token_exchange_failure(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -2251,7 +2280,6 @@ def test_google_oauth_callback_handles_identity_failure(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -2342,7 +2370,6 @@ def test_google_oauth_callback_handles_missing_code(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -2952,7 +2979,6 @@ def test_google_oauth_start_reuses_existing_session_for_reconnect(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -3018,7 +3044,6 @@ def test_google_oauth_start_replaces_stale_session_cookie(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
 
@@ -3069,7 +3094,6 @@ def test_google_oauth_callback_refreshes_existing_session_credentials(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
     session_id = sessions.create()
@@ -3183,7 +3207,6 @@ def test_google_oauth_reconnect_preserves_session_expiry(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     current_time = datetime(
         2026,
@@ -4739,10 +4762,6 @@ def test_google_picker_config_exposes_browser_safe_values(
         "GOOGLE_CLOUD_PROJECT_NUMBER",
         "123456789",
     )
-    monkeypatch.setenv(
-        "AHM_SESSION_SECRET",
-        "dev-session-secret",
-    )
 
     response = client.get(
         "/google/picker/config",
@@ -5923,7 +5942,6 @@ def test_google_oauth_start_marks_popup_flow(
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     sessions = SessionStore()
 

@@ -85,10 +85,6 @@ class GoogleSettings:
     picker_api_key: str
     cloud_project_number: str
 
-    session_secret: str = field(
-        repr=False,
-    )
-
     @classmethod
     def load(cls) -> "GoogleSettings":
         return cls.from_environment(os.environ)
@@ -122,8 +118,4 @@ class GoogleSettings:
                 "GOOGLE_PICKER_API_KEY",
             ),
             cloud_project_number=_get_cloud_project_number(environment),
-            session_secret=_get_required_environment_value(
-                environment,
-                "AHM_SESSION_SECRET",
-            ),
         )

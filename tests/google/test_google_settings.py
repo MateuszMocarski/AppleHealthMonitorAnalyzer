@@ -17,7 +17,6 @@ def test_google_settings_are_loaded_from_environment() -> None:
             "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/google/callback",
             "GOOGLE_PICKER_API_KEY": "dev-picker-key",
             "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-            "AHM_SESSION_SECRET": "dev-session-secret",
         }
     )
 
@@ -27,7 +26,6 @@ def test_google_settings_are_loaded_from_environment() -> None:
     assert settings.redirect_uri == "http://localhost:8000/auth/google/callback"
     assert settings.picker_api_key == "dev-picker-key"
     assert settings.cloud_project_number == "123456789"
-    assert settings.session_secret == "dev-session-secret"
 
 
 # =====================================================================
@@ -40,16 +38,15 @@ def test_google_settings_reject_missing_required_environment_value() -> None:
     environment = {
         "AHM_ENV": "development",
         "GOOGLE_CLIENT_ID": "dev-client-id",
-        "GOOGLE_CLIENT_SECRET": "dev-client-secret",
         "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        # AHM_SESSION_SECRET intentionally missing.
+        # GOOGLE_CLIENT_SECRET intentionally missing.
     }
 
     with pytest.raises(
         GoogleConfigurationError,
-        match="AHM_SESSION_SECRET",
+        match="GOOGLE_CLIENT_SECRET",
     ):
         GoogleSettings.from_environment(environment)
 
@@ -67,7 +64,6 @@ def test_google_settings_reject_blank_required_environment_value() -> None:
         "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "dev-session-secret",
     }
 
     with pytest.raises(
@@ -90,7 +86,6 @@ def test_google_settings_reject_unsupported_application_environment() -> None:
         "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "dev-session-secret",
     }
 
     with pytest.raises(
@@ -114,7 +109,6 @@ def test_google_settings_reject_non_https_production_redirect_uri() -> None:
         "GOOGLE_REDIRECT_URI": "http://example.com/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "prod-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "prod-session-secret",
     }
 
     with pytest.raises(
@@ -137,7 +131,6 @@ def test_google_settings_reject_invalid_cloud_project_number() -> None:
         "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "not-a-number",
-        "AHM_SESSION_SECRET": "dev-session-secret",
     }
 
     with pytest.raises(
@@ -163,7 +156,6 @@ def test_google_settings_load_from_process_environment(monkeypatch) -> None:
     )
     monkeypatch.setenv("GOOGLE_PICKER_API_KEY", "dev-picker-key")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT_NUMBER", "123456789")
-    monkeypatch.setenv("AHM_SESSION_SECRET", "dev-session-secret")
 
     settings = GoogleSettings.load()
 
@@ -173,7 +165,6 @@ def test_google_settings_load_from_process_environment(monkeypatch) -> None:
     assert settings.redirect_uri == "http://localhost:8000/auth/google/callback"
     assert settings.picker_api_key == "dev-picker-key"
     assert settings.cloud_project_number == "123456789"
-    assert settings.session_secret == "dev-session-secret"
 
 
 # =====================================================================
@@ -189,7 +180,6 @@ def test_google_settings_reject_invalid_redirect_uri() -> None:
         "GOOGLE_REDIRECT_URI": "https://",
         "GOOGLE_PICKER_API_KEY": "prod-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "prod-session-secret",
     }
 
     with pytest.raises(
@@ -213,7 +203,6 @@ def test_google_settings_allow_http_localhost_redirect_uri_in_development() -> N
         "GOOGLE_REDIRECT_URI": "http://localhost:8000/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "dev-session-secret",
     }
 
     settings = GoogleSettings.from_environment(environment)
@@ -235,7 +224,6 @@ def test_google_settings_reject_non_local_http_redirect_uri_in_development() -> 
         "GOOGLE_REDIRECT_URI": "http://example.com/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "dev-session-secret",
     }
 
     with pytest.raises(
@@ -258,7 +246,6 @@ def test_google_settings_reject_unsupported_redirect_uri_scheme() -> None:
         "GOOGLE_REDIRECT_URI": "ftp://localhost/auth/google/callback",
         "GOOGLE_PICKER_API_KEY": "dev-picker-key",
         "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-        "AHM_SESSION_SECRET": "dev-session-secret",
     }
 
     with pytest.raises(
@@ -269,12 +256,12 @@ def test_google_settings_reject_unsupported_redirect_uri_scheme() -> None:
 
 
 # =====================================================================
-# Verifies that application secrets are redacted from the Google
+# Verifies that the Google client secret is redacted from the
 # settings representation used by diagnostics/logging.
 # =====================================================================
 
 
-def test_google_settings_repr_redacts_secrets() -> None:
+def test_google_settings_repr_redacts_client_secret() -> None:
     settings = GoogleSettings.from_environment(
         {
             "AHM_ENV": "development",
@@ -283,11 +270,9 @@ def test_google_settings_repr_redacts_secrets() -> None:
             "GOOGLE_REDIRECT_URI": ("http://localhost:8000/auth/google/callback"),
             "GOOGLE_PICKER_API_KEY": "dev-picker-key",
             "GOOGLE_CLOUD_PROJECT_NUMBER": "123456789",
-            "AHM_SESSION_SECRET": "session-secret-value",
         }
     )
 
     rendered = repr(settings)
 
     assert "client-secret-value" not in rendered
-    assert "session-secret-value" not in rendered

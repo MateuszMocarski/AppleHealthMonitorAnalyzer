@@ -160,12 +160,10 @@ GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
 GOOGLE_PICKER_API_KEY=
 GOOGLE_CLOUD_PROJECT_NUMBER=
 
-AHM_SESSION_SECRET=
 ```
 
 `GOOGLE_REDIRECT_URI` must also be registered as an authorized redirect URI for
-the OAuth client in Google Cloud. Keep real credentials and the session secret
-only in `.env`; do not commit them.
+the OAuth client in Google Cloud. Keep real Google credentials only in `.env`; do not commit them.
 
 Start the FastAPI application with Uvicorn:
 
@@ -969,7 +967,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, configuration precedence, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The current Phase 5 suite contains **741 collected test cases**. The repository gate uses the full pytest suite together with Black, Ruff, and whitespace checks. Coverage can be measured locally with `pytest --cov=apple_health --cov-report=term-missing`; this README does not pin a percentage because it changes as integration coverage evolves.
+The current Phase 5 suite contains **768 collected test cases**. The repository gate uses the full pytest suite together with Black, Ruff, and whitespace checks. Coverage can be measured locally with `pytest --cov=apple_health --cov-report=term-missing`; this README does not pin a percentage because it changes as integration coverage evolves.
 
 Coverage includes:
 

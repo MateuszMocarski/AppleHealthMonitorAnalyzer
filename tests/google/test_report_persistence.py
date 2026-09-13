@@ -11,6 +11,7 @@ from apple_health.google.current_report_generation import CurrentReportGeneratio
 from apple_health.google.drive import DriveConflictError, DriveFileMetadata, DriveFilePage
 from apple_health.google.report_persistence import (
     archive_previous_generation,
+    cleanup_failed_staged_generation,
     cleanup_staging_generation,
     commit_staged_generation,
     create_report_staging_folder,
@@ -1563,6 +1564,106 @@ def test_cleanup_staging_generation_deletes_staging_folder() -> None:
 
 
 # =====================================================================
+# Verifies that pre-commit replacement cleanup permanently removes new
+# generation artifacts even after they have left the staging folder.
+# =====================================================================
+
+
+def test_cleanup_failed_staged_generation_deletes_artifacts_and_staging() -> None:
+    calls = []
+
+    class FakeDriveClient:
+        def delete(
+            self,
+            file_id: str,
+        ) -> None:
+            calls.append(file_id)
+
+    artifacts = (
+        DriveFileMetadata(
+            file_id="artifact-one",
+            name="full.json",
+            mime_type="application/json",
+            size_bytes=2,
+            trashed=False,
+            app_properties={},
+        ),
+        DriveFileMetadata(
+            file_id="artifact-two",
+            name="summary.json",
+            mime_type="application/json",
+            size_bytes=2,
+            trashed=False,
+            app_properties={},
+        ),
+    )
+
+    cleanup_failed_staged_generation(
+        FakeDriveClient(),
+        staging_id="staging-id",
+        artifacts=artifacts,
+    )
+
+    assert calls == [
+        "artifact-one",
+        "artifact-two",
+        "staging-id",
+    ]
+
+
+# =====================================================================
+# Verifies that cleanup remains best-effort: failure deleting one new
+# artifact does not prevent the remaining artifacts or staging folder
+# from being cleaned up.
+# =====================================================================
+
+
+def test_cleanup_failed_staged_generation_continues_after_delete_failure() -> None:
+    calls = []
+
+    class FakeDriveClient:
+        def delete(
+            self,
+            file_id: str,
+        ) -> None:
+            calls.append(file_id)
+
+            if file_id == "artifact-one":
+                raise RuntimeError("delete failed")
+
+    artifacts = (
+        DriveFileMetadata(
+            file_id="artifact-one",
+            name="full.json",
+            mime_type="application/json",
+            size_bytes=2,
+            trashed=False,
+            app_properties={},
+        ),
+        DriveFileMetadata(
+            file_id="artifact-two",
+            name="summary.json",
+            mime_type="application/json",
+            size_bytes=2,
+            trashed=False,
+            app_properties={},
+        ),
+    )
+
+    cleanup_failed_staged_generation(
+        FakeDriveClient(),
+        staging_id="staging-id",
+        artifacts=artifacts,
+    )
+
+    assert calls == [
+        "artifact-one",
+        "artifact-two",
+        "staging-id",
+    ]
+
+
+# =====================================================================
 # Verifies that prepare failure keeps the old generation current and
 # cleans staging without committing or archiving the old generation.
 # =====================================================================
@@ -1675,8 +1776,8 @@ def test_replace_report_month_cleans_staging_when_prepare_fails(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_staging_generation",
-        lambda drive_client, *, staging_id: calls.append("cleanup"),
+        "apple_health.google.report_persistence.cleanup_failed_staged_generation",
+        lambda drive_client, *, staging_id, artifacts: calls.append("cleanup"),
     )
 
     monkeypatch.setattr(
@@ -1702,6 +1803,128 @@ def test_replace_report_month_cleans_staging_when_prepare_fails(
     assert calls == [
         "prepare",
         "cleanup",
+    ]
+
+
+# =====================================================================
+# Verifies that commit failure after activation removes the new
+# generation artifacts so no orphan files remain in the month folder.
+# =====================================================================
+
+
+def test_replace_report_month_cleans_new_artifacts_when_commit_fails(
+    monkeypatch,
+) -> None:
+    period = ReportPeriod(
+        year=2026,
+        month=8,
+    )
+
+    report = MonthlyReports(
+        period=period,
+        full_text=None,
+        full_json='{"status":"new"}',
+        summary_text=None,
+        summary_json=None,
+        metadata=ReportGenerationMetadata(
+            period=period,
+            generation_id="generation-new",
+            generated_at=datetime(
+                2026,
+                9,
+                12,
+                17,
+                30,
+                tzinfo=timezone.utc,
+            ),
+        ),
+    )
+
+    month = DriveFileMetadata(
+        file_id="month-id",
+        name="2026-08",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={
+            "ahm_type": "report_month",
+            "ahm_period": "2026-08",
+            "ahm_current_generation_id": "generation-old",
+        },
+    )
+
+    current = CurrentReportGeneration(
+        period="2026-08",
+        generation_id="generation-old",
+        artifacts=(),
+    )
+
+    staging = DriveFileMetadata(
+        file_id="staging-id",
+        name="staging-generation-new",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={},
+    )
+
+    uploaded = (
+        DriveFileMetadata(
+            file_id="new-full-json",
+            name="full.json",
+            mime_type="application/json",
+            size_bytes=len(b'{"status":"new"}'),
+            trashed=False,
+            app_properties=report.metadata.artifact_app_properties(),
+        ),
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.discover_current_generation",
+        lambda drive_client, *, month: current,
+    )
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.stage_report_generation",
+        lambda drive_client, *, month_id, report: (staging, uploaded),
+    )
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.verify_staged_generation",
+        lambda drive_client, *, report, uploaded: None,
+    )
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        lambda drive_client, *, month_id, staging_id, artifacts: artifacts,
+    )
+
+    def fail_commit(*args, **kwargs):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.commit_staged_generation",
+        fail_commit,
+    )
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.cleanup_failed_staged_generation",
+        lambda drive_client, *, staging_id, artifacts: calls.append(
+            (staging_id, tuple(artifact.file_id for artifact in artifacts))
+        ),
+    )
+    monkeypatch.setattr(
+        "apple_health.google.report_persistence.archive_previous_generation",
+        lambda *args, **kwargs: calls.append("archive"),
+    )
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        replace_report_month(
+            object(),
+            month=month,
+            report=report,
+        )
+
+    assert calls == [
+        ("staging-id", ("new-full-json",)),
     ]
 
 
@@ -2583,24 +2806,19 @@ def test_replace_report_month_preserves_verify_error_when_cleanup_fails(
         fail_verify,
     )
 
-    def fail_cleanup(
-        drive_client,
-        *,
-        staging_id,
-    ) -> None:
-        raise RuntimeError("cleanup failed")
-
-    monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_staging_generation",
-        fail_cleanup,
-    )
+    class FailingCleanupDriveClient:
+        def delete(
+            self,
+            file_id: str,
+        ) -> None:
+            raise RuntimeError("cleanup failed")
 
     with pytest.raises(
         ValueError,
         match="verification failed",
     ):
         replace_report_month(
-            object(),
+            FailingCleanupDriveClient(),
             month=month,
             report=report,
         )
