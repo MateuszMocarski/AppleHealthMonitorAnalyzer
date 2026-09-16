@@ -228,6 +228,37 @@ Google OAuth is opened in a popup so a locally selected ZIP, local TOML file, re
 
 > **Deployment note:** Google identity and Drive integration are implemented, but application-level OAuth does not replace normal production hardening. Public deployment still requires appropriate HTTPS, request/rate/concurrency limits, secret management, and infrastructure security controls.
 
+### Google Picker Troubleshooting
+
+Google Picker may occasionally display:
+
+```text
+The API developer key is invalid.
+```
+
+even when the configured Picker API key is valid.
+
+A reproducible Chrome-specific case has been observed where:
+
+- Google OAuth works normally,
+- the same Picker API key works unchanged in Microsoft Edge,
+- the same Picker API key works in Chrome Incognito,
+- regular Chrome and Guest mode fail immediately with the Picker error,
+- Chrome does not show the Google necessary-cookies permission prompt while third-party cookies are globally allowed, and
+- temporarily blocking third-party cookies causes Chrome to show the Google permission prompt; after allowing the required cookies, Picker works with the same API key.
+
+This points to a browser-side Google Picker cookie/storage-permission path rather than an invalid application key.
+
+If this exact symptom occurs, try the following before rotating credentials or changing Google Cloud configuration:
+
+1. Temporarily block third-party cookies in Chrome.
+2. Fully reopen the local application at `http://localhost:8000/`.
+3. Open Google Picker again.
+4. If Chrome shows **Allow Google access to your necessary cookies**, allow the request.
+5. Retry the Picker flow.
+
+If the Picker still fails, compare the same configuration in another browser or Chrome Incognito before changing the API key or its restrictions.
+
 ### Report Generation API
 
 `POST /reports/generate` accepts multipart form data:
