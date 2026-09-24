@@ -24,9 +24,9 @@ def test_shared_layers_do_not_import_provider_implementation_or_apple_input_code
     ]
     forbidden = (
         "connected_health.providers.apple",
-        "connected_health.parser",
-        "connected_health.importer",
-        "connected_health.constants",
+        "connected_health.providers.apple.parser",
+        "connected_health.providers.apple.importer",
+        "connected_health.providers.apple.constants",
         "connected_health.config.source_config",
         "connected_health.config.app_config",
         "connected_health.config.config_loader",

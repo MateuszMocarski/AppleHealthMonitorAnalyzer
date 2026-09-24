@@ -1,7 +1,8 @@
 from pathlib import Path
 from time import perf_counter
 
-from connected_health.exceptions import (
+from connected_health.providers.apple.config import AppleProviderConfig
+from connected_health.providers.apple.errors import (
     AppleHealthError,
     ExportXmlNotFoundError,
     ExportXmlTooLargeError,
@@ -9,9 +10,8 @@ from connected_health.exceptions import (
     InvalidArchiveError,
     MultipleExportXmlError,
 )
-from connected_health.importer import AppleHealthImporter
-from connected_health.parser import AppleHealthParser
-from connected_health.providers.apple.config import AppleProviderConfig
+from connected_health.providers.apple.importer import AppleHealthImporter
+from connected_health.providers.apple.parser import AppleHealthParser
 from connected_health.providers.contract import (
     DatasetProvenance,
     HealthDataProviderError,

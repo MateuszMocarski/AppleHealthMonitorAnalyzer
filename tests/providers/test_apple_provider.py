@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from connected_health.exceptions import InvalidArchiveError
 from connected_health.models import HealthData
 from connected_health.providers.apple.config import AppleProviderConfig
+from connected_health.providers.apple.errors import InvalidArchiveError
 from connected_health.providers.apple.provider import AppleHealthProvider
 from connected_health.providers.contract import HealthDataProviderError
 

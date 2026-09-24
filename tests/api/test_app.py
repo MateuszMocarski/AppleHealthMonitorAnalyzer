@@ -31,11 +31,6 @@ from connected_health.application.report_outputs import ReportOutputs
 from connected_health.application.report_period import ReportPeriod
 from connected_health.config.app_config import AppConfig
 from connected_health.config.exceptions import ConfigurationError
-from connected_health.exceptions import (
-    ExportXmlTooLargeError,
-    HealthDataParseError,
-    InvalidArchiveError,
-)
 from connected_health.google.config_profiles import ConfigProfile
 from connected_health.google.drive import (
     DriveAccessError,
@@ -49,6 +44,11 @@ from connected_health.google.oauth import (
     GoogleTokenResponse,
 )
 from connected_health.google.sessions import SessionStore
+from connected_health.providers.apple.errors import (
+    ExportXmlTooLargeError,
+    HealthDataParseError,
+    InvalidArchiveError,
+)
 
 client = TestClient(app)
 

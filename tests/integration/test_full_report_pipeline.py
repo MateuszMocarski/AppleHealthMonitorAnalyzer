@@ -12,8 +12,8 @@ from connected_health.application.report_period import ReportPeriod
 from connected_health.config.app_config import AppConfig
 from connected_health.config.config_loader import ConfigLoader
 from connected_health.enums import WorkoutType
-from connected_health.importer import AppleHealthImporter
-from connected_health.parser import AppleHealthParser
+from connected_health.providers.apple.importer import AppleHealthImporter
+from connected_health.providers.apple.parser import AppleHealthParser
 from connected_health.renderers.json_renderer import JsonRenderer
 from connected_health.renderers.presentation import PresentationContext
 from connected_health.renderers.text_renderer import TextRenderer

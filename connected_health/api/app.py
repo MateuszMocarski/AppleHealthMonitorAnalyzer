@@ -27,13 +27,6 @@ from connected_health.application.report_outputs import ReportOutputs
 from connected_health.application.report_period import ReportPeriod
 from connected_health.config.app_config import AppConfig
 from connected_health.config.exceptions import ConfigurationError
-from connected_health.exceptions import (
-    ExportXmlNotFoundError,
-    ExportXmlTooLargeError,
-    HealthDataParseError,
-    InvalidArchiveError,
-    MultipleExportXmlError,
-)
 from connected_health.google.config_profiles import (
     ConfigProfile,
     discover_drive_config_profiles,
@@ -69,6 +62,13 @@ from connected_health.google.report_persistence import (
 )
 from connected_health.google.sessions import SessionCookieSettings, SessionStore
 from connected_health.google.settings import GoogleSettings
+from connected_health.providers.apple.errors import (
+    ExportXmlNotFoundError,
+    ExportXmlTooLargeError,
+    HealthDataParseError,
+    InvalidArchiveError,
+    MultipleExportXmlError,
+)
 from connected_health.providers.contract import HealthDataProviderError
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB

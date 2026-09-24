@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from zipfile import ZipExtFile
 
-from connected_health.exceptions import (
+from connected_health.providers.apple.errors import (
     ExportXmlNotFoundError,
     ExportXmlTooLargeError,
     InvalidArchiveError,

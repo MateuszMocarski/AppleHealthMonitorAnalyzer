@@ -6,7 +6,6 @@ from math import isfinite
 from typing import BinaryIO
 
 from connected_health.enums import SleepStage, WorkoutType
-from connected_health.exceptions import HealthDataParseError
 from connected_health.models import (
     DailyMetrics,
     HealthData,
@@ -26,6 +25,7 @@ from connected_health.providers.apple.constants import (
     WORKOUT_INDOOR_METADATA_KEY,
     WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
 )
+from connected_health.providers.apple.errors import HealthDataParseError
 from connected_health.providers.apple.mappings import APPLE_WORKOUT_TYPES
 
 

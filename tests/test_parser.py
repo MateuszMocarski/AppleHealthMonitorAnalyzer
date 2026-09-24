@@ -3,15 +3,15 @@ from io import BytesIO
 import pytest
 
 from connected_health.config.app_config import AppConfig
-from connected_health.constants import (
+from connected_health.enums import SleepStage, WorkoutType
+from connected_health.providers.apple.constants import (
     WORKOUT_ACTIVE_ENERGY_TYPE,
     WORKOUT_CYCLING_DISTANCE_TYPE,
     WORKOUT_INDOOR_METADATA_KEY,
     WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
 )
-from connected_health.enums import SleepStage, WorkoutType
-from connected_health.exceptions import HealthDataParseError
-from connected_health.parser import AppleHealthParser
+from connected_health.providers.apple.errors import HealthDataParseError
+from connected_health.providers.apple.parser import AppleHealthParser
 
 # =======
 # Helpers
