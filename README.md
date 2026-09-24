@@ -517,13 +517,14 @@ flowchart TD
     ENTRY["⌨️ app.py<br/><i>CLI Entry Point</i>"]
     CLI["apple_health.cli<br/><i>CLI Adapter</i>"]
     PROFILE["📋 Run Profile<br/><i>Optional TOML</i>"]
-    APP["AppleHealthApplication<br/><i>Application Orchestrator</i>"]
+    APP["AppleHealthApplication<br/><i>Compatibility Facade</i>"]
+    FLOW["ReportGenerationApplication<br/><i>Neutral Workflow</i>"]
     A["📦 Apple Health Export<br/><b>export.zip</b>"]
     CFG["⚙️ AppConfig<br/><i>Application Configuration</i>"]
 
     B["AppleHealthImporter"]
     C["AppleHealthParser"]
-    D["AppleHealthData<br/><i>Domain Model Root</i>"]
+    D["HealthData<br/><i>Canonical Domain Root</i>"]
 
     E["HealthAnalyzer<br/><i>Orchestrator</i>"]
     EA["ActivityAnalyzer"]
@@ -541,17 +542,18 @@ flowchart TD
     ENTRY --> CLI
     PROFILE -.->|"Load optional settings"| CLI
     CLI -->|"Resolve RunOptions"| APP
-    APP -->|"Select archive and configuration"| A
+    APP --> FLOW
+    FLOW -->|"Provider load once"| A
     APP -.->|"Load configuration"| CFG
     A -->|"Open XML stream"| B
     B -->|"Stream XML"| C
     C -->|"Parse once"| D
     D -->|"Analyze requested month(s)"| E
 
-    CFG -.->|"Configure"| C
-    CFG -.->|"Configure"| E
-    CFG -.->|"Configure"| G
-    CFG -.->|"Configure"| GJ
+    CFG -.->|"Provider configuration"| C
+    CFG -.->|"AnalysisConfig"| E
+    CFG -.->|"AnalysisConfig"| G
+    CFG -.->|"AnalysisConfig"| GJ
 
     E --> EA
     E --> EM
@@ -597,7 +599,7 @@ The diagram keeps the processing core independent from its adapters. The CLI and
 
 Application execution is coordinated by `AppleHealthApplication`. `run()` preserves the single-month CLI workflow, while `generate_reports()` supports the web/API workflow by parsing one archive once and rendering four report variants for every requested `ReportPeriod`.
 
-Configuration is treated as a cross-cutting application concern rather than a separate processing layer. A single `AppConfig` instance is created for each application run and injected into components that require configurable behavior.
+`AppConfig` remains the Apple compatibility envelope: its provider configuration is consumed only by the Apple adapter, while `AnalysisConfig` is consumed only by shared analyzers and renderers.
 
 #### CLI
 
@@ -634,17 +636,17 @@ For connected sessions the adapter also coordinates OAuth/session state, Google 
 
 `ReportPeriod` represents one strict `YYYY-MM` reporting period. `MultiMonthRunOptions` groups the temporary archive path with an ordered tuple of periods, an optional TOML configuration path, and optional runtime source overrides. `MonthlyReports` carries the four rendered artifacts produced for one month.
 
-`AppleHealthApplication.generate_reports()` resolves configuration once, opens and parses the Apple Health export once, creates one analyzer over the resulting `AppleHealthData`, and then summarizes and renders each requested month independently. This preserves the core multi-month invariant:
+`AppleHealthApplication.generate_reports()` resolves Apple-facing configuration and delegates to `ReportGenerationApplication`, which loads one provider dataset, creates one analyzer, and renders each requested month independently. This preserves the core multi-month invariant:
 
 ```text
 ONE ZIP
 → ONE PARSE
-→ ONE AppleHealthData
+→ ONE HealthData
 → N MONTHS
 → 4 REPORTS PER MONTH
 ```
 
-#### AppleHealthData (Domain Model Root)
+#### HealthData (Canonical Domain Model Root)
 
 Acts as the central in-memory representation of imported health data.
 All subsequent analysis operates exclusively on this domain model, making it the single source of truth for the application.
@@ -695,7 +697,7 @@ Both renderers are isolated in the `renderers` package, allowing presentation fo
 - Renderers produce representations of report models without controlling the final output destination.
 - Configurable components receive application settings through dependency injection rather than depending on module-level configuration globals.
 - CLI and HTTP adapters remain outside report-processing business logic.
-- Multi-month generation parses each uploaded archive once and reuses one `AppleHealthData` instance across requested months.
+- Multi-month generation loads each uploaded archive once and reuses one `HealthData` instance across requested months.
 - Temporary uploaded archives are disposable inputs rather than durable application state.
 
 ## Configuration
@@ -727,7 +729,7 @@ It serves as the single source of truth for all analyses and report generation.
 ```mermaid
 classDiagram
 
-class AppleHealthData {
+class HealthData {
     +workouts
     +dailyMetrics
     +sleepRecords
@@ -772,14 +774,14 @@ class SleepRecord {
     +sourceName
 }
 
-AppleHealthData "1" o-- "*" Workout
-AppleHealthData "1" o-- "*" DailyMetrics
-AppleHealthData "1" o-- "*" SleepRecord
+HealthData "1" o-- "*" Workout
+HealthData "1" o-- "*" DailyMetrics
+HealthData "1" o-- "*" SleepRecord
 
 DailyMetrics "1" o-- "0..1" WeightMeasurement
 DailyMetrics "1" o-- "0..1" NutritionData
 ```
-#### AppleHealthData
+#### HealthData
 
 Acts as the root of the application's domain model.
 It aggregates all imported health data and serves as the single source of truth for every analysis performed by the application.
@@ -815,7 +817,7 @@ Represents a single sleep stage interval (for example Core, Deep, REM, Awake, In
 
 - XML-independent domain representation.
 - Strongly typed domain objects.
-- AppleHealthData acts as the single source of truth for parsed health data.
+- HealthData acts as the single source of truth for normalized health data.
 - Domain objects contain data rather than reporting or presentation logic.
 - Related daily metrics are grouped into dedicated domain objects where appropriate.
 - Business rules, aggregation and report generation are implemented by analyzers rather than domain entities.

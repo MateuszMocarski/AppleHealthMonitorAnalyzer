@@ -12,9 +12,18 @@ class DatasetProvenance:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderLoadDiagnostics:
+    """Provider-boundary timings, deliberately separate from canonical data."""
+
+    archive_open_seconds: float = 0.0
+    parse_seconds: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
 class LoadedHealthData:
     data: HealthData
     provenance: DatasetProvenance
+    diagnostics: ProviderLoadDiagnostics = ProviderLoadDiagnostics()
 
 
 class HealthDataProvider(Protocol):

@@ -2,7 +2,7 @@
 
 The `apple_health.config` package defines the application's strongly typed configuration model.
 
-Configuration is represented by Python `dataclass` objects rather than module-level globals. The root `AppConfig` object groups configuration by responsibility and can be injected into the components that depend on configurable behavior.
+Configuration is represented by Python `dataclass` objects rather than module-level globals. `AppConfig` is the current Apple-facing compatibility envelope; its provider and analysis sections are injected only into their owning boundaries.
 
 Configuration values are defined by defaults in the dataclasses, may be overridden by an optional TOML file loaded through `ConfigLoader`, and may receive per-request source-name overrides from the web/API workflow. In the connected browser flow, the TOML source may come from a saved Google Drive configuration profile or from a local upload.
 
@@ -12,8 +12,10 @@ The configuration hierarchy is:
 
 ```text
 AppConfig
-├── source: SourceConfig
-└── sleep: SleepConfig
+├── provider: AppleProviderConfig
+│   └── source: AppleSourceConfig
+└── analysis: AnalysisConfig
+    └── sleep: SleepConfig
     ├── session_gap_threshold_minutes
     └── score: SleepScoreConfig
         ├── linear_penalties
@@ -34,7 +36,7 @@ The configuration model is designed around several principles:
 
 - **Strong typing** – configuration is represented by typed dataclasses.
 - **Clear ownership** – settings are grouped by the subsystem that consumes them.
-- **Dependency injection** – configurable components receive `AppConfig` instead of importing mutable configuration globals.
+- **Dependency injection** – the Apple provider receives `AppleProviderConfig`; shared analyzers and renderers receive `AnalysisConfig`.
 - **Safe defaults** – the application can run without supplying an explicit configuration object.
 - **Validation** – relationships between values are checked before invalid settings are used by sleep scoring.
 - **Extensibility** – future configuration sources can populate the same object model without changing consumers.
@@ -42,17 +44,19 @@ The configuration model is designed around several principles:
 
 ## Dependency Injection
 
-The application layer creates one `AppConfig` instance for each processing run and passes it to components that require configurable behavior.
+The Apple facade resolves one `AppConfig` per run, then passes each section only to its owning boundary.
 
 The intended application-level flow is:
 
 ```text
                     AppConfig
                        │
-          ┌────────────┼──────────────┐
-          │            │              │
-          ▼            ▼              ▼
-AppleHealthParser  HealthAnalyzer   Renderer
+          ┌────────────┴──────────────┐
+          ▼                           ▼
+AppleProviderConfig              AnalysisConfig
+          │                    ┌──────┴──────┐
+          ▼                    ▼             ▼
+AppleHealthProvider       HealthAnalyzer  Renderer
                        │
                        ▼
                   SleepAnalyzer
@@ -63,32 +67,29 @@ In application code this follows the pattern:
 ```python
 config = AppConfig()
 
-health_data = AppleHealthParser(
-    xml_stream,
-    config=config,
-).parse()
+loaded = AppleHealthProvider().load(path, config=config.provider)
 
 analyzer = HealthAnalyzer(
-    health_data,
-    config=config,
+    loaded.data,
+    config=config.analysis,
 )
 
 renderer = TextRenderer(
-    config=config,
+    config=config.analysis,
 )
 ```
 
-The same configuration instance can therefore control parsing, analysis and presentation consistently during one application run.
+The compatibility envelope supplies a provider-owned section to loading and a shared section to analysis and presentation during one application run.
 
 Components also support independent construction with default configuration:
 
 ```python
-parser = AppleHealthParser(xml_stream)
+provider = AppleHealthProvider()
 analyzer = HealthAnalyzer(health_data)
 renderer = TextRenderer()
 ```
 
-When no configuration is injected, the component creates a default `AppConfig`.
+When no configuration is injected, each component creates the relevant default configuration for its own boundary.
 
 This fallback is primarily useful for standalone use and tests. Application execution should prefer one shared configuration instance for the complete processing run.
 
@@ -215,21 +216,21 @@ Defined in:
 apple_health/config/app_config.py
 ```
 
-`AppConfig` is the root configuration object.
+`AppConfig` is the compatibility envelope for current Apple-facing entry points.
 
 ```python
 @dataclass(slots=True)
 class AppConfig:
-    source: SourceConfig = field(default_factory=SourceConfig)
-    sleep: SleepConfig = field(default_factory=SleepConfig)
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
+    provider: AppleProviderConfig = field(default_factory=AppleProviderConfig)
 ```
 
 It currently contains two configuration areas:
 
 | Field | Type | Responsibility |
 |---|---|---|
-| `source` | `SourceConfig` | Identifies supported Apple Health data sources |
-| `sleep` | `SleepConfig` | Controls sleep-session reconstruction and Sleep Score behavior |
+| `provider` | `AppleProviderConfig` | Identifies supported Apple Health input sources |
+| `analysis` | `AnalysisConfig` | Controls sleep-session reconstruction and Sleep Score behavior |
 
 Nested objects use `default_factory`, so each `AppConfig` instance receives independent configuration objects.
 
@@ -243,15 +244,15 @@ config.sleep.session_gap_threshold_minutes = 45
 config.sleep.score.linear_penalties = True
 ```
 
-## `SourceConfig`
+## `AppleSourceConfig`
 
 Defined in:
 
 ```text
-apple_health/config/source_config.py
+apple_health/providers/apple/config.py
 ```
 
-`SourceConfig` identifies source names expected in Apple Health XML records.
+`AppleSourceConfig` identifies source names expected in Apple Health XML records. `SourceConfig` remains a compatibility alias at its former import path.
 
 ### Defaults
 
@@ -264,12 +265,12 @@ apple_health/config/source_config.py
 
 ### Consumers
 
-`SourceConfig` is currently used by:
+`AppleSourceConfig` is currently used by:
 
 - `AppleHealthParser` when selecting supported daily metric sources;
-- `SleepAnalyzer` when selecting Apple Watch sleep records.
+- Apple normalization when selecting Apple Watch sleep records.
 
-The same effective `AppConfig` is passed through parsing and analysis, so source selection remains consistent across components.
+Apple source selection ends before canonical `HealthData`; shared analysis never receives Apple source policy.
 
 ### Runtime overrides
 

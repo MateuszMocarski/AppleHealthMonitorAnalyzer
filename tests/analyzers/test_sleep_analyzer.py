@@ -6,7 +6,7 @@ import pytest
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
 from apple_health.config.app_config import AppConfig
 from apple_health.enums import SleepStage
-from apple_health.models import AppleHealthData, SleepRecord
+from apple_health.models import HealthData, SleepRecord
 from apple_health.report_models import SleepScore, SleepSession
 
 # =======
@@ -35,12 +35,8 @@ def _sleep_record(
     stage: SleepStage = SleepStage.CORE,
     source_name: str | None = None,
 ) -> SleepRecord:
-    source_name = source_name if source_name is not None else AppConfig().source.apple_watch_source
-
     return SleepRecord(
         stage=stage,
-        source_name=source_name,
-        source_version=None,
         start=start,
         end=end,
         duration_minutes=(end - start).total_seconds() / 60,
@@ -49,8 +45,8 @@ def _sleep_record(
 
 def _health_data(
     sleep_records: list[SleepRecord],
-) -> AppleHealthData:
-    return AppleHealthData(
+) -> HealthData:
+    return HealthData(
         workouts=[],
         daily_metrics=[],
         sleep_records=sleep_records,

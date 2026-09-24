@@ -5,18 +5,7 @@ from datetime import date, datetime
 from math import isfinite
 from typing import BinaryIO
 
-from apple_health.config.app_config import AppConfig
-from apple_health.constants import (
-    APPLE_DATE_FORMAT,
-    APPLE_HEALTH_DAILY_METRIC_TYPES,
-    APPLE_WATCH_DAILY_METRIC_TYPES,
-    NUTRITION_RECORD_TYPES,
-    WORKOUT_ACTIVE_ENERGY_TYPE,
-    WORKOUT_CYCLING_DISTANCE_TYPE,
-    WORKOUT_INDOOR_METADATA_KEY,
-    WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
-)
-from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
+from apple_health.enums import SleepStage, WorkoutType
 from apple_health.exceptions import HealthDataParseError
 from apple_health.models import (
     DailyMetrics,
@@ -26,12 +15,24 @@ from apple_health.models import (
     WeightMeasurement,
     Workout,
 )
+from apple_health.providers.apple.config import AppleProviderConfig
+from apple_health.providers.apple.constants import (
+    APPLE_DATE_FORMAT,
+    APPLE_HEALTH_DAILY_METRIC_TYPES,
+    APPLE_WATCH_DAILY_METRIC_TYPES,
+    NUTRITION_RECORD_TYPES,
+    WORKOUT_ACTIVE_ENERGY_TYPE,
+    WORKOUT_CYCLING_DISTANCE_TYPE,
+    WORKOUT_INDOOR_METADATA_KEY,
+    WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
+)
+from apple_health.providers.apple.mappings import APPLE_WORKOUT_TYPES
 
 
 class AppleHealthParser:
-    def __init__(self, xml_stream: BinaryIO, config: AppConfig | None = None) -> None:
+    def __init__(self, xml_stream: BinaryIO, config: AppleProviderConfig | None = None) -> None:
         self.xml_stream = xml_stream
-        self.config = config or AppConfig()
+        self.config = config or AppleProviderConfig()
 
     def parse(self) -> HealthData:
         workouts: list[Workout] = []

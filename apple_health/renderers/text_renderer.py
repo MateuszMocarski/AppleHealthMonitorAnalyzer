@@ -3,12 +3,9 @@ from __future__ import annotations
 import calendar
 from io import StringIO
 
-from apple_health.application.presentation import (
-    APPLE_PRESENTATION_CONTEXT,
-    PresentationContext,
-)
-from apple_health.config.app_config import AppConfig
+from apple_health.config.analysis_config import AnalysisConfig
 from apple_health.enums import WorkoutType
+from apple_health.renderers.presentation import PresentationContext
 from apple_health.report_models import (
     ActivitySummary,
     DailySummary,
@@ -32,11 +29,11 @@ class _TextWriter:
 class TextRenderer:
     def __init__(
         self,
-        config: AppConfig | None = None,
-        presentation: PresentationContext = APPLE_PRESENTATION_CONTEXT,
+        config: AnalysisConfig | None = None,
+        presentation: PresentationContext | None = None,
     ) -> None:
-        self.config = config or AppConfig()
-        self.presentation = presentation
+        self.config = config or AnalysisConfig()
+        self.presentation = presentation or PresentationContext("Apple Health Monthly Report")
 
     def render_month(self, monthly_summary: MonthlySummary) -> str:
         writer = _TextWriter()

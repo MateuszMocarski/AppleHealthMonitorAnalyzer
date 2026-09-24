@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
 
 from apple_health.config.analysis_config import AnalysisConfig
-from apple_health.config.source_config import SourceConfig
-from apple_health.providers.apple.config import AppleProviderConfig
+from apple_health.providers.apple.config import AppleProviderConfig, AppleSourceConfig
 
 
 @dataclass(slots=True)
@@ -12,7 +11,7 @@ class AppConfig:
 
     def __init__(
         self,
-        source: SourceConfig | None = None,
+        source: AppleSourceConfig | None = None,
         sleep=None,
         *,
         analysis: AnalysisConfig | None = None,
@@ -30,7 +29,7 @@ class AppConfig:
         )
 
     @property
-    def source(self) -> SourceConfig:
+    def source(self) -> AppleSourceConfig:
         """Compatibility access to the Apple provider configuration."""
         return self.provider.source
 

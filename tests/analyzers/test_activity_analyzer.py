@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
 from apple_health.enums import WorkoutType
-from apple_health.models import AppleHealthData, Workout
+from apple_health.models import HealthData, Workout
 
 
 def _workout(
@@ -22,10 +22,7 @@ def _workout(
     )
 
     return Workout(
-        apple_activity_type="test",
         activity_type=activity_type,
-        source_name="test",
-        source_version=None,
         start=start,
         end=start,
         duration_minutes=duration_minutes,
@@ -38,7 +35,7 @@ def _analyzer(
     *workouts: Workout,
 ) -> ActivityAnalyzer:
     return ActivityAnalyzer(
-        AppleHealthData(
+        HealthData(
             workouts=list(workouts),
             daily_metrics=[],
             sleep_records=[],

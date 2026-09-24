@@ -4,8 +4,8 @@ import pytest
 
 from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
 from apple_health.models import (
-    AppleHealthData,
     DailyMetrics,
+    HealthData,
     NutritionData,
     WeightMeasurement,
 )
@@ -67,7 +67,7 @@ def _analyzer(
     *daily_metrics: DailyMetrics,
 ) -> MetricsAnalyzer:
     return MetricsAnalyzer(
-        AppleHealthData(
+        HealthData(
             workouts=[],
             daily_metrics=list(daily_metrics),
             sleep_records=[],

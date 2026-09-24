@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import perf_counter
 
 from apple_health.exceptions import (
     AppleHealthError,
@@ -15,6 +16,7 @@ from apple_health.providers.contract import (
     DatasetProvenance,
     HealthDataProviderError,
     LoadedHealthData,
+    ProviderLoadDiagnostics,
 )
 
 
@@ -28,9 +30,13 @@ class AppleHealthProvider:
         if not isinstance(config, AppleProviderConfig):
             raise TypeError("AppleHealthProvider requires AppleProviderConfig.")
 
+        archive_open_started = perf_counter()
         try:
             with AppleHealthImporter(path).open_export() as xml_stream:
+                archive_open_seconds = perf_counter() - archive_open_started
+                parse_started = perf_counter()
                 data = AppleHealthParser(xml_stream, config=config).parse()
+                parse_seconds = perf_counter() - parse_started
         except AppleHealthError as exc:
             raise HealthDataProviderError(self._error_category(exc)) from exc
 
@@ -39,6 +45,10 @@ class AppleHealthProvider:
             provenance=DatasetProvenance(
                 provider_id=self.provider_id,
                 display_label=self._DISPLAY_LABEL,
+            ),
+            diagnostics=ProviderLoadDiagnostics(
+                archive_open_seconds=archive_open_seconds,
+                parse_seconds=parse_seconds,
             ),
         )
 
