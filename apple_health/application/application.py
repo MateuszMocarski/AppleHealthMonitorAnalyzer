@@ -15,8 +15,7 @@ from apple_health.application.report_generation_result import (
 )
 from apple_health.application.run_options import RunOptions
 from apple_health.config.config_loader import ConfigLoader
-from apple_health.importer import AppleHealthImporter
-from apple_health.parser import AppleHealthParser
+from apple_health.providers.apple.provider import AppleHealthProvider
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
 
@@ -38,15 +37,14 @@ class AppleHealthApplication:
             options.config_path,
         )
 
-        importer = AppleHealthImporter(
-            options.archive_path,
-        )
-
-        with importer.open_export() as xml_stream:
-            health_data = AppleHealthParser(
-                xml_stream,
+        health_data = (
+            AppleHealthProvider()
+            .load(
+                options.archive_path,
                 config=config,
-            ).parse()
+            )
+            .data
+        )
 
         analyzer = HealthAnalyzer(
             health_data,
@@ -88,23 +86,20 @@ class AppleHealthApplication:
             apple_health_app_source=options.apple_health_app_source,
         )
 
-        importer = AppleHealthImporter(
-            options.archive_path,
-        )
-
-        archive_open_started = perf_counter()
-
-        with importer.open_export() as xml_stream:
-            archive_open_seconds = perf_counter() - archive_open_started
-
-            xml_parse_started = perf_counter()
-
-            health_data = AppleHealthParser(
-                xml_stream,
+        xml_parse_started = perf_counter()
+        health_data = (
+            AppleHealthProvider()
+            .load(
+                options.archive_path,
                 config=config,
-            ).parse()
-
-            xml_parse_seconds = perf_counter() - xml_parse_started
+            )
+            .data
+        )
+        xml_parse_seconds = perf_counter() - xml_parse_started
+        # The adapter owns the concrete archive-opening operation.  The legacy
+        # timing field remains for response compatibility until provider timing
+        # diagnostics are intentionally redesigned.
+        archive_open_seconds = 0.0
 
         report_render_started = perf_counter()
 
