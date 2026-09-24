@@ -15,10 +15,10 @@ def test_runtime_package_data_is_configured() -> None:
 
     package_data = pyproject["tool"]["setuptools"]["package-data"]
 
-    assert package_data["apple_health.api"] == [
+    assert package_data["connected_health.api"] == [
         "web/*.html",
         "web/*.svg",
     ]
-    assert package_data["apple_health.config"] == [
+    assert package_data["connected_health.config"] == [
         "examples/*.toml",
     ]

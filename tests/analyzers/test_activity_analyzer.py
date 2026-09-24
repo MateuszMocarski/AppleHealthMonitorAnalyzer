@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 
-from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
-from apple_health.enums import WorkoutType
-from apple_health.models import HealthData, Workout
+from connected_health.analyzers.activity_analyzer import ActivityAnalyzer
+from connected_health.enums import WorkoutType
+from connected_health.models import HealthData, Workout
 
 
 def _workout(

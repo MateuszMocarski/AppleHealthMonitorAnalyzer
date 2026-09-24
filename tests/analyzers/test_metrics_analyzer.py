@@ -2,8 +2,8 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from apple_health.analyzers.metrics_analyzer import MetricsAnalyzer
-from apple_health.models import (
+from connected_health.analyzers.metrics_analyzer import MetricsAnalyzer
+from connected_health.models import (
     DailyMetrics,
     HealthData,
     NutritionData,

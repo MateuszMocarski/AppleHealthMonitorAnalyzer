@@ -1,11 +1,11 @@
 import pytest
 
-from apple_health.google.drive import (
+from connected_health.google.drive import (
     DriveConflictError,
     DriveFileMetadata,
     DriveFilePage,
 )
-from apple_health.google.drive_structure import (
+from connected_health.google.drive_structure import (
     discover_ahm_root,
     discover_config_container,
     discover_report_index,

@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.application.multi_month_run_options import (
+from connected_health.application.multi_month_run_options import (
     MultiMonthRunOptions,
 )
-from apple_health.application.report_outputs import ReportOutputs
+from connected_health.application.report_outputs import ReportOutputs
 
 # =====================================================================
 # Verifies that report output selection defaults to Full JSON only.

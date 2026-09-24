@@ -1,11 +1,11 @@
-from apple_health.google.current_report_generation import (
+from connected_health.google.current_report_generation import (
     CurrentReportGeneration,
     discover_current_generation,
     discover_current_generation_artifacts,
     resolve_current_generation,
     select_current_generation_artifacts,
 )
-from apple_health.google.drive import DriveFileMetadata, DriveFilePage
+from connected_health.google.drive import DriveFileMetadata, DriveFilePage
 
 # =====================================================================
 # Verifies that only artifacts matching the month current-generation

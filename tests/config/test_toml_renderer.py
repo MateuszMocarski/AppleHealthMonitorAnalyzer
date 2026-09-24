@@ -1,9 +1,9 @@
 from datetime import time
 
-from apple_health.config.app_config import AppConfig
-from apple_health.config.config_loader import ConfigLoader
-from apple_health.config.source_config import SourceConfig
-from apple_health.config.toml_renderer import (
+from connected_health.config.app_config import AppConfig
+from connected_health.config.config_loader import ConfigLoader
+from connected_health.config.source_config import SourceConfig
+from connected_health.config.toml_renderer import (
     TomlRenderer,
     semantic_fingerprint,
 )

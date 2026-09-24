@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from apple_health.google.sessions import SessionCookieSettings, SessionStore
+from connected_health.google.sessions import SessionCookieSettings, SessionStore
 
 # =====================================================================
 # Verifies that a newly created session can be retrieved from the

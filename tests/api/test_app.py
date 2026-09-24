@@ -12,38 +12,43 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import apple_health.api.app as api_app_module
-from apple_health.api.app import MAX_UPLOAD_SIZE, app, download_drive_archive, verify_drive_archive
-from apple_health.application.application import AppleHealthApplication
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.report_generation_metadata import (
+import connected_health.api.app as api_app_module
+from connected_health.api.app import (
+    MAX_UPLOAD_SIZE,
+    app,
+    download_drive_archive,
+    verify_drive_archive,
+)
+from connected_health.application.application import AppleHealthApplication
+from connected_health.application.monthly_reports import MonthlyReports
+from connected_health.application.report_generation_metadata import (
     ReportGenerationMetadata,
 )
-from apple_health.application.report_generation_result import (
+from connected_health.application.report_generation_result import (
     ReportGenerationResult,
 )
-from apple_health.application.report_outputs import ReportOutputs
-from apple_health.application.report_period import ReportPeriod
-from apple_health.config.app_config import AppConfig
-from apple_health.config.exceptions import ConfigurationError
-from apple_health.exceptions import (
+from connected_health.application.report_outputs import ReportOutputs
+from connected_health.application.report_period import ReportPeriod
+from connected_health.config.app_config import AppConfig
+from connected_health.config.exceptions import ConfigurationError
+from connected_health.exceptions import (
     ExportXmlTooLargeError,
     HealthDataParseError,
     InvalidArchiveError,
 )
-from apple_health.google.config_profiles import ConfigProfile
-from apple_health.google.drive import (
+from connected_health.google.config_profiles import ConfigProfile
+from connected_health.google.drive import (
     DriveAccessError,
     DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveTransientError,
 )
-from apple_health.google.oauth import (
+from connected_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
     GoogleTokenResponse,
 )
-from apple_health.google.sessions import SessionStore
+from connected_health.google.sessions import SessionStore
 
 client = TestClient(app)
 
@@ -342,7 +347,7 @@ def test_report_generation_rejects_oversized_archive(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "apple_health.api.app.MAX_UPLOAD_SIZE",
+        "connected_health.api.app.MAX_UPLOAD_SIZE",
         10,
     )
 
@@ -1187,7 +1192,7 @@ def test_report_generation_rejects_too_many_periods(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "apple_health.api.app.MAX_REPORT_PERIODS",
+        "connected_health.api.app.MAX_REPORT_PERIODS",
         2,
     )
 
@@ -1505,7 +1510,7 @@ def test_report_generation_rejects_oversized_config(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "apple_health.api.app.MAX_CONFIG_UPLOAD_SIZE",
+        "connected_health.api.app.MAX_CONFIG_UPLOAD_SIZE",
         10,
     )
 
@@ -1542,7 +1547,11 @@ def test_report_generation_rejects_oversized_config(
 
 def test_example_config_download_returns_canonical_file() -> None:
     example_config_path = (
-        Path(__file__).parents[2] / "apple_health" / "config" / "examples" / "config.example.toml"
+        Path(__file__).parents[2]
+        / "connected_health"
+        / "config"
+        / "examples"
+        / "config.example.toml"
     )
 
     response = client.get(
@@ -8146,7 +8155,7 @@ def test_download_drive_archive_returns_download_timings(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    from apple_health.google.drive import DriveDownloadTimings
+    from connected_health.google.drive import DriveDownloadTimings
 
     client_timings = DriveDownloadTimings(
         downloaded_bytes=11,

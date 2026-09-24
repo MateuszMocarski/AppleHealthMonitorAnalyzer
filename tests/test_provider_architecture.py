@@ -4,32 +4,32 @@ from dataclasses import fields
 from datetime import UTC, datetime
 from pathlib import Path
 
-from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_generation_application import ReportGenerationApplication
-from apple_health.application.report_outputs import ReportOutputs
-from apple_health.application.report_period import ReportPeriod
-from apple_health.config.analysis_config import AnalysisConfig
-from apple_health.enums import SleepStage, WorkoutType
-from apple_health.models import DailyMetrics, HealthData, SleepRecord, Workout
-from apple_health.providers.contract import DatasetProvenance, LoadedHealthData
+from connected_health.analyzers.health_analyzer import HealthAnalyzer
+from connected_health.application.multi_month_run_options import MultiMonthRunOptions
+from connected_health.application.report_generation_application import ReportGenerationApplication
+from connected_health.application.report_outputs import ReportOutputs
+from connected_health.application.report_period import ReportPeriod
+from connected_health.config.analysis_config import AnalysisConfig
+from connected_health.enums import SleepStage, WorkoutType
+from connected_health.models import DailyMetrics, HealthData, SleepRecord, Workout
+from connected_health.providers.contract import DatasetProvenance, LoadedHealthData
 
 
 def test_shared_layers_do_not_import_provider_implementation_or_apple_input_code() -> None:
     shared_files = [
-        *Path("apple_health/analyzers").glob("*.py"),
-        *Path("apple_health/renderers").glob("*.py"),
-        Path("apple_health/report_models.py"),
-        Path("apple_health/application/report_generation_application.py"),
+        *Path("connected_health/analyzers").glob("*.py"),
+        *Path("connected_health/renderers").glob("*.py"),
+        Path("connected_health/report_models.py"),
+        Path("connected_health/application/report_generation_application.py"),
     ]
     forbidden = (
-        "apple_health.providers.apple",
-        "apple_health.parser",
-        "apple_health.importer",
-        "apple_health.constants",
-        "apple_health.config.source_config",
-        "apple_health.config.app_config",
-        "apple_health.config.config_loader",
+        "connected_health.providers.apple",
+        "connected_health.parser",
+        "connected_health.importer",
+        "connected_health.constants",
+        "connected_health.config.source_config",
+        "connected_health.config.app_config",
+        "connected_health.config.config_loader",
     )
 
     for path in shared_files:

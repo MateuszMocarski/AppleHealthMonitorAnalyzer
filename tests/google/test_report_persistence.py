@@ -2,14 +2,14 @@ from datetime import UTC, datetime
 
 import pytest
 
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.report_generation_metadata import (
+from connected_health.application.monthly_reports import MonthlyReports
+from connected_health.application.report_generation_metadata import (
     ReportGenerationMetadata,
 )
-from apple_health.application.report_period import ReportPeriod
-from apple_health.google.current_report_generation import CurrentReportGeneration
-from apple_health.google.drive import DriveConflictError, DriveFileMetadata, DriveFilePage
-from apple_health.google.report_persistence import (
+from connected_health.application.report_period import ReportPeriod
+from connected_health.google.current_report_generation import CurrentReportGeneration
+from connected_health.google.drive import DriveConflictError, DriveFileMetadata, DriveFilePage
+from connected_health.google.report_persistence import (
     archive_previous_generation,
     cleanup_failed_staged_generation,
     cleanup_staging_generation,
@@ -330,7 +330,7 @@ def test_save_new_report_month_commits_only_after_verification(
         ),
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_ahm_root",
+        "connected_health.google.report_persistence.ensure_ahm_root",
         lambda drive_client: (
             calls.append("ensure_root"),
             root,
@@ -338,32 +338,32 @@ def test_save_new_report_month_commits_only_after_verification(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_reports_container",
+        "connected_health.google.report_persistence.ensure_reports_container",
         lambda drive_client, *, root_id: (
             calls.append(("ensure_reports", root_id)),
             reports,
         )[1],
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_year_container",
+        "connected_health.google.report_persistence.ensure_year_container",
         lambda drive_client, *, reports_id, year: (
             calls.append(("ensure_year", reports_id, year)),
             year_folder,
         )[1],
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_report_month",
+        "connected_health.google.report_persistence.discover_report_month",
         lambda drive_client, *, year_id, period: None,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_report_month",
+        "connected_health.google.report_persistence.ensure_report_month",
         lambda drive_client, *, year_id, period: (
             calls.append(("ensure_month", year_id, period)),
             month,
         )[1],
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.upload_report_artifacts",
+        "connected_health.google.report_persistence.upload_report_artifacts",
         lambda drive_client, *, month_id, report: (
             calls.append(("upload", month_id)),
             uploaded,
@@ -384,7 +384,7 @@ def test_save_new_report_month_commits_only_after_verification(
         )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_report_artifacts",
+        "connected_health.google.report_persistence.verify_report_artifacts",
         fake_verify,
     )
 
@@ -407,7 +407,7 @@ def test_save_new_report_month_commits_only_after_verification(
         return month
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.mark_generation_current",
+        "connected_health.google.report_persistence.mark_generation_current",
         fake_mark_current,
     )
 
@@ -504,19 +504,19 @@ def test_save_new_report_month_rejects_existing_month(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_ahm_root",
+        "connected_health.google.report_persistence.ensure_ahm_root",
         lambda drive_client: root,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_reports_container",
+        "connected_health.google.report_persistence.ensure_reports_container",
         lambda drive_client, *, root_id: reports,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_year_container",
+        "connected_health.google.report_persistence.ensure_year_container",
         lambda drive_client, *, reports_id, year: year_folder,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_report_month",
+        "connected_health.google.report_persistence.discover_report_month",
         lambda drive_client, *, year_id, period: existing_month,
     )
 
@@ -608,27 +608,27 @@ def test_save_new_report_month_does_not_commit_when_verification_fails(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_ahm_root",
+        "connected_health.google.report_persistence.ensure_ahm_root",
         lambda drive_client: root,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_reports_container",
+        "connected_health.google.report_persistence.ensure_reports_container",
         lambda drive_client, *, root_id: reports,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_year_container",
+        "connected_health.google.report_persistence.ensure_year_container",
         lambda drive_client, *, reports_id, year: year_folder,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_report_month",
+        "connected_health.google.report_persistence.discover_report_month",
         lambda drive_client, *, year_id, period: None,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_report_month",
+        "connected_health.google.report_persistence.ensure_report_month",
         lambda drive_client, *, year_id, period: month,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.upload_report_artifacts",
+        "connected_health.google.report_persistence.upload_report_artifacts",
         lambda drive_client, *, month_id, report: uploaded,
     )
 
@@ -641,14 +641,14 @@ def test_save_new_report_month_does_not_commit_when_verification_fails(
         raise ValueError("Uploaded report artifact metadata does not match.")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_report_artifacts",
+        "connected_health.google.report_persistence.verify_report_artifacts",
         fail_verification,
     )
 
     commit_calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.mark_generation_current",
+        "connected_health.google.report_persistence.mark_generation_current",
         lambda *args, **kwargs: commit_calls.append(
             (
                 args,
@@ -784,7 +784,7 @@ def test_stage_report_generation_uploads_artifacts_into_staging(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.create_report_staging_folder",
+        "connected_health.google.report_persistence.create_report_staging_folder",
         lambda drive_client, *, month_id, period, generation_id: (
             calls.append(
                 (
@@ -799,7 +799,7 @@ def test_stage_report_generation_uploads_artifacts_into_staging(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.upload_report_artifacts",
+        "connected_health.google.report_persistence.upload_report_artifacts",
         lambda drive_client, *, month_id, report: (
             calls.append(
                 (
@@ -898,7 +898,7 @@ def test_verify_staged_generation_validates_uploaded_artifacts(
         calls.append(tuple(file.file_id for file in uploaded))
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_report_artifacts",
+        "connected_health.google.report_persistence.verify_report_artifacts",
         fake_verify,
     )
 
@@ -1034,7 +1034,7 @@ def test_commit_staged_generation_switches_current_pointer(
         return month
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.mark_generation_current",
+        "connected_health.google.report_persistence.mark_generation_current",
         fake_mark_current,
     )
 
@@ -1185,7 +1185,7 @@ def test_archive_previous_generation_moves_old_artifacts_into_timestamp_folder(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_report_archive_container",
+        "connected_health.google.report_persistence.ensure_report_archive_container",
         lambda drive_client, *, month_id: archive,
     )
 
@@ -1342,7 +1342,7 @@ def test_replace_report_month_uses_safe_commit_order(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: (
             calls.append("discover_old"),
             CurrentReportGeneration(
@@ -1354,7 +1354,7 @@ def test_replace_report_month_uses_safe_commit_order(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             calls.append("stage"),
             (staging, uploaded),
@@ -1362,12 +1362,12 @@ def test_replace_report_month_uses_safe_commit_order(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         lambda drive_client, *, report, uploaded: calls.append("verify"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        "connected_health.google.report_persistence.prepare_staged_generation_activation",
         lambda drive_client, *, month_id, staging_id, artifacts: (
             calls.append("prepare"),
             artifacts,
@@ -1375,7 +1375,7 @@ def test_replace_report_month_uses_safe_commit_order(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         lambda drive_client, *, month_id, period, generation_id: (
             calls.append("commit"),
             month,
@@ -1383,7 +1383,7 @@ def test_replace_report_month_uses_safe_commit_order(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         lambda drive_client, *, month_id, artifacts: (
             calls.append("archive_old"),
             artifacts,
@@ -1486,12 +1486,12 @@ def test_replace_report_month_does_not_commit_or_archive_when_verify_fails(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             staging,
             uploaded,
@@ -1508,17 +1508,17 @@ def test_replace_report_month_does_not_commit_or_archive_when_verify_fails(
         raise ValueError("verification failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         fail_verify,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         lambda *args, **kwargs: calls.append("commit"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         lambda *args, **kwargs: calls.append("archive"),
     )
 
@@ -1743,12 +1743,12 @@ def test_replace_report_month_cleans_staging_when_prepare_fails(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             staging,
             uploaded,
@@ -1756,7 +1756,7 @@ def test_replace_report_month_cleans_staging_when_prepare_fails(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         lambda drive_client, *, report, uploaded: None,
     )
 
@@ -1771,22 +1771,22 @@ def test_replace_report_month_cleans_staging_when_prepare_fails(
         raise RuntimeError("prepare failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        "connected_health.google.report_persistence.prepare_staged_generation_activation",
         fail_prepare,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_failed_staged_generation",
+        "connected_health.google.report_persistence.cleanup_failed_staged_generation",
         lambda drive_client, *, staging_id, artifacts: calls.append("cleanup"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         lambda *args, **kwargs: calls.append("commit"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         lambda *args, **kwargs: calls.append("archive"),
     )
 
@@ -1882,19 +1882,19 @@ def test_replace_report_month_cleans_new_artifacts_when_commit_fails(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (staging, uploaded),
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         lambda drive_client, *, report, uploaded: None,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        "connected_health.google.report_persistence.prepare_staged_generation_activation",
         lambda drive_client, *, month_id, staging_id, artifacts: artifacts,
     )
 
@@ -1902,17 +1902,17 @@ def test_replace_report_month_cleans_new_artifacts_when_commit_fails(
         raise RuntimeError("commit failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         fail_commit,
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_failed_staged_generation",
+        "connected_health.google.report_persistence.cleanup_failed_staged_generation",
         lambda drive_client, *, staging_id, artifacts: calls.append(
             (staging_id, tuple(artifact.file_id for artifact in artifacts))
         ),
     )
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         lambda *args, **kwargs: calls.append("archive"),
     )
 
@@ -2008,12 +2008,12 @@ def test_replace_report_month_ignores_archive_failure_after_commit(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             staging,
             uploaded,
@@ -2021,12 +2021,12 @@ def test_replace_report_month_ignores_archive_failure_after_commit(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         lambda drive_client, *, report, uploaded: calls.append("verify"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        "connected_health.google.report_persistence.prepare_staged_generation_activation",
         lambda drive_client, *, month_id, staging_id, artifacts: (
             calls.append("prepare"),
             artifacts,
@@ -2034,7 +2034,7 @@ def test_replace_report_month_ignores_archive_failure_after_commit(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         lambda drive_client, *, month_id, period, generation_id: (
             calls.append("commit"),
             month,
@@ -2051,7 +2051,7 @@ def test_replace_report_month_ignores_archive_failure_after_commit(
         raise RuntimeError("archive failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         fail_archive,
     )
 
@@ -2149,12 +2149,12 @@ def test_replace_report_month_cleans_staging_after_success(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             staging,
             uploaded,
@@ -2162,12 +2162,12 @@ def test_replace_report_month_cleans_staging_after_success(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         lambda drive_client, *, report, uploaded: calls.append("verify"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        "connected_health.google.report_persistence.prepare_staged_generation_activation",
         lambda drive_client, *, month_id, staging_id, artifacts: (
             calls.append("prepare"),
             artifacts,
@@ -2175,7 +2175,7 @@ def test_replace_report_month_cleans_staging_after_success(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         lambda drive_client, *, month_id, period, generation_id: (
             calls.append("commit"),
             month,
@@ -2183,7 +2183,7 @@ def test_replace_report_month_cleans_staging_after_success(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         lambda drive_client, *, month_id, artifacts: (
             calls.append("archive"),
             artifacts,
@@ -2191,7 +2191,7 @@ def test_replace_report_month_cleans_staging_after_success(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_staging_generation",
+        "connected_health.google.report_persistence.cleanup_staging_generation",
         lambda drive_client, *, staging_id: calls.append("cleanup"),
     )
 
@@ -2290,12 +2290,12 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             staging,
             uploaded,
@@ -2303,12 +2303,12 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         lambda drive_client, *, report, uploaded: calls.append("verify"),
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.prepare_staged_generation_activation",
+        "connected_health.google.report_persistence.prepare_staged_generation_activation",
         lambda drive_client, *, month_id, staging_id, artifacts: (
             calls.append("prepare"),
             artifacts,
@@ -2316,7 +2316,7 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.commit_staged_generation",
+        "connected_health.google.report_persistence.commit_staged_generation",
         lambda drive_client, *, month_id, period, generation_id: (
             calls.append("commit"),
             month,
@@ -2324,7 +2324,7 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.archive_previous_generation",
+        "connected_health.google.report_persistence.archive_previous_generation",
         lambda drive_client, *, month_id, artifacts: (
             calls.append("archive"),
             artifacts,
@@ -2340,7 +2340,7 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
         raise RuntimeError("cleanup failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_staging_generation",
+        "connected_health.google.report_persistence.cleanup_staging_generation",
         fail_cleanup,
     )
 
@@ -2436,27 +2436,27 @@ def test_replace_existing_report_month_discovers_month_and_replaces(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_ahm_root",
+        "connected_health.google.report_persistence.ensure_ahm_root",
         lambda drive_client: root,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_reports_container",
+        "connected_health.google.report_persistence.ensure_reports_container",
         lambda drive_client, *, root_id: reports_container,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.ensure_year_container",
+        "connected_health.google.report_persistence.ensure_year_container",
         lambda drive_client, *, reports_id, year: year_container,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_report_month",
+        "connected_health.google.report_persistence.discover_report_month",
         lambda drive_client, *, year_id, period: month,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.replace_report_month",
+        "connected_health.google.report_persistence.replace_report_month",
         lambda drive_client, *, month, report: calls.append(
             (
                 month.file_id,
@@ -2540,7 +2540,7 @@ def test_find_existing_report_periods_uses_single_report_index(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_report_index",
+        "connected_health.google.report_persistence.discover_report_index",
         lambda drive_client: (
             calls.append(drive_client),
             {
@@ -2577,7 +2577,7 @@ def test_report_month_exists_uses_read_only_report_index(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_report_index",
+        "connected_health.google.report_persistence.discover_report_index",
         lambda drive_client: (
             calls.append(drive_client),
             {
@@ -2664,7 +2664,7 @@ def test_stage_report_generation_cleans_staging_when_upload_fails(
     calls = []
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.create_report_staging_folder",
+        "connected_health.google.report_persistence.create_report_staging_folder",
         lambda drive_client, *, month_id, period, generation_id: staging,
     )
 
@@ -2678,12 +2678,12 @@ def test_stage_report_generation_cleans_staging_when_upload_fails(
         raise RuntimeError("upload failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.upload_report_artifacts",
+        "connected_health.google.report_persistence.upload_report_artifacts",
         fail_upload,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.cleanup_staging_generation",
+        "connected_health.google.report_persistence.cleanup_staging_generation",
         lambda drive_client, *, staging_id: calls.append("cleanup"),
     )
 
@@ -2781,12 +2781,12 @@ def test_replace_report_month_preserves_verify_error_when_cleanup_fails(
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.discover_current_generation",
+        "connected_health.google.report_persistence.discover_current_generation",
         lambda drive_client, *, month: current,
     )
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.stage_report_generation",
+        "connected_health.google.report_persistence.stage_report_generation",
         lambda drive_client, *, month_id, report: (
             staging,
             uploaded,
@@ -2802,7 +2802,7 @@ def test_replace_report_month_preserves_verify_error_when_cleanup_fails(
         raise ValueError("verification failed")
 
     monkeypatch.setattr(
-        "apple_health.google.report_persistence.verify_staged_generation",
+        "connected_health.google.report_persistence.verify_staged_generation",
         fail_verify,
     )
 

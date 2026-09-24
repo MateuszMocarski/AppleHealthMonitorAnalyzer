@@ -1,5 +1,5 @@
 [project]
-name = "AppleHealthMonitorAnalyzer"
+name = "connected-health-analyzer"
 version = "0.1.0"
 description = "Apple Health export analyzer"
 readme = "README.md"
@@ -24,14 +24,14 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["apple_health*"]
+include = ["connected_health*"]
 
 [tool.setuptools.package-data]
-"apple_health.api" = [
+"connected_health.api" = [
     "web/*.html",
     "web/*.svg",
 ]
-"apple_health.config" = [
+"connected_health.config" = [
     "examples/*.toml",
 ]
 

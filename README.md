@@ -193,7 +193,7 @@ the OAuth client in Google Cloud. Keep real Google credentials only in `.env`; d
 Start the FastAPI application with Uvicorn:
 
 ```bash
-uvicorn apple_health.api.app:app --env-file .env
+uvicorn connected_health.api.app:app --env-file .env
 ```
 
 Then open the application at `http://localhost:8000/`.
@@ -314,7 +314,7 @@ curl -X POST   -F "archive=@export.zip"   -F "periods=2026-07,2026-08"   http://
 Request with an uploaded application configuration and one explicit source override:
 
 ```bash
-curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@apple_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://localhost:8000/reports/generate
+curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@connected_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://localhost:8000/reports/generate
 ```
 
 For web/API execution the effective configuration is resolved in this order:
@@ -450,7 +450,7 @@ Text output remains the default when `--format` is omitted.
 Application execution can be described by an optional TOML run profile. A profile may define the archive path, reporting period, output mode, monthly-summary mode, and the path to the application configuration file.
 
 ```bash
-python app.py --profile apple_health/application/examples/run.example.toml
+python app.py --profile connected_health/application/examples/run.example.toml
 ```
 
 Run profiles may be partial. Final run options are resolved using the following precedence:
@@ -466,19 +466,19 @@ built-in defaults
 This allows a reusable profile to provide normal execution settings while individual CLI flags override them for a single run. For example:
 
 ```bash
-python app.py --profile apple_health/application/examples/run.month-summary.toml --enforce-daily --format text
+python app.py --profile connected_health/application/examples/run.month-summary.toml --enforce-daily --format text
 ```
 
 `--month-summary` explicitly enables summary-only output, while `--enforce-daily` explicitly disables it and requests daily report details.
 
-Example run profiles are available in `apple_health/application/examples/`.
+Example run profiles are available in `connected_health/application/examples/`.
 
 ### Runtime Configuration
 
 Use `--config` to load an optional TOML application configuration file for CLI execution:
 
 ```bash
-python app.py import export.zip --month 8 --config apple_health/config/examples/config.example.toml
+python app.py import export.zip --month 8 --config connected_health/config/examples/config.example.toml
 ```
 
 When `--config` is omitted, the application uses the defaults defined by the configuration dataclasses.
@@ -487,7 +487,7 @@ TOML files may be partial: only explicitly provided values override defaults. Co
 
 The browser/API workflow can upload the same kind of TOML file as multipart field `config`. It additionally supports per-request source-name overrides for `apple_watch_source` and `apple_health_app_source`. Those runtime source overrides take precedence over values loaded from TOML, while blank source fields leave TOML/default values unchanged.
 
-Example application configuration files are available in [`apple_health/config/examples/`](apple_health/config/examples/). The complete default template is `config.example.toml` and can also be downloaded directly from the browser interface. For the complete configuration reference, see [`apple_health/config/README.md`](apple_health/config/README.md).
+Example application configuration files are available in [`connected_health/config/examples/`](connected_health/config/examples/). The complete default template is `config.example.toml` and can also be downloaded directly from the browser interface. For the complete configuration reference, see [`connected_health/config/README.md`](connected_health/config/README.md).
 
 ### Command Line Arguments
 
@@ -515,7 +515,7 @@ flowchart TD
     WEB["🌐 Browser UI"]
     API["FastAPI<br/><i>HTTP Adapter</i>"]
     ENTRY["⌨️ app.py<br/><i>CLI Entry Point</i>"]
-    CLI["apple_health.cli<br/><i>CLI Adapter</i>"]
+    CLI["connected_health.cli<br/><i>CLI Adapter</i>"]
     PROFILE["📋 Run Profile<br/><i>Optional TOML</i>"]
     APP["AppleHealthApplication<br/><i>Compatibility Facade</i>"]
     FLOW["ReportGenerationApplication<br/><i>Neutral Workflow</i>"]
@@ -603,7 +603,7 @@ Application execution is coordinated by `AppleHealthApplication`. `run()` preser
 
 #### CLI
 
-The `apple_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
+The `connected_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
 
 The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `AppleHealthApplication`; the FastAPI adapter reuses the same application workflow without depending on command-line parsing.
 
@@ -611,7 +611,7 @@ The top-level `app.py` module acts only as the CLI entry point and delegates exe
 
 Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once for each application run before being injected into configurable components.
 
-Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
+Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`connected_health/config/README.md`](connected_health/config/README.md).
 
 #### AppleHealthImporter
 
@@ -719,7 +719,7 @@ Components retain default configuration behavior when instantiated independently
 
 Configuration values start from defaults defined by the configuration dataclasses. An optional TOML file can override any supported configuration value, and web/API execution may additionally override the two source-name fields for a single request. Missing TOML values continue to use dataclass defaults, while blank UI source fields do not override the effective TOML/default value.
 
-For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`apple_health/config/README.md`](apple_health/config/README.md).
+For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`connected_health/config/README.md`](connected_health/config/README.md).
 
 ## Domain Model
 
@@ -1024,7 +1024,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, configuration precedence, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The current Phase 5 suite contains **768 collected test cases**. The repository gate uses the full pytest suite together with Black, Ruff, and whitespace checks. Coverage can be measured locally with `pytest --cov=apple_health --cov-report=term-missing`; this README does not pin a percentage because it changes as integration coverage evolves.
+The current Phase 5 suite contains **768 collected test cases**. The repository gate uses the full pytest suite together with Black, Ruff, and whitespace checks. Coverage can be measured locally with `pytest --cov=connected_health --cov-report=term-missing`; this README does not pin a percentage because it changes as integration coverage evolves.
 
 Coverage includes:
 

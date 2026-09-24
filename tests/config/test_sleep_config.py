@@ -1,6 +1,6 @@
 import pytest
 
-from apple_health.config.sleep_config import SleepConfig
+from connected_health.config.sleep_config import SleepConfig
 
 # =====================================================================
 # Verifies that the default sleep configuration satisfies all

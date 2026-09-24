@@ -633,7 +633,7 @@ pytest --collect-only -q
 Measure statement coverage for the application package:
 
 ```bash
-pytest --cov=apple_health --cov-report=term-missing
+pytest --cov=connected_health --cov-report=term-missing
 ```
 
 The current Phase 5 suite collects **768 tests**. Coverage can be measured with the command above; this README does not pin a percentage because the exact value may change as integration coverage evolves.

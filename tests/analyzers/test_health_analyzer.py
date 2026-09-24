@@ -2,10 +2,10 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.config.app_config import AppConfig
-from apple_health.enums import SleepStage, WorkoutType
-from apple_health.models import (
+from connected_health.analyzers.health_analyzer import HealthAnalyzer
+from connected_health.config.app_config import AppConfig
+from connected_health.enums import SleepStage, WorkoutType
+from connected_health.models import (
     DailyMetrics,
     HealthData,
     NutritionData,

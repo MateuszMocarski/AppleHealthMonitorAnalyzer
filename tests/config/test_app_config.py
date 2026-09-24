@@ -1,6 +1,6 @@
-from apple_health.config.app_config import AppConfig
-from apple_health.config.sleep_config import SleepConfig
-from apple_health.config.source_config import SourceConfig
+from connected_health.config.app_config import AppConfig
+from connected_health.config.sleep_config import SleepConfig
+from connected_health.config.source_config import SourceConfig
 
 # =====================================================================
 # Verifies that AppConfig composes the default source and sleep
