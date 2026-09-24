@@ -111,6 +111,9 @@ At present, selecting **Apple Health** reveals the implemented Apple workflow. B
 report-generation routing remains Apple-specific until a second real provider is added;
 the current `/reports/generate` contract does not contain a provider field.
 
+For the implementation checklist and extension rules for adding another health-data
+provider, see [`connected_health/providers/README.md`](connected_health/providers/README.md).
+
 Google is not a health-data provider. It is optional identity/storage infrastructure.
 
 Provider-aware Drive report identity is still deferred. Existing Drive metadata and JSON
