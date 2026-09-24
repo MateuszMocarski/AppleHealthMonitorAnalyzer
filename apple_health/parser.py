@@ -19,8 +19,8 @@ from apple_health.constants import (
 from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
 from apple_health.exceptions import HealthDataParseError
 from apple_health.models import (
-    AppleHealthData,
     DailyMetrics,
+    HealthData,
     NutritionData,
     SleepRecord,
     WeightMeasurement,
@@ -33,7 +33,7 @@ class AppleHealthParser:
         self.xml_stream = xml_stream
         self.config = config or AppConfig()
 
-    def parse(self) -> AppleHealthData:
+    def parse(self) -> HealthData:
         workouts: list[Workout] = []
         daily_metrics: dict[date, DailyMetrics] = {}
         sleep_records: list[SleepRecord] = []
@@ -75,7 +75,7 @@ class AppleHealthParser:
         except ET.ParseError as exc:
             raise HealthDataParseError("Invalid Apple Health export XML.") from exc
 
-        return AppleHealthData(
+        return HealthData(
             workouts=workouts,
             daily_metrics=sorted(
                 daily_metrics.values(),

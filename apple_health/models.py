@@ -51,10 +51,16 @@ class DailyMetrics:
 
 
 @dataclass
-class AppleHealthData:
+class HealthData:
     workouts: list[Workout]
     daily_metrics: list[DailyMetrics]
     sleep_records: list[SleepRecord]
+
+
+# Temporary compatibility name for the Apple-only public surface during the
+# incremental provider-boundary migration.  New shared code must use
+# ``HealthData``.
+AppleHealthData = HealthData
 
 
 @dataclass(slots=True)
