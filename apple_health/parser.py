@@ -62,7 +62,9 @@ class AppleHealthParser:
                     record_type = element.attrib.get("type")
 
                     if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
-                        sleep_records.append(self._parse_sleep_record(element))
+                        sleep_record = self._parse_sleep_record(element)
+                        if sleep_record is not None:
+                            sleep_records.append(sleep_record)
 
                     else:
                         self._parse_daily_metrics(
@@ -115,17 +117,15 @@ class AppleHealthParser:
             "workoutActivityType",
         )
 
+        # Preserve validation of this Apple-required attribute while deliberately
+        # consuming it before the canonical domain boundary.
+        self._required_attribute(element, "sourceName")
+
         return Workout(
-            apple_activity_type=apple_activity_type,
             activity_type=self._parse_workout_type(
                 apple_activity_type,
                 element,
             ),
-            source_name=self._required_attribute(
-                element,
-                "sourceName",
-            ),
-            source_version=element.attrib.get("sourceVersion"),
             start=self._parse_datetime(
                 self._required_attribute(
                     element,
@@ -264,7 +264,11 @@ class AppleHealthParser:
     def _parse_sleep_record(
         self,
         element: ET.Element,
-    ) -> SleepRecord:
+    ) -> SleepRecord | None:
+        source_name = self._required_attribute(element, "sourceName")
+        if not self.config.source.matches_apple_watch_source(source_name):
+            return None
+
         start = self._parse_datetime(
             self._required_attribute(
                 element,
@@ -286,11 +290,6 @@ class AppleHealthParser:
                     "value",
                 )
             ),
-            source_name=self._required_attribute(
-                element,
-                "sourceName",
-            ),
-            source_version=element.attrib.get("sourceVersion"),
             start=start,
             end=end,
             duration_minutes=(end - start).total_seconds() / 60,

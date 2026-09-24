@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from datetime import date
 
-from apple_health.models import AppleHealthData, DailyMetrics
+from apple_health.models import DailyMetrics, HealthData
 from apple_health.report_models import ActivityMetricsSummary
 
 
 class MetricsAnalyzer:
     def __init__(
         self,
-        health_data: AppleHealthData,
+        health_data: HealthData,
     ) -> None:
         self.daily_metrics = health_data.daily_metrics
         self._daily_metrics_by_day = self._group_daily_metrics_by_day()

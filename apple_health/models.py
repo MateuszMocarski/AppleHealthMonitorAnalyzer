@@ -6,35 +6,58 @@ from datetime import date, datetime
 from apple_health.enums import SleepStage, WorkoutType
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class Workout:
-    apple_activity_type: str
-
     activity_type: WorkoutType
-
-    source_name: str
-    source_version: str | None
-
     start: datetime
     end: datetime
-
     duration_minutes: float
-
     active_energy_kcal: float | None = None
     distance_km: float | None = None
 
+    def __init__(
+        self,
+        activity_type: WorkoutType,
+        start: datetime,
+        end: datetime,
+        duration_minutes: float,
+        active_energy_kcal: float | None = None,
+        distance_km: float | None = None,
+        **_legacy_apple_fields: object,
+    ) -> None:
+        """Create canonical workout data.
 
-@dataclass(slots=True)
+        The ignored keyword sink keeps old third-party fixtures working during the
+        compatibility window without storing Apple raw values on the domain model.
+        """
+        self.activity_type = activity_type
+        self.start = start
+        self.end = end
+        self.duration_minutes = duration_minutes
+        self.active_energy_kcal = active_energy_kcal
+        self.distance_km = distance_km
+
+
+@dataclass(slots=True, init=False)
 class SleepRecord:
     stage: SleepStage
-
-    source_name: str
-    source_version: str | None
-
     start: datetime
     end: datetime
-
     duration_minutes: float
+
+    def __init__(
+        self,
+        stage: SleepStage,
+        start: datetime,
+        end: datetime,
+        duration_minutes: float,
+        **_legacy_apple_fields: object,
+    ) -> None:
+        """Create canonical sleep evidence without provider source metadata."""
+        self.stage = stage
+        self.start = start
+        self.end = end
+        self.duration_minutes = duration_minutes
 
 
 @dataclass
