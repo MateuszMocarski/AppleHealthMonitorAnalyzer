@@ -166,7 +166,7 @@ def test_discover_ahm_root_rejects_duplicate_root_on_later_page() -> None:
 def test_ensure_ahm_root_creates_missing_root() -> None:
     created_root = DriveFileMetadata(
         file_id="root-123",
-        name="Apple Health Monitor",
+        name="Connected Health Analyzer",
         mime_type="application/vnd.google-apps.folder",
         size_bytes=None,
         trashed=False,

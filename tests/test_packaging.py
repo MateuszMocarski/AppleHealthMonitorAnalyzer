@@ -32,3 +32,11 @@ def test_frontend_uses_product_branding_and_truthful_apple_input_labels() -> Non
     assert "Apple Health export" in index
     assert "Apple Watch source" in index
     assert "Apple Health app source" in index
+
+
+def test_source_tree_has_no_legacy_root_package_imports() -> None:
+    python_sources = Path("connected_health").rglob("*.py")
+
+    assert not any(
+        "apple_health." in source.read_text(encoding="utf-8") for source in python_sources
+    )

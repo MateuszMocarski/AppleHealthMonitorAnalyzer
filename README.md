@@ -1,5 +1,28 @@
 # Connected Health Analyzer
 
+## PRE6.2 naming and release compatibility
+
+The shared Python namespace is `connected_health` and the distribution is
+`connected-health-analyzer`. Apple-specific input remains intentionally named:
+`AppleHealthApplication`, `AppleHealthProvider`, Apple ZIP/XML errors, the TOML
+`[source]` fields, and the exact `Apple Health Monthly Report` title all remain
+compatible. JSON reports remain schema version `1.0`.
+
+Drive discovery continues to use the unchanged `ahm_*` metadata. Existing roots
+are reused without renaming; only newly created roots are visibly named
+`Connected Health Analyzer`. The stable browser/deployment identifiers
+`ahm_session`, `ahm_google_oauth_popup`, and `AHM_ENV` also remain unchanged.
+
+Before release, the repository owner must rename the GitHub target to
+`MateuszMocarski/ConnectedHealthAnalyzer` and verify badges, remotes, and other
+first-party links. Google Cloud DEV and PROD must be manually rebranded to
+`Connected Health Analyzer` (suggested project labels: `Connected Health Analyzer
+DEV` and `Connected Health Analyzer PROD`). OAuth client/API-key labels may be
+aligned. Do not rotate project IDs/numbers, OAuth credentials, Picker key values,
+scopes, redirects, origins/referrers, or API-key restrictions. Complete any Google
+publication or re-verification required by the branding change without weakening
+security settings.
+
 ## Provider boundary
 
 Health-data inputs end at the canonical `HealthData` boundary. Shared analyzers,
