@@ -114,7 +114,7 @@ def test_discover_ahm_root_rejects_duplicate_active_roots() -> None:
 def test_discover_ahm_root_rejects_duplicate_root_on_later_page() -> None:
     first_root = DriveFileMetadata(
         file_id="root-123",
-        name="Apple Health Monitor",
+        name="Connected Health Analyzer",
         mime_type="application/vnd.google-apps.folder",
         size_bytes=None,
         trashed=False,
@@ -193,7 +193,7 @@ def test_ensure_ahm_root_creates_missing_root() -> None:
             parent_id: str | None = None,
             app_properties: dict[str, str] | None = None,
         ) -> DriveFileMetadata:
-            assert name == "Apple Health Monitor"
+            assert name == "Connected Health Analyzer"
             assert parent_id is None
             assert app_properties == {
                 "ahm_type": "root",
@@ -203,6 +203,26 @@ def test_ensure_ahm_root_creates_missing_root() -> None:
             return created_root
 
     assert ensure_ahm_root(FakeDriveClient()) == created_root
+
+
+def test_ensure_ahm_root_reuses_legacy_named_root_without_creating_a_duplicate() -> None:
+    legacy_root = DriveFileMetadata(
+        file_id="root-legacy",
+        name="Apple Health Monitor",
+        mime_type="application/vnd.google-apps.folder",
+        size_bytes=None,
+        trashed=False,
+        app_properties={"ahm_type": "root", "ahm_version": "1"},
+    )
+
+    class FakeDriveClient:
+        def search(self, query: str, page_token: str | None = None) -> DriveFilePage:
+            return DriveFilePage(files=(legacy_root,), next_page_token=None)
+
+        def create_folder(self, **_kwargs: object) -> DriveFileMetadata:
+            raise AssertionError("A metadata-discovered legacy root must be reused.")
+
+    assert ensure_ahm_root(FakeDriveClient()) == legacy_root
 
 
 # =====================================================================

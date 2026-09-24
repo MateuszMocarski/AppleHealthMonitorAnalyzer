@@ -1,6 +1,6 @@
 # Test Suite
 
-The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
+The Connected Health Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
 The suite currently contains **768 collected test cases**.
 

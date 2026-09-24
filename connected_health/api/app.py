@@ -81,7 +81,7 @@ WEB_DIRECTORY = API_DIRECTORY / "web"
 EXAMPLE_CONFIG_PATH = API_DIRECTORY.parent / "config" / "examples" / "config.example.toml"
 
 app = FastAPI(
-    title="Apple Health Monitor Analyzer",
+    title="Connected Health Analyzer",
     version="0.1.0",
 )
 

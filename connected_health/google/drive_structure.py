@@ -9,7 +9,7 @@ _AHM_ROOT_QUERY = (
     "appProperties has { key='ahm_version' and value='1' } and "
     "trashed = false"
 )
-_AHM_ROOT_NAME = "Apple Health Monitor"
+_AHM_ROOT_NAME = "Connected Health Analyzer"
 _AHM_ROOT_APP_PROPERTIES = {
     "ahm_type": "root",
     "ahm_version": "1",

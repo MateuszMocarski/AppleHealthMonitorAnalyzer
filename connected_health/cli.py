@@ -46,7 +46,7 @@ def run_cli() -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="AppleHealthMonitorAnalyzer",
+        prog="Connected Health Analyzer",
     )
 
     parser.add_argument(

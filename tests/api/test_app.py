@@ -53,6 +53,10 @@ from connected_health.providers.apple.errors import (
 client = TestClient(app)
 
 
+def test_api_uses_connected_health_analyzer_title() -> None:
+    assert app.title == "Connected Health Analyzer"
+
+
 def _create_export_archive(
     tmp_path: Path,
 ) -> Path:

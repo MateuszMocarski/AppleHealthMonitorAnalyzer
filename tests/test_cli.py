@@ -25,6 +25,10 @@ def test_parser_uses_none_for_unspecified_optional_arguments() -> None:
     assert args.config is None
 
 
+def test_parser_uses_connected_health_analyzer_product_name() -> None:
+    assert _build_parser().prog == "Connected Health Analyzer"
+
+
 # =====================================================================
 # Verifies that the CLI parser correctly converts a complete import
 # command into typed argument values without applying application

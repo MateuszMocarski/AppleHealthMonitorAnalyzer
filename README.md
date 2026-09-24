@@ -1,4 +1,4 @@
-# Apple Health Monitor Analyzer
+# Connected Health Analyzer
 
 ## Provider boundary
 
@@ -40,11 +40,11 @@ deferred. Existing Drive data and JSON schema 1.0 are unchanged.
 
 ## Overview
 
-Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports. It can be used from the command line or through a local web interface backed by FastAPI.
+Connected Health Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports. It can be used from the command line or through a local web interface backed by FastAPI.
 
 The application parses Apple Health XML exports, reconstructs sleep sessions, aggregates daily activity, energy, body weight, and nutrition metrics, and generates comprehensive reports designed for long-term health and fitness tracking. The web workflow can generate multiple months from one uploaded archive while parsing the Apple Health XML only once.
 
-Unlike the Apple Health application, which focuses on browsing recorded data, Apple Health Monitor Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
+Unlike the Apple Health application, which focuses on browsing recorded data, Connected Health Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
 
 The generated reports are intended to serve as a solid foundation for both personal analysis and AI-assisted interpretation, providing meaningful insights without requiring direct access to raw Apple Health data.
 
@@ -247,7 +247,7 @@ For every requested month the browser returns four downloadable artifacts:
 
 The uploaded Apple Health ZIP and optional TOML file are copied into a request-scoped temporary directory, closed before application processing begins, and removed when the request completes. Generated report content is always returned to the browser. Anonymous/local generation remains stateless.
 
-When Google is connected, the browser can also select the Apple Health ZIP directly from Google Drive, load saved configuration profiles, autosave configurations, and persist selected report outputs under the managed Apple Health Monitor Drive structure. Re-generating an existing month uses an explicit replacement flow: the new generation is staged and verified first, the previous current generation is archived, and temporary staging folders are permanently deleted after cleanup rather than being left in Drive trash.
+When Google is connected, the browser can also select the Apple Health ZIP directly from Google Drive, load saved configuration profiles, autosave configurations, and persist selected report outputs under the managed Connected Health Analyzer Drive structure. Re-generating an existing month uses an explicit replacement flow: the new generation is staged and verified first, the previous current generation is archived, and temporary staging folders are permanently deleted after cleanup rather than being left in Drive trash.
 
 Google OAuth is opened in a popup so a locally selected ZIP, local TOML file, reporting periods, output choices, and source overrides remain intact while authentication completes. If Google access expires or Drive is temporarily unavailable, the UI offers reconnect/retry/local/anonymous recovery actions instead of silently looping.
 
