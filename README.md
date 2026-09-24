@@ -1,5 +1,30 @@
 # Apple Health Monitor Analyzer
 
+## Provider boundary
+
+Health-data inputs end at the canonical `HealthData` boundary. Shared analyzers,
+report models and renderers consume only that provider-neutral domain model; they
+must not import provider parsers, importers, constants or provider configuration.
+`None` continues to mean missing data, never measured zero.
+
+`HealthDataProvider.load(path, config=...)` returns `LoadedHealthData`: canonical
+data plus adjacent immutable `DatasetProvenance`. Provenance is available to
+orchestration and presentation, but never to calculations or JSON schema 1.0.
+The Apple adapter owns ZIP/XML parsing, `HK*` mapping and Apple source selection
+(including sleep-source matching) before emitting canonical records. Analysis
+configuration is `AnalysisConfig`; Apple source policy is `AppleProviderConfig`.
+The existing `AppConfig` and TOML `[source]` section remain compatibility
+envelopes for the current Apple public API.
+
+A future provider (for example Garmin) must implement the same provider contract,
+normalize its raw input to `HealthData`, and provide presentation provenance. It
+must not require changes to shared analyzers, report models or renderers. Google
+Drive remains identity/storage infrastructure, not a health-data provider.
+
+The future report identity is `(provider_id, period)`, but provider-aware Drive
+persistence and public API/CLI/frontend provider selection are deliberately
+deferred. Existing Drive data and JSON schema 1.0 are unchanged.
+
 ### Highlights
 
 - 📅 Daily and monthly reports
