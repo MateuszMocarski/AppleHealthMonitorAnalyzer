@@ -41,14 +41,14 @@ class AppleHealthApplication:
             AppleHealthProvider()
             .load(
                 options.archive_path,
-                config=config,
+                config=getattr(config, "provider", config),
             )
             .data
         )
 
         analyzer = HealthAnalyzer(
             health_data,
-            config=config,
+            config=getattr(config, "analysis", config),
         )
 
         summary = analyzer.summarize_month(
@@ -58,11 +58,11 @@ class AppleHealthApplication:
 
         if options.output_format == "json":
             renderer = JsonRenderer(
-                config=config,
+                config=getattr(config, "analysis", config),
             )
         else:
             renderer = TextRenderer(
-                config=config,
+                config=getattr(config, "analysis", config),
             )
 
         if options.month_summary:
@@ -91,7 +91,7 @@ class AppleHealthApplication:
             AppleHealthProvider()
             .load(
                 options.archive_path,
-                config=config,
+                config=getattr(config, "provider", config),
             )
             .data
         )
@@ -105,15 +105,15 @@ class AppleHealthApplication:
 
         analyzer = HealthAnalyzer(
             health_data,
-            config=config,
+            config=getattr(config, "analysis", config),
         )
 
         text_renderer = TextRenderer(
-            config=config,
+            config=getattr(config, "analysis", config),
         )
 
         json_renderer = JsonRenderer(
-            config=config,
+            config=getattr(config, "analysis", config),
         )
 
         reports = []

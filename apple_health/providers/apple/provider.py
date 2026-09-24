@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from apple_health.config.app_config import AppConfig
 from apple_health.exceptions import (
     AppleHealthError,
     ExportXmlNotFoundError,
@@ -11,6 +10,7 @@ from apple_health.exceptions import (
 )
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
+from apple_health.providers.apple.config import AppleProviderConfig
 from apple_health.providers.contract import (
     DatasetProvenance,
     HealthDataProviderError,
@@ -25,8 +25,8 @@ class AppleHealthProvider:
     _DISPLAY_LABEL = "Apple Health"
 
     def load(self, path: Path, *, config: object) -> LoadedHealthData:
-        if not isinstance(config, AppConfig):
-            raise TypeError("AppleHealthProvider requires AppConfig.")
+        if not isinstance(config, AppleProviderConfig):
+            raise TypeError("AppleHealthProvider requires AppleProviderConfig.")
 
         try:
             with AppleHealthImporter(path).open_export() as xml_stream:

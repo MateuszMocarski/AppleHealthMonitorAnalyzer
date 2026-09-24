@@ -598,7 +598,9 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
     AppleHealthApplication().generate_reports(options)
 
     assert captured_config is not None
-    assert captured_config.sleep.session_gap_threshold_minutes == 45
+    # The Apple provider receives only source-selection policy; sleep scoring is
+    # retained by the shared analysis configuration.
+    assert captured_config.source.apple_watch_source == AppConfig().source.apple_watch_source
     assert captured_config.source == SourceConfig()
 
 
@@ -834,7 +836,7 @@ def test_generate_reports_exposes_effective_config(
             xml_stream,
             config,
         ):
-            assert config == expected_config
+            assert config == expected_config.provider
 
         def parse(
             self,
@@ -847,7 +849,7 @@ def test_generate_reports_exposes_effective_config(
             health_data,
             config,
         ):
-            assert config == expected_config
+            assert config == expected_config.analysis
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(

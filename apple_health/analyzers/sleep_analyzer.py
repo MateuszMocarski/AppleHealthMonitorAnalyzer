@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, time, timedelta
 from statistics import pstdev
 
-from apple_health.config.app_config import AppConfig
+from apple_health.config.analysis_config import AnalysisConfig
 from apple_health.enums import SleepStage
 from apple_health.models import HealthData, SleepRecord
 from apple_health.report_models import (
@@ -14,8 +14,8 @@ from apple_health.report_models import (
 
 
 class SleepAnalyzer:
-    def __init__(self, health_data: HealthData, config: AppConfig | None = None) -> None:
-        self.config = config or AppConfig()
+    def __init__(self, health_data: HealthData, config: AnalysisConfig | None = None) -> None:
+        self.config = config or AnalysisConfig()
 
         self.config.sleep.score.validate()
 
