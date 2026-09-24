@@ -771,7 +771,6 @@ class SleepRecord {
     +start
     +end
     +stage
-    +sourceName
 }
 
 HealthData "1" o-- "*" Workout

@@ -33,7 +33,7 @@ class TextRenderer:
         presentation: PresentationContext | None = None,
     ) -> None:
         self.config = config or AnalysisConfig()
-        self.presentation = presentation or PresentationContext("Apple Health Monthly Report")
+        self.presentation = presentation or PresentationContext("Health Monthly Report")
 
     def render_month(self, monthly_summary: MonthlySummary) -> str:
         writer = _TextWriter()

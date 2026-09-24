@@ -15,6 +15,7 @@ from apple_health.enums import WorkoutType
 from apple_health.importer import AppleHealthImporter
 from apple_health.parser import AppleHealthParser
 from apple_health.renderers.json_renderer import JsonRenderer
+from apple_health.renderers.presentation import PresentationContext
 from apple_health.renderers.text_renderer import TextRenderer
 
 
@@ -273,6 +274,7 @@ def test_full_report_pipeline(
 
     output = TextRenderer(
         config=config,
+        presentation=PresentationContext("Apple Health Monthly Report"),
     ).render_month(summary)
 
     assert summary.reporting_days == 2
@@ -364,6 +366,7 @@ def test_month_summary_only_pipeline(
 
     output = TextRenderer(
         config=config,
+        presentation=PresentationContext("Apple Health Monthly Report"),
     ).render_month_summary(summary)
 
     assert "Apple Health Monthly Report" in output
@@ -398,6 +401,7 @@ def test_full_pipeline_matches_golden_report(
 
     output = TextRenderer(
         config=config,
+        presentation=PresentationContext("Apple Health Monthly Report"),
     ).render_month(summary)
 
     expected_report_path = Path(__file__).parent / "fixtures" / "expected_report.txt"
@@ -700,6 +704,8 @@ def test_multi_month_report_generation_pipeline(
     assert september_report.full_json
     assert september_report.summary_text
     assert september_report.summary_json
+    assert "Apple Health Monthly Report" in august_report.full_text
+    assert "Apple Health Monthly Report" in september_report.summary_text
 
     august_json = json.loads(
         august_report.full_json,

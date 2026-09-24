@@ -20,6 +20,7 @@ def test_shared_layers_do_not_import_provider_implementation_or_apple_input_code
         *Path("apple_health/analyzers").glob("*.py"),
         *Path("apple_health/renderers").glob("*.py"),
         Path("apple_health/report_models.py"),
+        Path("apple_health/application/report_generation_application.py"),
     ]
     forbidden = (
         "apple_health.providers.apple",
@@ -27,6 +28,8 @@ def test_shared_layers_do_not_import_provider_implementation_or_apple_input_code
         "apple_health.importer",
         "apple_health.constants",
         "apple_health.config.source_config",
+        "apple_health.config.app_config",
+        "apple_health.config.config_loader",
     )
 
     for path in shared_files:
@@ -34,7 +37,9 @@ def test_shared_layers_do_not_import_provider_implementation_or_apple_input_code
         imports = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                imports.append(node.module or "")
+                module = node.module or ""
+                imports.append(module)
+                imports.extend(f"{module}.{alias.name}" for alias in node.names if module)
             elif isinstance(node, ast.Import):
                 imports.extend(alias.name for alias in node.names)
         assert not any(name.startswith(forbidden) for name in imports), path
@@ -50,6 +55,9 @@ def test_canonical_models_exclude_apple_raw_fields() -> None:
 def test_fake_provider_data_reaches_neutral_workflow_independent_of_provenance() -> None:
     class FakeProvider:
         provider_id = "fake"
+
+        def __init__(self, provenance: DatasetProvenance) -> None:
+            self.provenance = provenance
 
         def load(self, path: Path, *, config: object) -> LoadedHealthData:
             data = HealthData(
@@ -71,7 +79,7 @@ def test_fake_provider_data_reaches_neutral_workflow_independent_of_provenance()
                     )
                 ],
             )
-            return LoadedHealthData(data, DatasetProvenance("fake", "Fake Health"))
+            return LoadedHealthData(data, self.provenance)
 
     options = MultiMonthRunOptions(
         archive_path=Path("fixture"),
@@ -79,17 +87,28 @@ def test_fake_provider_data_reaches_neutral_workflow_independent_of_provenance()
         config_path=None,
         outputs=ReportOutputs(full_text=True, full_json=True),
     )
-    result = ReportGenerationApplication(FakeProvider()).generate_reports(
+    config = type("Config", (), {"provider": object(), "analysis": AnalysisConfig()})()
+    result = ReportGenerationApplication(
+        FakeProvider(DatasetProvenance("fake", "Fake Health"))
+    ).generate_reports(
         options,
-        effective_config=type("Config", (), {"provider": object(), "analysis": AnalysisConfig()})(),
+        effective_config=config,
     )
     report = result.reports[0]
 
     assert "Fake Health Monthly Report" in report.full_text
     assert '"schema_version": "1.0"' in report.full_json
-    first = FakeProvider().load(Path("fixture"), config=object()).data
+    first = (
+        FakeProvider(DatasetProvenance("fake", "Fake Health"))
+        .load(Path("fixture"), config=object())
+        .data
+    )
     second = LoadedHealthData(first, DatasetProvenance("other", "Other Health"))
     assert HealthAnalyzer(first, AnalysisConfig()).summarize_month(2026, 8) == HealthAnalyzer(
         second.data, AnalysisConfig()
     ).summarize_month(2026, 8)
+    other_result = ReportGenerationApplication(
+        FakeProvider(DatasetProvenance("other", "Other Health"))
+    ).generate_reports(options, effective_config=config)
+    assert report.full_json == other_result.reports[0].full_json
     assert "provenance" not in inspect.signature(HealthAnalyzer).parameters

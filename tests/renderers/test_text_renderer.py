@@ -144,7 +144,7 @@ def test_render_month_summary_contains_all_major_sections() -> None:
         )
     )
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "August 2026" in output
     assert "Data available through: 2026-08-14" in output
     assert "General activity" in output
@@ -175,7 +175,7 @@ def test_render_month_includes_daily_reports() -> None:
         )
     )
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "2026-08-01" in output
     assert "Daily energy expenditure" in output
 
@@ -290,7 +290,7 @@ def test_monthly_report_without_sleep_data() -> None:
 
     output = TextRenderer().render_month_summary(summary)
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "General activity" in output
 
     assert "Sleep\n-----" not in output
@@ -311,7 +311,7 @@ def test_monthly_report_without_workouts_omits_workouts_section() -> None:
 
     output = TextRenderer().render_month_summary(summary)
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "Workouts\n--------" not in output
 
 
@@ -332,7 +332,7 @@ def test_monthly_report_without_nutrition_omits_nutrition_section() -> None:
 
     output = TextRenderer().render_month_summary(summary)
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "General activity" in output
     assert "Average energy expenditure" in output
     assert "Average nutrition" not in output
@@ -353,7 +353,7 @@ def test_monthly_report_without_energy_omits_energy_section() -> None:
 
     output = TextRenderer().render_month_summary(summary)
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "General activity" in output
     assert "Average nutrition" in output
     assert "Average energy expenditure" not in output
@@ -376,7 +376,7 @@ def test_monthly_report_without_general_activity_omits_section() -> None:
 
     output = TextRenderer().render_month_summary(summary)
 
-    assert "Apple Health Monthly Report" in output
+    assert "Health Monthly Report" in output
     assert "General activity" not in output
 
 

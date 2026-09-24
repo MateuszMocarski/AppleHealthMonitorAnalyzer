@@ -67,6 +67,7 @@ def test_application_runs_monthly_text_report(
     class FakeTextRenderer:
         def __init__(self, config, presentation=None):
             calls["renderer_config"] = config
+            calls["report_title"] = presentation.report_title
 
         def render_month(self, summary):
             calls["summary"] = summary
@@ -97,6 +98,7 @@ def test_application_runs_monthly_text_report(
     assert calls["year"] == 2026
     assert calls["month"] == 8
     assert calls["summary"] == "summary"
+    assert calls["report_title"] == "Apple Health Monthly Report"
 
 
 # =====================================================================
