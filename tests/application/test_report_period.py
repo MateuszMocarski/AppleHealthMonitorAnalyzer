@@ -1,6 +1,6 @@
 import pytest
 
-from apple_health.application.report_period import ReportPeriod
+from connected_health.application.report_period import ReportPeriod
 
 # =====================================================================
 # Verifies that a report period can be created from the supported

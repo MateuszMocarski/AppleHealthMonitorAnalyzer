@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from apple_health.application.effective_config_resolver import (
+from connected_health.application.effective_config_resolver import (
     EffectiveConfigResolver,
 )
-from apple_health.config.app_config import AppConfig
-from apple_health.config.source_config import SourceConfig
+from connected_health.config.app_config import AppConfig
+from connected_health.config.source_config import SourceConfig
 
 
 def _write_config(

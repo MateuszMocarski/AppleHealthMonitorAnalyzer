@@ -1,6 +1,6 @@
 import pytest
 
-from apple_health.google.settings import GoogleConfigurationError, GoogleSettings
+from connected_health.google.settings import GoogleConfigurationError, GoogleSettings
 
 # =====================================================================
 # Verifies that Google settings are loaded from the configured

@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.exceptions import InvalidArchiveError
-from apple_health.models import HealthData
-from apple_health.providers.apple.config import AppleProviderConfig
-from apple_health.providers.apple.provider import AppleHealthProvider
-from apple_health.providers.contract import HealthDataProviderError
+from connected_health.models import HealthData
+from connected_health.providers.apple.config import AppleProviderConfig
+from connected_health.providers.apple.errors import InvalidArchiveError
+from connected_health.providers.apple.provider import AppleHealthProvider
+from connected_health.providers.contract import HealthDataProviderError
 
 
 def test_apple_provider_returns_canonical_data_and_provenance(monkeypatch) -> None:
@@ -34,8 +34,10 @@ def test_apple_provider_returns_canonical_data_and_provenance(monkeypatch) -> No
         def parse(self) -> HealthData:
             return expected
 
-    monkeypatch.setattr("apple_health.providers.apple.provider.AppleHealthImporter", FakeImporter)
-    monkeypatch.setattr("apple_health.providers.apple.provider.AppleHealthParser", FakeParser)
+    monkeypatch.setattr(
+        "connected_health.providers.apple.provider.AppleHealthImporter", FakeImporter
+    )
+    monkeypatch.setattr("connected_health.providers.apple.provider.AppleHealthParser", FakeParser)
 
     loaded = AppleHealthProvider().load(Path("export.zip"), config=AppleProviderConfig())
 
@@ -52,7 +54,9 @@ def test_apple_provider_translates_apple_input_errors(monkeypatch) -> None:
         def open_export(self):
             raise InvalidArchiveError
 
-    monkeypatch.setattr("apple_health.providers.apple.provider.AppleHealthImporter", FakeImporter)
+    monkeypatch.setattr(
+        "connected_health.providers.apple.provider.AppleHealthImporter", FakeImporter
+    )
 
     with pytest.raises(HealthDataProviderError, match="invalid_archive"):
         AppleHealthProvider().load(Path("invalid.zip"), config=AppleProviderConfig())

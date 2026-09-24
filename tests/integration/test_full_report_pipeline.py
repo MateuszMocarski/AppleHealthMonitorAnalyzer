@@ -4,19 +4,19 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.application.application import AppleHealthApplication
-from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_outputs import ReportOutputs
-from apple_health.application.report_period import ReportPeriod
-from apple_health.config.app_config import AppConfig
-from apple_health.config.config_loader import ConfigLoader
-from apple_health.enums import WorkoutType
-from apple_health.importer import AppleHealthImporter
-from apple_health.parser import AppleHealthParser
-from apple_health.renderers.json_renderer import JsonRenderer
-from apple_health.renderers.presentation import PresentationContext
-from apple_health.renderers.text_renderer import TextRenderer
+from connected_health.analyzers.health_analyzer import HealthAnalyzer
+from connected_health.application.application import AppleHealthApplication
+from connected_health.application.multi_month_run_options import MultiMonthRunOptions
+from connected_health.application.report_outputs import ReportOutputs
+from connected_health.application.report_period import ReportPeriod
+from connected_health.config.app_config import AppConfig
+from connected_health.config.config_loader import ConfigLoader
+from connected_health.enums import WorkoutType
+from connected_health.providers.apple.importer import AppleHealthImporter
+from connected_health.providers.apple.parser import AppleHealthParser
+from connected_health.renderers.json_renderer import JsonRenderer
+from connected_health.renderers.presentation import PresentationContext
+from connected_health.renderers.text_renderer import TextRenderer
 
 
 def _create_export_archive(
@@ -520,7 +520,7 @@ def test_full_pipeline_renders_json_month_summary(
 
 
 def test_example_config_file_is_loadable() -> None:
-    config_path = Path("apple_health/config/examples/config.example.toml")
+    config_path = Path("connected_health/config/examples/config.example.toml")
 
     config = ConfigLoader.load(config_path)
 

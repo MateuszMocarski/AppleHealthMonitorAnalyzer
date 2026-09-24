@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.exceptions import (
+from connected_health.providers.apple.errors import (
     ExportXmlNotFoundError,
     ExportXmlTooLargeError,
     InvalidArchiveError,
     MultipleExportXmlError,
 )
-from apple_health.importer import AppleHealthImporter
+from connected_health.providers.apple.importer import AppleHealthImporter
 
 
 def _create_zip(
@@ -203,7 +203,7 @@ def test_open_export_rejects_oversized_export_xml(
     )
 
     monkeypatch.setattr(
-        "apple_health.importer.MAX_EXPORT_XML_SIZE",
+        "connected_health.providers.apple.importer.MAX_EXPORT_XML_SIZE",
         10,
     )
 

@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 
-from apple_health.application.report_generation_metadata import (
+from connected_health.application.report_generation_metadata import (
     ReportGenerationMetadata,
 )
-from apple_health.application.report_period import ReportPeriod
+from connected_health.application.report_period import ReportPeriod
 
 # =====================================================================
 # Verifies that monthly report generation metadata exposes canonical

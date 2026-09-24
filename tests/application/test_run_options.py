@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_period import ReportPeriod
-from apple_health.application.run_options import RunOptions
-from apple_health.config.app_config import AppConfig
+from connected_health.application.multi_month_run_options import MultiMonthRunOptions
+from connected_health.application.report_period import ReportPeriod
+from connected_health.application.run_options import RunOptions
+from connected_health.config.app_config import AppConfig
 
 # =====================================================================
 # Verifies that RunOptions preserves the complete resolved parameter

@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.config.app_config import AppConfig
-from apple_health.config.config_loader import ConfigLoader
-from apple_health.config.exceptions import ConfigurationError
+from connected_health.config.app_config import AppConfig
+from connected_health.config.config_loader import ConfigLoader
+from connected_health.config.exceptions import ConfigurationError
 
 
 def _write_config(
@@ -640,11 +640,11 @@ def test_partial_nested_config_preserves_unset_defaults(
 @pytest.mark.parametrize(
     "config_path",
     [
-        Path("apple_health/config/examples/config.example.toml"),
-        Path("apple_health/config/examples/config.lenient.toml"),
-        Path("apple_health/config/examples/config.oversleeping.toml"),
-        Path("apple_health/config/examples/config.strict-schedule.toml"),
-        Path("apple_health/config/examples/config.undersleeping.toml"),
+        Path("connected_health/config/examples/config.example.toml"),
+        Path("connected_health/config/examples/config.lenient.toml"),
+        Path("connected_health/config/examples/config.oversleeping.toml"),
+        Path("connected_health/config/examples/config.strict-schedule.toml"),
+        Path("connected_health/config/examples/config.undersleeping.toml"),
     ],
 )
 def test_example_config_file_is_loadable(

@@ -4,11 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from apple_health.config.app_config import AppConfig
-from apple_health.config.exceptions import ConfigurationError
-from apple_health.config.source_config import SourceConfig
-from apple_health.config.toml_renderer import TomlRenderer
-from apple_health.google.config_profiles import (
+from connected_health.config.app_config import AppConfig
+from connected_health.config.exceptions import ConfigurationError
+from connected_health.config.source_config import SourceConfig
+from connected_health.config.toml_renderer import TomlRenderer
+from connected_health.google.config_profiles import (
     ConfigProfile,
     autosave_config_profile,
     discover_config_profiles,
@@ -19,7 +19,7 @@ from apple_health.google.config_profiles import (
     resolve_config_profile_name,
     save_config_profile,
 )
-from apple_health.google.drive import (
+from connected_health.google.drive import (
     DriveDownloadTooLargeError,
     DriveFileMetadata,
     DriveFilePage,
@@ -757,7 +757,7 @@ def test_config_autosave_saves_when_enabled(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "apple_health.google.config_profiles.save_config_profile",
+        "connected_health.google.config_profiles.save_config_profile",
         fake_save_config_profile,
     )
 

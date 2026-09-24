@@ -1,37 +1,28 @@
-# Apple Health Monitor Analyzer
+# Connected Health Analyzer
 
-## Provider boundary
+Connected Health Analyzer turns exported personal health data into deterministic,
+well-documented daily and monthly reports that can be compared over time.
 
-Health-data inputs end at the canonical `HealthData` boundary. Shared analyzers,
-report models and renderers consume only that provider-neutral domain model; they
-must not import provider parsers, importers, constants or provider configuration.
-`None` continues to mean missing data, never measured zero.
+The application is designed around a provider-neutral analysis core. Provider-specific
+input is normalized into the canonical `HealthData` model before it reaches shared
+analyzers, report models, and renderers.
 
-`HealthDataProvider.load(path, config=...)` returns `LoadedHealthData`: canonical
-data plus adjacent immutable `DatasetProvenance`. Provenance is available to
-orchestration and presentation, but never to calculations or JSON schema 1.0.
-The Apple adapter owns ZIP/XML parsing, `HK*` mapping and Apple source selection
-(including sleep-source matching) before emitting canonical records. Analysis
-configuration is `AnalysisConfig`; Apple source policy is `AppleProviderConfig`.
-The existing `AppConfig` and TOML `[source]` section remain compatibility
-envelopes for the current Apple public API.
+**Currently supported health-data provider: Apple Health.**
 
-A future provider (for example Garmin) must implement the same provider contract,
-normalize its raw input to `HealthData`, and provide presentation provenance. It
-must not require changes to shared analyzers, report models or renderers. Google
-Drive remains identity/storage infrastructure, not a health-data provider.
-
-The future report identity is `(provider_id, period)`, but provider-aware Drive
-persistence and public API/CLI/frontend provider selection are deliberately
-deferred. Existing Drive data and JSON schema 1.0 are unchanged.
+The browser makes that provider choice explicit before showing the Apple-specific
+workflow. Apple Health exports can be processed locally without an account, or with an
+optional Google connection for Drive-based ZIP selection, saved configuration profiles,
+and report persistence.
 
 ### Highlights
 
+- 🧩 Provider-oriented architecture with a canonical `HealthData` boundary
+- 🍎 Apple Health export ZIP support
 - 📅 Daily and monthly reports
+- 🗓️ Multi-month generation from a single provider load
 - 🌐 Browser interface and FastAPI report-generation API
 - ☁️ Optional Google sign-in with Google Drive ZIP selection, saved configurations, and report persistence
-- 🗓️ Multi-month generation from a single Apple Health parse
-- ⚙️ Optional `config.toml` upload plus per-request source overrides
+- ⚙️ Optional `config.toml` upload plus Apple source overrides
 - 😴 Automatic sleep session reconstruction and configurable Sleep Score
 - 🚶 Activity, workout, body-weight, energy, and nutrition aggregation
 - 🧩 Missing-data-aware monthly averages with per-metric coverage
@@ -40,35 +31,98 @@ deferred. Existing Drive data and JSON schema 1.0 are unchanged.
 
 ## Overview
 
-Apple Health Monitor Analyzer is a Python application that transforms raw Apple Health exports into structured daily and monthly reports. It can be used from the command line or through a local web interface backed by FastAPI.
+Connected Health Analyzer separates **health-data ingestion** from **health-data
+analysis**.
 
-The application parses Apple Health XML exports, reconstructs sleep sessions, aggregates daily activity, energy, body weight, and nutrition metrics, and generates comprehensive reports designed for long-term health and fitness tracking. The web workflow can generate multiple months from one uploaded archive while parsing the Apple Health XML only once.
+Each provider is responsible for understanding its own raw export format and converting
+it into canonical `HealthData`. From that boundary onward, the shared analysis and
+reporting pipeline is provider-neutral.
 
-Unlike the Apple Health application, which focuses on browsing recorded data, Apple Health Monitor Analyzer emphasizes consistency, transparency, and comparability. Every reported metric follows a documented methodology, allowing reports to be reliably compared across different reporting periods and parser versions.
+The current provider is Apple Health:
 
-The generated reports are intended to serve as a solid foundation for both personal analysis and AI-assisted interpretation, providing meaningful insights without requiring direct access to raw Apple Health data.
+```text
+Apple Health export ZIP
+        ↓
+AppleHealthProvider
+        ↓
+canonical HealthData
+        ↓
+HealthAnalyzer
+        ↓
+MonthlySummary
+        ↓
+text / JSON reports
+```
+
+For Apple Health, the application parses the export XML, reconstructs sleep sessions,
+aggregates activity, energy, body weight, nutrition, and workout data, and generates
+structured reports for one or more selected months.
+
+The goal is not to replace the source application used to collect or browse health data.
+Connected Health Analyzer focuses on reproducible analysis: the same normalized input
+and effective configuration should produce the same report.
+
+The generated reports are suitable for long-term trend analysis, independent inspection,
+and AI-assisted interpretation without requiring an AI system to access the raw health
+export.
 
 ## Project Philosophy
 
-Apple Health already provides an excellent interface for viewing health data.
-This project is not intended to replace it.
-
-Instead, its purpose is to transform Apple Health exports into deterministic,
-well-documented reports that remain comparable over time.
+Health-data platforms are good at collecting and displaying measurements. This project
+focuses on a different problem: turning exported health history into a stable,
+transparent analytical record.
 
 Every design decision follows a simple principle:
 
-> The same input data should always produce the same report.
+> The same normalized input data and effective configuration should always produce the same report.
 
-This philosophy makes the reports suitable for long-term trend analysis,
-independent verification, and AI-assisted interpretation.
+That requires three things:
+
+1. provider-specific parsing and source policy must stop before the canonical
+   `HealthData` boundary,
+2. missing measurements must remain missing instead of silently becoming zero, and
+3. report calculations and output contracts must remain deterministic and documented.
+
+Apple Health is the first implemented provider, but shared analyzers and renderers do not
+depend on Apple ZIP/XML, `HK*` identifiers, or Apple source-selection rules.
+
+## Provider Architecture
+
+Health-data inputs end at the canonical `HealthData` boundary. Shared analyzers,
+report models, and renderers consume only that provider-neutral model.
+
+`HealthDataProvider.load(path, config=...)` returns `LoadedHealthData`: canonical data
+plus adjacent immutable `DatasetProvenance`. Provenance is available to orchestration
+and presentation but does not influence calculations or the JSON schema.
+
+The Apple adapter owns:
+
+- Apple ZIP/XML validation and streaming,
+- raw `HK*` mappings,
+- Apple Watch / Apple Health source selection,
+- Apple-specific parsing and normalization.
+
+Shared analysis configuration is represented by `AnalysisConfig`; Apple input/source
+policy is represented by `AppleProviderConfig`. `AppConfig` remains the compatibility
+envelope for the currently public Apple configuration surface.
+
+The browser already exposes an explicit health-data provider selection boundary.
+At present, selecting **Apple Health** reveals the implemented Apple workflow. Backend
+report-generation routing remains Apple-specific until a second real provider is added;
+the current `/reports/generate` contract does not contain a provider field.
+
+Google is not a health-data provider. It is optional identity/storage infrastructure.
+
+Provider-aware Drive report identity is still deferred. Existing Drive metadata and JSON
+schema `1.0` remain unchanged.
 
 ## Features
 
 ### Data Processing
 
-- Import Apple Health XML exports
-- Parse and normalize health records
+- Explicit browser health-data provider selection
+- Import Apple Health export ZIP/XML data
+- Normalize provider-specific input into canonical `HealthData`
 - Deterministic report generation
 - Versioned report schema
 
@@ -157,7 +211,7 @@ independent verification, and AI-assisted interpretation.
 
 ## Usage
 
-The project currently supports two entry points: a browser/FastAPI workflow for multi-month report generation and the original command-line interface for single-month execution. Both reuse the same application, parser, analyzer, and renderer layers.
+The project currently supports two entry points: a browser/FastAPI workflow for multi-month report generation and the original command-line interface for single-month execution. Both reuse the same provider, analysis, and rendering pipeline. Apple Health is currently the implemented health-data provider.
 
 ### Development Setup
 
@@ -193,7 +247,7 @@ the OAuth client in Google Cloud. Keep real Google credentials only in `.env`; d
 Start the FastAPI application with Uvicorn:
 
 ```bash
-uvicorn apple_health.api.app:app --env-file .env
+uvicorn connected_health.api.app:app --env-file .env
 ```
 
 Then open the application at `http://localhost:8000/`.
@@ -202,7 +256,9 @@ Use `localhost` consistently for the browser and Google redirect URI rather than
 switching between `localhost` and `127.0.0.1`. The normal local command does not
 use Uvicorn's `--reload` mode.
 
-The browser workflow requires only:
+The browser workflow starts by selecting a health-data provider. The currently supported choice is **Apple Health**.
+
+After selecting Apple Health, generation requires only:
 
 1. an Apple Health export ZIP, and
 2. one or more reporting months.
@@ -247,7 +303,7 @@ For every requested month the browser returns four downloadable artifacts:
 
 The uploaded Apple Health ZIP and optional TOML file are copied into a request-scoped temporary directory, closed before application processing begins, and removed when the request completes. Generated report content is always returned to the browser. Anonymous/local generation remains stateless.
 
-When Google is connected, the browser can also select the Apple Health ZIP directly from Google Drive, load saved configuration profiles, autosave configurations, and persist selected report outputs under the managed Apple Health Monitor Drive structure. Re-generating an existing month uses an explicit replacement flow: the new generation is staged and verified first, the previous current generation is archived, and temporary staging folders are permanently deleted after cleanup rather than being left in Drive trash.
+When Google is connected, the browser can also select the Apple Health ZIP directly from Google Drive, load saved configuration profiles, autosave configurations, and persist selected report outputs under the managed Connected Health Analyzer Drive structure. Re-generating an existing month uses an explicit replacement flow: the new generation is staged and verified first, the previous current generation is archived, and temporary staging folders are permanently deleted after cleanup rather than being left in Drive trash.
 
 Google OAuth is opened in a popup so a locally selected ZIP, local TOML file, reporting periods, output choices, and source overrides remain intact while authentication completes. If Google access expires or Drive is temporarily unavailable, the UI offers reconnect/retry/local/anonymous recovery actions instead of silently looping.
 
@@ -314,7 +370,7 @@ curl -X POST   -F "archive=@export.zip"   -F "periods=2026-07,2026-08"   http://
 Request with an uploaded application configuration and one explicit source override:
 
 ```bash
-curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@apple_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://localhost:8000/reports/generate
+curl -X POST   -F "archive=@export.zip"   -F "periods=2026-08"   -F "config=@connected_health/config/examples/config.example.toml"   -F "apple_health_app_source=Health"   http://localhost:8000/reports/generate
 ```
 
 For web/API execution the effective configuration is resolved in this order:
@@ -450,7 +506,7 @@ Text output remains the default when `--format` is omitted.
 Application execution can be described by an optional TOML run profile. A profile may define the archive path, reporting period, output mode, monthly-summary mode, and the path to the application configuration file.
 
 ```bash
-python app.py --profile apple_health/application/examples/run.example.toml
+python app.py --profile connected_health/application/examples/run.example.toml
 ```
 
 Run profiles may be partial. Final run options are resolved using the following precedence:
@@ -466,19 +522,19 @@ built-in defaults
 This allows a reusable profile to provide normal execution settings while individual CLI flags override them for a single run. For example:
 
 ```bash
-python app.py --profile apple_health/application/examples/run.month-summary.toml --enforce-daily --format text
+python app.py --profile connected_health/application/examples/run.month-summary.toml --enforce-daily --format text
 ```
 
 `--month-summary` explicitly enables summary-only output, while `--enforce-daily` explicitly disables it and requests daily report details.
 
-Example run profiles are available in `apple_health/application/examples/`.
+Example run profiles are available in `connected_health/application/examples/`.
 
 ### Runtime Configuration
 
 Use `--config` to load an optional TOML application configuration file for CLI execution:
 
 ```bash
-python app.py import export.zip --month 8 --config apple_health/config/examples/config.example.toml
+python app.py import export.zip --month 8 --config connected_health/config/examples/config.example.toml
 ```
 
 When `--config` is omitted, the application uses the defaults defined by the configuration dataclasses.
@@ -487,7 +543,7 @@ TOML files may be partial: only explicitly provided values override defaults. Co
 
 The browser/API workflow can upload the same kind of TOML file as multipart field `config`. It additionally supports per-request source-name overrides for `apple_watch_source` and `apple_health_app_source`. Those runtime source overrides take precedence over values loaded from TOML, while blank source fields leave TOML/default values unchanged.
 
-Example application configuration files are available in [`apple_health/config/examples/`](apple_health/config/examples/). The complete default template is `config.example.toml` and can also be downloaded directly from the browser interface. For the complete configuration reference, see [`apple_health/config/README.md`](apple_health/config/README.md).
+Example application configuration files are available in [`connected_health/config/examples/`](connected_health/config/examples/). The complete default template is `config.example.toml` and can also be downloaded directly from the browser interface. For the complete configuration reference, see [`connected_health/config/README.md`](connected_health/config/README.md).
 
 ### Command Line Arguments
 
@@ -505,6 +561,26 @@ Example application configuration files are available in [`apple_health/config/e
 
 The CLI processes one reporting month per execution and generates either a structured human-readable text report or a versioned JSON representation containing monthly summaries, activity, energy, body weight, nutrition and sleep statistics. The multi-month four-output workflow is exposed separately through `AppleHealthApplication.generate_reports()` and the FastAPI endpoint.
 
+## Compatibility Notes
+
+The provider-neutral rename intentionally did **not** rename externally observable
+compatibility contracts.
+
+The following remain stable:
+
+- Apple provider identity `provider_id = "apple_health"`
+- Apple source fields `apple_watch_source` and `apple_health_app_source`
+- TOML `[source]`
+- exact Apple text report title `Apple Health Monthly Report`
+- JSON schema version `1.0`
+- Drive `ahm_*` metadata
+- `ahm_session`
+- `ahm_google_oauth_popup`
+- `AHM_ENV`
+
+Existing metadata-discovered Drive roots are reused without automatic renaming. Newly
+created roots use the visible name `Connected Health Analyzer`.
+
 ## Project Architecture
 
 The application follows a layered architecture that separates application execution, data import, parsing, analysis, and presentation. Each component has a single responsibility, making the codebase easier to maintain, test, and extend.
@@ -515,7 +591,7 @@ flowchart TD
     WEB["🌐 Browser UI"]
     API["FastAPI<br/><i>HTTP Adapter</i>"]
     ENTRY["⌨️ app.py<br/><i>CLI Entry Point</i>"]
-    CLI["apple_health.cli<br/><i>CLI Adapter</i>"]
+    CLI["connected_health.cli<br/><i>CLI Adapter</i>"]
     PROFILE["📋 Run Profile<br/><i>Optional TOML</i>"]
     APP["AppleHealthApplication<br/><i>Compatibility Facade</i>"]
     FLOW["ReportGenerationApplication<br/><i>Neutral Workflow</i>"]
@@ -603,7 +679,7 @@ Application execution is coordinated by `AppleHealthApplication`. `run()` preser
 
 #### CLI
 
-The `apple_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
+The `connected_health.cli` module owns command-line argument parsing and validation. It combines explicit CLI input with optional run-profile values and delegates final option resolution to `RunOptionsResolver`.
 
 The top-level `app.py` module acts only as the CLI entry point and delegates execution to this adapter. Report-processing logic remains isolated in `AppleHealthApplication`; the FastAPI adapter reuses the same application workflow without depending on command-line parsing.
 
@@ -611,7 +687,7 @@ The top-level `app.py` module acts only as the CLI entry point and delegates exe
 
 Acts as the root of the application's configuration model. It groups configuration by responsibility and is created once for each application run before being injected into configurable components.
 
-Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`apple_health/config/README.md`](apple_health/config/README.md).
+Detailed configuration structure, TOML loading behavior, defaults, validation rules, and examples are documented in [`connected_health/config/README.md`](connected_health/config/README.md).
 
 #### AppleHealthImporter
 
@@ -719,12 +795,12 @@ Components retain default configuration behavior when instantiated independently
 
 Configuration values start from defaults defined by the configuration dataclasses. An optional TOML file can override any supported configuration value, and web/API execution may additionally override the two source-name fields for a single request. Missing TOML values continue to use dataclass defaults, while blank UI source fields do not override the effective TOML/default value.
 
-For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`apple_health/config/README.md`](apple_health/config/README.md).
+For the complete configuration hierarchy, default values, validation rules, and configuration architecture, see [`connected_health/config/README.md`](connected_health/config/README.md).
 
 ## Domain Model
 
-The domain model represents the in-memory structure of Apple Health data after it has been parsed from the XML export.
-It serves as the single source of truth for all analyses and report generation.
+The domain model represents normalized health data after provider-specific import and normalization.
+It serves as the single source of truth for all analyses and report generation. The current Apple provider populates this model from Apple Health export XML.
 
 ```mermaid
 classDiagram
@@ -825,7 +901,7 @@ Represents a single sleep stage interval (for example Core, Deep, REM, Awake, In
 
 The application can generate both a structured, human-readable text report and a versioned JSON representation summarizing activity, energy expenditure, calorie balance, body weight, nutrition, sleep, sleep scoring, and detailed daily health metrics.
 
-For every period requested through the multi-month workflow, the application produces four independent representations: full text, full JSON, summary text, and summary JSON. The current anonymous workflow returns these representations directly to the API client; durable report storage is planned for the Google Identity + user-owned Drive phase.
+For every period requested through the multi-month workflow, the application can produce four independent representations: full text, full JSON, summary text, and summary JSON. Anonymous/local generation returns the selected representations directly to the browser. When Google mode is connected, selected report artifacts can also be persisted to the user's own Google Drive.
 
 The report is organized hierarchically, progressing from high-level monthly summaries to detailed daily breakdowns.
 
@@ -1024,7 +1100,7 @@ Analyze the following Apple Health report. Focus on long-term trends rather than
 
 The project includes a comprehensive automated test suite covering core business logic, Apple Health data processing, the application layer, configuration precedence, the FastAPI boundary, renderers, and end-to-end report generation.
 
-The current Phase 5 suite contains **768 collected test cases**. The repository gate uses the full pytest suite together with Black, Ruff, and whitespace checks. Coverage can be measured locally with `pytest --cov=apple_health --cov-report=term-missing`; this README does not pin a percentage because it changes as integration coverage evolves.
+The repository gate uses the full pytest suite together with Black, Ruff, packaging, and whitespace checks. To obtain the current test count, run `pytest --collect-only -q`. Coverage can be measured locally with `pytest --cov=connected_health --cov-report=term-missing`; this README intentionally does not pin a current test-count or coverage percentage because both evolve with the project.
 
 Coverage includes:
 
@@ -1066,23 +1142,26 @@ For a detailed breakdown of the test suite, see [`tests/README.md`](tests/README
 
 ## Current Web-Application Boundary
 
-The browser/API supports both anonymous local generation and an optional Google-connected mode over the same processing core.
+The browser/API supports both anonymous local generation and an optional Google-connected mode over the same processing core. The browser first requires an explicit health-data provider choice; Apple Health is currently the only implemented provider.
 
 ```text
-Anonymous/local mode
 Browser
-  ↓ local ZIP + periods + optional local config.toml
+  ↓ choose health-data provider
+Apple Health
+  ↓
+
+Anonymous/local mode
+  ↓ local Apple Health ZIP + periods + optional local config.toml
 FastAPI temporary files
   ↓
 AppleHealthApplication.generate_reports()
-  ↓ parse once / analyze selected months
+  ↓ provider load once / analyze selected months
 Selected report outputs
   ↓
 Browser downloads
 
 Google-connected mode
-Browser + OAuth session
-  ↓ local ZIP or Google Drive ZIP
+  ↓ local Apple Health ZIP or Google Drive ZIP
   ↓ local config.toml or selected Drive profile
 FastAPI temporary files
   ↓ same application pipeline
@@ -1097,22 +1176,43 @@ Google-connected features include saved configuration profiles, configuration au
 
 ## Future Development
 
-**Phase 5 — Google Identity + user-owned Drive is complete.** The application now supports Google OAuth, user-owned Drive ZIP selection, saved TOML profiles, configuration/report autosave, safe report replacement with archive retention, recovery UX, integration regression coverage, and transfer/generation diagnostics while keeping raw Apple Health input disposable.
+**Phase 5 — Google Identity + user-owned Drive is complete.** The application supports
+Google OAuth, user-owned Drive ZIP selection, saved TOML profiles,
+configuration/report autosave, safe report replacement with archive retention,
+recovery UX, and transfer/generation diagnostics while keeping raw health exports
+disposable.
 
-The next planned phases are:
+**PRE6 provider abstraction and provider-neutral naming are complete.** Shared analysis
+now operates on canonical `HealthData`, the Python namespace is `connected_health`, and
+the browser has an explicit provider-selection boundary. Apple Health remains the only
+implemented provider.
 
-1. **P6 — Persistent viewer**  
-   Build a viewer over stored report artifacts, using `full.json` as the stable data contract for monthly/day-level presentation, charts, and downloads.
+The next major product tracks are:
 
-2. **P7 — Security and access hardening**  
-   Harden authentication/authorization boundaries, access rules, API exposure, abuse controls, and other controls required before broader exposure.
+1. **Additional health-data providers**  
+   Add another real provider adapter (Garmin is the first planned candidate) that
+   normalizes its raw input into the same `HealthData` contract. Backend provider
+   dispatch and provider-aware Drive report identity should be introduced only when the
+   second provider requires them.
 
-3. **P8 — Deployment and resource protection**  
-   Add production hosting, HTTPS, reverse-proxy/request limits, concurrency/rate controls, secret management, and deployment-level resource safeguards.
+2. **P6 — Persistent viewer**  
+   Build a viewer over stored report artifacts, using `full.json` as the stable data
+   contract for monthly/day-level presentation, charts, and downloads.
 
-Persistent reports remain user-owned Google Drive data rather than application-database records. Previous generations are retained under per-month archives when replacement occurs. No custom user/password database is planned.
+3. **P7 — Security and access hardening**  
+   Harden authentication/authorization boundaries, access rules, API exposure, abuse
+   controls, and other controls required before broader exposure.
 
-Additional health metrics and presentation formats may be added when they provide concrete value, but they remain secondary to the viewer, security, and deployment path.
+4. **P8 — Deployment and resource protection**  
+   Add production hosting, HTTPS, reverse-proxy/request limits, concurrency/rate
+   controls, secret management, and deployment-level resource safeguards.
+
+Persistent reports remain user-owned Google Drive data rather than
+application-database records. Previous generations are retained under per-month archives
+when replacement occurs. No custom user/password database is planned.
+
+Additional health metrics and presentation formats may be added when they provide
+concrete value.
 
 ## License
 

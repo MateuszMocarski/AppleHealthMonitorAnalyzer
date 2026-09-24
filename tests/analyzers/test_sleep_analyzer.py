@@ -3,11 +3,11 @@ from statistics import pstdev
 
 import pytest
 
-from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
-from apple_health.config.app_config import AppConfig
-from apple_health.enums import SleepStage
-from apple_health.models import HealthData, SleepRecord
-from apple_health.report_models import SleepScore, SleepSession
+from connected_health.analyzers.sleep_analyzer import SleepAnalyzer
+from connected_health.config.app_config import AppConfig
+from connected_health.enums import SleepStage
+from connected_health.models import HealthData, SleepRecord
+from connected_health.report_models import SleepScore, SleepSession
 
 # =======
 # Helpers

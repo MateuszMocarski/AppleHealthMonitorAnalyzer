@@ -3,15 +3,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from apple_health.application.application import AppleHealthApplication
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_generation_metadata import ReportGenerationMetadata
-from apple_health.application.report_outputs import ReportOutputs
-from apple_health.application.report_period import ReportPeriod
-from apple_health.application.run_options import RunOptions
-from apple_health.config.app_config import AppConfig
-from apple_health.config.source_config import SourceConfig
+from connected_health.application.application import AppleHealthApplication
+from connected_health.application.monthly_reports import MonthlyReports
+from connected_health.application.multi_month_run_options import MultiMonthRunOptions
+from connected_health.application.report_generation_metadata import ReportGenerationMetadata
+from connected_health.application.report_outputs import ReportOutputs
+from connected_health.application.report_period import ReportPeriod
+from connected_health.application.run_options import RunOptions
+from connected_health.config.app_config import AppConfig
+from connected_health.config.source_config import SourceConfig
 
 # =====================================================================
 # Verifies that the application orchestrates a complete monthly text
@@ -74,16 +74,16 @@ def test_application_runs_monthly_text_report(
             return "rendered-report"
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "connected_health.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
 
@@ -161,16 +161,16 @@ def test_application_runs_json_month_summary(
             raise AssertionError("render_month should not be called")
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "connected_health.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -273,20 +273,20 @@ def test_application_generates_all_report_variants_for_multiple_months(
             return f"json-summary:{summary}"
 
     monkeypatch.setattr(
-        "apple_health.application.application.ConfigLoader",
+        "connected_health.application.application.ConfigLoader",
         FakeConfigLoader,
     )
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -319,12 +319,12 @@ def test_application_generates_all_report_variants_for_multiple_months(
     )
 
     monkeypatch.setattr(
-        "apple_health.application.application._generation_id",
+        "connected_health.application.application._generation_id",
         lambda: next(generation_ids),
     )
 
     monkeypatch.setattr(
-        "apple_health.application.application._utc_now",
+        "connected_health.application.application._utc_now",
         lambda: next(generated_times),
     )
 
@@ -476,20 +476,20 @@ def test_generate_reports_resolves_effective_configuration(
             return "summary-json"
 
     monkeypatch.setattr(
-        "apple_health.application.application.EffectiveConfigResolver",
+        "connected_health.application.application.EffectiveConfigResolver",
         FakeEffectiveConfigResolver,
     )
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -585,15 +585,15 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -681,15 +681,15 @@ def test_generate_reports_uses_selected_drive_config_when_upload_missing(
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -776,15 +776,15 @@ def test_generate_reports_applies_source_overrides_to_selected_drive_config(
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -815,7 +815,7 @@ def test_generate_reports_exposes_effective_config(
     )
 
     monkeypatch.setattr(
-        "apple_health.application.application.EffectiveConfigResolver.resolve",
+        "connected_health.application.application.EffectiveConfigResolver.resolve",
         lambda **kwargs: expected_config,
     )
 
@@ -855,7 +855,7 @@ def test_generate_reports_exposes_effective_config(
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
 
@@ -941,15 +941,15 @@ def test_generate_reports_renders_only_selected_outputs(
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.TextRenderer",
+        "connected_health.application.application.TextRenderer",
         FakeTextRenderer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -1010,12 +1010,12 @@ def test_generate_reports_assigns_identity_per_month(
     )
 
     monkeypatch.setattr(
-        "apple_health.application.application._utc_now",
+        "connected_health.application.application._utc_now",
         lambda: next(generated_times),
     )
 
     monkeypatch.setattr(
-        "apple_health.application.application._generation_id",
+        "connected_health.application.application._generation_id",
         lambda: next(generated_ids),
     )
 
@@ -1050,11 +1050,11 @@ def test_generate_reports_assigns_identity_per_month(
 
     _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
-        "apple_health.application.application.HealthAnalyzer",
+        "connected_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
     )
     monkeypatch.setattr(
-        "apple_health.application.application.JsonRenderer",
+        "connected_health.application.application.JsonRenderer",
         FakeJsonRenderer,
     )
 
@@ -1108,6 +1108,6 @@ def _patch_provider(monkeypatch, importer, parser) -> None:
                 )
 
     monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthProvider",
+        "connected_health.application.application.AppleHealthProvider",
         FakeProvider,
     )

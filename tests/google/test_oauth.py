@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx2 as httpx
 import pytest
 
-from apple_health.google.oauth import (
+from connected_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
     GoogleTokenResponse,
@@ -13,7 +13,7 @@ from apple_health.google.oauth import (
     HttpGoogleRevocationClient,
     HttpGoogleTokenClient,
 )
-from apple_health.google.sessions import SessionStore
+from connected_health.google.sessions import SessionStore
 
 # =====================================================================
 # Verifies that starting Google OAuth creates a state value stored in
@@ -342,7 +342,7 @@ def test_http_google_token_client_exchanges_authorization_code(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -485,7 +485,7 @@ def test_http_google_token_client_maps_google_http_error(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -529,7 +529,7 @@ def test_http_google_token_client_maps_network_error(
         )
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -572,7 +572,7 @@ def test_http_google_token_client_rejects_malformed_json(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -615,7 +615,7 @@ def test_http_google_token_client_rejects_missing_access_token(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -670,7 +670,7 @@ def test_http_google_token_client_rejects_invalid_access_token(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -724,7 +724,7 @@ def test_http_google_identity_client_retrieves_google_identity(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.get",
+        "connected_health.google.oauth.httpx.get",
         fake_get,
     )
 
@@ -788,7 +788,7 @@ def test_http_google_identity_client_rejects_invalid_identity(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.get",
+        "connected_health.google.oauth.httpx.get",
         fake_get,
     )
 
@@ -829,7 +829,7 @@ def test_http_google_identity_client_maps_network_error(
         )
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.get",
+        "connected_health.google.oauth.httpx.get",
         fake_get,
     )
 
@@ -879,7 +879,7 @@ def test_http_google_identity_client_maps_google_http_error(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.get",
+        "connected_health.google.oauth.httpx.get",
         fake_get,
     )
 
@@ -919,7 +919,7 @@ def test_http_google_identity_client_rejects_malformed_json(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.get",
+        "connected_health.google.oauth.httpx.get",
         fake_get,
     )
 
@@ -975,7 +975,7 @@ def test_http_google_token_client_rejects_invalid_expires_in(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -1033,7 +1033,7 @@ def test_http_google_token_client_rejects_invalid_scope(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -1091,7 +1091,7 @@ def test_http_google_token_client_rejects_missing_token_metadata(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -1214,7 +1214,7 @@ def test_google_revocation_client_maps_network_failure(
         )
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -1264,7 +1264,7 @@ def test_google_revocation_client_maps_http_failure(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 
@@ -1307,7 +1307,7 @@ def test_google_revocation_client_sends_expected_request(
         return FakeResponse()
 
     monkeypatch.setattr(
-        "apple_health.google.oauth.httpx.post",
+        "connected_health.google.oauth.httpx.post",
         fake_post,
     )
 

@@ -1,10 +1,10 @@
 from datetime import date, time
 
-from apple_health.config.app_config import AppConfig
-from apple_health.enums import WorkoutType
-from apple_health.models import NutritionData
-from apple_health.renderers.text_renderer import TextRenderer
-from apple_health.report_models import (
+from connected_health.config.app_config import AppConfig
+from connected_health.enums import WorkoutType
+from connected_health.models import NutritionData
+from connected_health.renderers.text_renderer import TextRenderer
+from connected_health.report_models import (
     ActivityMetricsSummary,
     ActivitySummary,
     DailySummary,

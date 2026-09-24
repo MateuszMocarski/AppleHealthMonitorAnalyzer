@@ -1,10 +1,12 @@
 # Test Suite
 
-The Apple Health Monitor Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
+The Connected Health Analyzer test suite provides automated coverage of the application's core business logic, Apple Health data processing, report generation, configuration validation, and end-to-end component integration.
 
-The suite currently contains **768 collected test cases**.
+To obtain the current suite size, run `pytest --collect-only -q`.
 
 ## Test structure
+
+The following test-count inventory is a historical snapshot: at the P5 close checkpoint, the suite collected **768 tests**.
 
 | Area | Test cases |
 | --- | ---: |
@@ -633,10 +635,10 @@ pytest --collect-only -q
 Measure statement coverage for the application package:
 
 ```bash
-pytest --cov=apple_health --cov-report=term-missing
+pytest --cov=connected_health --cov-report=term-missing
 ```
 
-The current Phase 5 suite collects **768 tests**. Coverage can be measured with the command above; this README does not pin a percentage because the exact value may change as integration coverage evolves.
+For the current suite size, run `pytest --collect-only -q`. Coverage can be measured with the command above; this README does not pin a percentage because the exact value may change as integration coverage evolves.
 
 ## Code quality
 

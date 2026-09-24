@@ -2,16 +2,16 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
-import apple_health.api.app as api_app_module
-from apple_health.api.app import app
-from apple_health.application.application import AppleHealthApplication
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.report_generation_metadata import ReportGenerationMetadata
-from apple_health.application.report_generation_result import ReportGenerationResult
-from apple_health.application.report_period import ReportPeriod
-from apple_health.config.app_config import AppConfig
-from apple_health.google.oauth import GoogleOAuthService
-from apple_health.google.sessions import SessionStore
+import connected_health.api.app as api_app_module
+from connected_health.api.app import app
+from connected_health.application.application import AppleHealthApplication
+from connected_health.application.monthly_reports import MonthlyReports
+from connected_health.application.report_generation_metadata import ReportGenerationMetadata
+from connected_health.application.report_generation_result import ReportGenerationResult
+from connected_health.application.report_period import ReportPeriod
+from connected_health.config.app_config import AppConfig
+from connected_health.google.oauth import GoogleOAuthService
+from connected_health.google.sessions import SessionStore
 
 
 def _report(*, period: ReportPeriod) -> MonthlyReports:

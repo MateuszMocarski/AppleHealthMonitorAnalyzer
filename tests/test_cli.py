@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from apple_health.cli import _build_parser, _validate_arguments
+from connected_health.cli import _build_parser, _validate_arguments
 
 # =====================================================================
 # Verifies that optional CLI arguments remain unresolved when they are
@@ -23,6 +23,10 @@ def test_parser_uses_none_for_unspecified_optional_arguments() -> None:
     assert args.month_summary is None
     assert args.format is None
     assert args.config is None
+
+
+def test_parser_uses_connected_health_analyzer_product_name() -> None:
+    assert _build_parser().prog == "Connected Health Analyzer"
 
 
 # =====================================================================
