@@ -22,11 +22,3 @@ class SleepStage(Enum):
     UNSPECIFIED = auto()
 
     OTHER = auto()
-
-
-APPLE_WORKOUT_TYPES = {
-    "HKWorkoutActivityTypeWalking": WorkoutType.WALKING,
-    "HKWorkoutActivityTypeHiking": WorkoutType.HIKING,
-    "HKWorkoutActivityTypeCycling": WorkoutType.OUTDOOR_CYCLING,
-    "HKWorkoutActivityTypeTraditionalStrengthTraining": WorkoutType.STRENGTH_TRAINING,
-}

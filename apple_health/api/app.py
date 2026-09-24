@@ -69,6 +69,7 @@ from apple_health.google.report_persistence import (
 )
 from apple_health.google.sessions import SessionCookieSettings, SessionStore
 from apple_health.google.settings import GoogleSettings
+from apple_health.providers.contract import HealthDataProviderError
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 MAX_CONFIG_UPLOAD_SIZE = 1024 * 1024  # 1 MB
@@ -1213,6 +1214,21 @@ def generate_report(
                     status_code=422,
                     detail=("Invalid Apple Health export XML."),
                 ) from exc
+
+            except HealthDataProviderError as exc:
+                provider_error_responses = {
+                    "invalid_archive": (422, "Invalid Apple Health export archive."),
+                    "missing_export_xml": (422, "Apple Health export XML not found in archive."),
+                    "multiple_export_xml": (
+                        422,
+                        "Archive contains multiple Apple Health export XML files.",
+                    ),
+                    "invalid_input": (422, "Invalid Apple Health export XML."),
+                    "input_too_large": (413, "Apple Health export XML is too large."),
+                    "malformed_data": (422, "Invalid Apple Health export XML."),
+                }
+                status_code, detail = provider_error_responses[exc.category]
+                raise HTTPException(status_code=status_code, detail=detail) from exc
 
         total_seconds = perf_counter() - request_started
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from apple_health.config.app_config import AppConfig
 from apple_health.config.config_loader import ConfigLoader
 from apple_health.config.exceptions import ConfigurationError
+from apple_health.providers.apple.config import AppleProviderConfig
 
 
 class EffectiveConfigResolver:
@@ -50,9 +51,9 @@ class EffectiveConfigResolver:
         if apple_health_app_source is not None:
             source.apple_health_app_source = apple_health_app_source
 
-        effective_config = replace(
-            config,
-            source=source,
+        effective_config = AppConfig(
+            analysis=config.analysis,
+            provider=AppleProviderConfig(source=source),
         )
 
         try:

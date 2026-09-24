@@ -3,8 +3,9 @@ from __future__ import annotations
 import calendar
 from io import StringIO
 
-from apple_health.config.app_config import AppConfig
+from apple_health.config.analysis_config import AnalysisConfig
 from apple_health.enums import WorkoutType
+from apple_health.renderers.presentation import PresentationContext
 from apple_health.report_models import (
     ActivitySummary,
     DailySummary,
@@ -26,8 +27,13 @@ class _TextWriter:
 
 
 class TextRenderer:
-    def __init__(self, config: AppConfig | None = None) -> None:
-        self.config = config or AppConfig()
+    def __init__(
+        self,
+        config: AnalysisConfig | None = None,
+        presentation: PresentationContext | None = None,
+    ) -> None:
+        self.config = config or AnalysisConfig()
+        self.presentation = presentation or PresentationContext("Health Monthly Report")
 
     def render_month(self, monthly_summary: MonthlySummary) -> str:
         writer = _TextWriter()
@@ -55,7 +61,7 @@ class TextRenderer:
         self._render_monthly_nutrition(writer, summary)
 
     def _render_month_header(self, writer: _TextWriter, summary: MonthlySummary) -> None:
-        writer.write("Apple Health Monthly Report")
+        writer.write(self.presentation.report_title)
         writer.write(f"{calendar.month_name[summary.month]} {summary.year}")
         if summary.data_through is None:
             date_through = "No complete reporting days available."

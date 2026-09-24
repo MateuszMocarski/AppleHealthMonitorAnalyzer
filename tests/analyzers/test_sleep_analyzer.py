@@ -6,7 +6,7 @@ import pytest
 from apple_health.analyzers.sleep_analyzer import SleepAnalyzer
 from apple_health.config.app_config import AppConfig
 from apple_health.enums import SleepStage
-from apple_health.models import AppleHealthData, SleepRecord
+from apple_health.models import HealthData, SleepRecord
 from apple_health.report_models import SleepScore, SleepSession
 
 # =======
@@ -35,12 +35,8 @@ def _sleep_record(
     stage: SleepStage = SleepStage.CORE,
     source_name: str | None = None,
 ) -> SleepRecord:
-    source_name = source_name if source_name is not None else AppConfig().source.apple_watch_source
-
     return SleepRecord(
         stage=stage,
-        source_name=source_name,
-        source_version=None,
         start=start,
         end=end,
         duration_minutes=(end - start).total_seconds() / 60,
@@ -49,8 +45,8 @@ def _sleep_record(
 
 def _health_data(
     sleep_records: list[SleepRecord],
-) -> AppleHealthData:
-    return AppleHealthData(
+) -> HealthData:
+    return HealthData(
         workouts=[],
         daily_metrics=[],
         sleep_records=sleep_records,
@@ -282,12 +278,12 @@ def test_selects_longest_sleep_session_for_reporting_day() -> None:
 
 
 # =====================================================================
-# Verifies that only sleep records originating from Apple Watch are
-# used when reconstructing sleep sessions.
+# Canonical sleep records have already passed provider source selection. The
+# shared analyzer therefore uses every record it receives.
 # =====================================================================
 
 
-def test_ignores_sleep_records_from_non_watch_sources() -> None:
+def test_uses_all_canonical_sleep_records() -> None:
     start = _datetime(10, 23)
 
     analyzer = _analyzer(
@@ -302,7 +298,7 @@ def test_ignores_sleep_records_from_non_watch_sources() -> None:
         ),
     )
 
-    assert len(analyzer.sleep_sessions) == 1
+    assert len(analyzer.sleep_sessions) == 2
     assert analyzer.sleep_sessions[0].time_asleep_minutes == 420
 
 
@@ -1224,7 +1220,7 @@ def test_uses_configured_sleep_session_gap_threshold() -> None:
 # =====================================================================
 
 
-def test_sleep_source_requires_exact_match() -> None:
+def test_sleep_analyzer_does_not_apply_provider_source_matching() -> None:
     config = AppConfig()
     config.source.apple_watch_source = "Custom Watch"
 
@@ -1237,7 +1233,7 @@ def test_sleep_source_requires_exact_match() -> None:
         config=config,
     )
 
-    assert analyzer.sleep_sessions == []
+    assert len(analyzer.sleep_sessions) == 1
 
 
 # =====================================================================

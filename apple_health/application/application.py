@@ -1,22 +1,13 @@
+"""Apple compatibility facade over the provider-neutral workflow."""
+
 from datetime import UTC, datetime
-from time import perf_counter
 from uuid import uuid4
 
 from apple_health.analyzers.health_analyzer import HealthAnalyzer
-from apple_health.application.effective_config_resolver import (
-    EffectiveConfigResolver,
-)
-from apple_health.application.monthly_reports import MonthlyReports
-from apple_health.application.multi_month_run_options import MultiMonthRunOptions
-from apple_health.application.report_generation_metadata import ReportGenerationMetadata
-from apple_health.application.report_generation_result import (
-    ReportGenerationResult,
-    ReportGenerationTimings,
-)
-from apple_health.application.run_options import RunOptions
+from apple_health.application.effective_config_resolver import EffectiveConfigResolver
+from apple_health.application.report_generation_application import ReportGenerationApplication
 from apple_health.config.config_loader import ConfigLoader
-from apple_health.importer import AppleHealthImporter
-from apple_health.parser import AppleHealthParser
+from apple_health.providers.apple.provider import AppleHealthProvider
 from apple_health.renderers.json_renderer import JsonRenderer
 from apple_health.renderers.text_renderer import TextRenderer
 
@@ -30,142 +21,31 @@ def _generation_id() -> str:
 
 
 class AppleHealthApplication:
-    def run(
-        self,
-        options: RunOptions,
-    ) -> str:
-        config = ConfigLoader.load(
-            options.config_path,
+    """Retained Apple public entry point; owns only Apple wiring and configuration."""
+
+    def __init__(self) -> None:
+        self._workflow = ReportGenerationApplication(
+            AppleHealthProvider(),
+            analyzer_factory=HealthAnalyzer,
+            text_renderer_factory=TextRenderer,
+            json_renderer_factory=JsonRenderer,
+            generation_id_factory=_generation_id,
+            now_factory=_utc_now,
         )
 
-        importer = AppleHealthImporter(
-            options.archive_path,
+    def run(self, options):
+        config = ConfigLoader.load(options.config_path)
+        return self._workflow.run(
+            options,
+            provider_config=getattr(config, "provider", config),
+            analysis_config=getattr(config, "analysis", config),
         )
 
-        with importer.open_export() as xml_stream:
-            health_data = AppleHealthParser(
-                xml_stream,
-                config=config,
-            ).parse()
-
-        analyzer = HealthAnalyzer(
-            health_data,
-            config=config,
-        )
-
-        summary = analyzer.summarize_month(
-            year=options.year,
-            month=options.month,
-        )
-
-        if options.output_format == "json":
-            renderer = JsonRenderer(
-                config=config,
-            )
-        else:
-            renderer = TextRenderer(
-                config=config,
-            )
-
-        if options.month_summary:
-            return renderer.render_month_summary(
-                summary,
-            )
-
-        return renderer.render_month(
-            summary,
-        )
-
-    def generate_reports(
-        self,
-        options: MultiMonthRunOptions,
-    ) -> ReportGenerationResult:
-
+    def generate_reports(self, options):
         config = EffectiveConfigResolver.resolve(
             uploaded_config_path=options.config_path,
             selected_drive_config=options.selected_drive_config,
             apple_watch_source=options.apple_watch_source,
             apple_health_app_source=options.apple_health_app_source,
         )
-
-        importer = AppleHealthImporter(
-            options.archive_path,
-        )
-
-        archive_open_started = perf_counter()
-
-        with importer.open_export() as xml_stream:
-            archive_open_seconds = perf_counter() - archive_open_started
-
-            xml_parse_started = perf_counter()
-
-            health_data = AppleHealthParser(
-                xml_stream,
-                config=config,
-            ).parse()
-
-            xml_parse_seconds = perf_counter() - xml_parse_started
-
-        report_render_started = perf_counter()
-
-        analyzer = HealthAnalyzer(
-            health_data,
-            config=config,
-        )
-
-        text_renderer = TextRenderer(
-            config=config,
-        )
-
-        json_renderer = JsonRenderer(
-            config=config,
-        )
-
-        reports = []
-
-        for period in options.periods:
-            summary = analyzer.summarize_month(
-                year=period.year,
-                month=period.month,
-            )
-
-            metadata = ReportGenerationMetadata(
-                period=period,
-                generation_id=_generation_id(),
-                generated_at=_utc_now(),
-            )
-
-            reports.append(
-                MonthlyReports(
-                    period=period,
-                    full_text=(
-                        text_renderer.render_month(summary) if options.outputs.full_text else None
-                    ),
-                    full_json=(
-                        json_renderer.render_month(summary) if options.outputs.full_json else None
-                    ),
-                    summary_text=(
-                        text_renderer.render_month_summary(summary)
-                        if options.outputs.summary_text
-                        else None
-                    ),
-                    summary_json=(
-                        json_renderer.render_month_summary(summary)
-                        if options.outputs.summary_json
-                        else None
-                    ),
-                    metadata=metadata,
-                )
-            )
-
-        report_render_seconds = perf_counter() - report_render_started
-
-        return ReportGenerationResult(
-            reports=tuple(reports),
-            effective_config=config,
-            timings=ReportGenerationTimings(
-                archive_open_seconds=(archive_open_seconds),
-                xml_parse_seconds=(xml_parse_seconds),
-                report_render_seconds=(report_render_seconds),
-            ),
-        )
+        return self._workflow.generate_reports(options, effective_config=config)

@@ -4,14 +4,14 @@ from collections import defaultdict
 from datetime import date
 
 from apple_health.enums import WorkoutType
-from apple_health.models import AppleHealthData, Workout
+from apple_health.models import HealthData, Workout
 from apple_health.report_models import ActivitySummary
 
 
 class ActivityAnalyzer:
     def __init__(
         self,
-        health_data: AppleHealthData,
+        health_data: HealthData,
     ) -> None:
         self.workouts = health_data.workouts
         self._workouts_by_day = self._group_workouts_by_day()

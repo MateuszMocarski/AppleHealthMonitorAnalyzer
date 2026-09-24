@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from apple_health.config.app_config import AppConfig
+from apple_health.config.analysis_config import AnalysisConfig
 from apple_health.enums import WorkoutType
 from apple_health.report_models import (
     ActivityMetricsSummary,
@@ -17,9 +17,9 @@ from apple_health.report_models import (
 class JsonRenderer:
     def __init__(
         self,
-        config: AppConfig | None = None,
+        config: AnalysisConfig | None = None,
     ) -> None:
-        self.config = config or AppConfig()
+        self.config = config or AnalysisConfig()
 
     SCHEMA_VERSION = "1.0"
 

@@ -5,8 +5,18 @@ from datetime import date, datetime
 from math import isfinite
 from typing import BinaryIO
 
-from apple_health.config.app_config import AppConfig
-from apple_health.constants import (
+from apple_health.enums import SleepStage, WorkoutType
+from apple_health.exceptions import HealthDataParseError
+from apple_health.models import (
+    DailyMetrics,
+    HealthData,
+    NutritionData,
+    SleepRecord,
+    WeightMeasurement,
+    Workout,
+)
+from apple_health.providers.apple.config import AppleProviderConfig
+from apple_health.providers.apple.constants import (
     APPLE_DATE_FORMAT,
     APPLE_HEALTH_DAILY_METRIC_TYPES,
     APPLE_WATCH_DAILY_METRIC_TYPES,
@@ -16,24 +26,15 @@ from apple_health.constants import (
     WORKOUT_INDOOR_METADATA_KEY,
     WORKOUT_WALKING_RUNNING_DISTANCE_TYPE,
 )
-from apple_health.enums import APPLE_WORKOUT_TYPES, SleepStage, WorkoutType
-from apple_health.exceptions import HealthDataParseError
-from apple_health.models import (
-    AppleHealthData,
-    DailyMetrics,
-    NutritionData,
-    SleepRecord,
-    WeightMeasurement,
-    Workout,
-)
+from apple_health.providers.apple.mappings import APPLE_WORKOUT_TYPES
 
 
 class AppleHealthParser:
-    def __init__(self, xml_stream: BinaryIO, config: AppConfig | None = None) -> None:
+    def __init__(self, xml_stream: BinaryIO, config: AppleProviderConfig | None = None) -> None:
         self.xml_stream = xml_stream
-        self.config = config or AppConfig()
+        self.config = config or AppleProviderConfig()
 
-    def parse(self) -> AppleHealthData:
+    def parse(self) -> HealthData:
         workouts: list[Workout] = []
         daily_metrics: dict[date, DailyMetrics] = {}
         sleep_records: list[SleepRecord] = []
@@ -62,7 +63,9 @@ class AppleHealthParser:
                     record_type = element.attrib.get("type")
 
                     if record_type == "HKCategoryTypeIdentifierSleepAnalysis":
-                        sleep_records.append(self._parse_sleep_record(element))
+                        sleep_record = self._parse_sleep_record(element)
+                        if sleep_record is not None:
+                            sleep_records.append(sleep_record)
 
                     else:
                         self._parse_daily_metrics(
@@ -75,7 +78,7 @@ class AppleHealthParser:
         except ET.ParseError as exc:
             raise HealthDataParseError("Invalid Apple Health export XML.") from exc
 
-        return AppleHealthData(
+        return HealthData(
             workouts=workouts,
             daily_metrics=sorted(
                 daily_metrics.values(),
@@ -115,17 +118,15 @@ class AppleHealthParser:
             "workoutActivityType",
         )
 
+        # Preserve validation of this Apple-required attribute while deliberately
+        # consuming it before the canonical domain boundary.
+        self._required_attribute(element, "sourceName")
+
         return Workout(
-            apple_activity_type=apple_activity_type,
             activity_type=self._parse_workout_type(
                 apple_activity_type,
                 element,
             ),
-            source_name=self._required_attribute(
-                element,
-                "sourceName",
-            ),
-            source_version=element.attrib.get("sourceVersion"),
             start=self._parse_datetime(
                 self._required_attribute(
                     element,
@@ -264,7 +265,11 @@ class AppleHealthParser:
     def _parse_sleep_record(
         self,
         element: ET.Element,
-    ) -> SleepRecord:
+    ) -> SleepRecord | None:
+        source_name = self._required_attribute(element, "sourceName")
+        if not self.config.source.matches_apple_watch_source(source_name):
+            return None
+
         start = self._parse_datetime(
             self._required_attribute(
                 element,
@@ -286,11 +291,6 @@ class AppleHealthParser:
                     "value",
                 )
             ),
-            source_name=self._required_attribute(
-                element,
-                "sourceName",
-            ),
-            source_version=element.attrib.get("sourceVersion"),
             start=start,
             end=end,
             duration_minutes=(end - start).total_seconds() / 60,

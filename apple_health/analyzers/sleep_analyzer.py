@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import date, time, timedelta
 from statistics import pstdev
 
-from apple_health.config.app_config import AppConfig
+from apple_health.config.analysis_config import AnalysisConfig
 from apple_health.enums import SleepStage
-from apple_health.models import AppleHealthData, SleepRecord
+from apple_health.models import HealthData, SleepRecord
 from apple_health.report_models import (
     SleepMonthlySummary,
     SleepScore,
@@ -14,8 +14,8 @@ from apple_health.report_models import (
 
 
 class SleepAnalyzer:
-    def __init__(self, health_data: AppleHealthData, config: AppConfig | None = None) -> None:
-        self.config = config or AppConfig()
+    def __init__(self, health_data: HealthData, config: AnalysisConfig | None = None) -> None:
+        self.config = config or AnalysisConfig()
 
         self.config.sleep.score.validate()
 
@@ -26,19 +26,12 @@ class SleepAnalyzer:
 
     def analyze(self) -> list[SleepSession]:
         session_gap_threshold = timedelta(minutes=self.config.sleep.session_gap_threshold_minutes)
-        watch_sleep_records = sorted(
-            (
-                record
-                for record in self.sleep_records
-                if self.config.source.matches_apple_watch_source(record.source_name)
-            ),
-            key=lambda record: record.start,
-        )
+        canonical_sleep_records = sorted(self.sleep_records, key=lambda record: record.start)
 
         sessions: list[SleepSession] = []
         current_session: list[SleepRecord] = []
 
-        for record in watch_sleep_records:
+        for record in canonical_sleep_records:
             if not current_session:
                 current_session.append(record)
                 continue

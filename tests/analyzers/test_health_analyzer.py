@@ -6,8 +6,8 @@ from apple_health.analyzers.health_analyzer import HealthAnalyzer
 from apple_health.config.app_config import AppConfig
 from apple_health.enums import SleepStage, WorkoutType
 from apple_health.models import (
-    AppleHealthData,
     DailyMetrics,
+    HealthData,
     NutritionData,
     SleepRecord,
     WeightMeasurement,
@@ -68,10 +68,7 @@ def _workout(
     )
 
     return Workout(
-        apple_activity_type="test",
         activity_type=WorkoutType.WALKING,
-        source_name="test",
-        source_version=None,
         start=start,
         end=start,
         duration_minutes=duration_minutes,
@@ -90,8 +87,6 @@ def _sleep_record(
 
     return SleepRecord(
         stage=SleepStage.CORE,
-        source_name=source_name,
-        source_version=None,
         start=start,
         end=end,
         duration_minutes=(end - start).total_seconds() / 60,
@@ -103,8 +98,8 @@ def _health_data(
     daily_metrics: list[DailyMetrics],
     workouts: list[Workout] | None = None,
     sleep_records: list[SleepRecord] | None = None,
-) -> AppleHealthData:
-    return AppleHealthData(
+) -> HealthData:
+    return HealthData(
         workouts=workouts or [],
         daily_metrics=daily_metrics,
         sleep_records=sleep_records or [],

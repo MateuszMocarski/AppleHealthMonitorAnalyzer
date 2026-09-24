@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from apple_health.application.application import AppleHealthApplication
 from apple_health.application.monthly_reports import MonthlyReports
@@ -64,8 +65,9 @@ def test_application_runs_monthly_text_report(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             calls["renderer_config"] = config
+            calls["report_title"] = presentation.report_title
 
         def render_month(self, summary):
             calls["summary"] = summary
@@ -75,14 +77,7 @@ def test_application_runs_monthly_text_report(
         "apple_health.application.application.ConfigLoader",
         FakeConfigLoader,
     )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -103,6 +98,7 @@ def test_application_runs_monthly_text_report(
     assert calls["year"] == 2026
     assert calls["month"] == 8
     assert calls["summary"] == "summary"
+    assert calls["report_title"] == "Apple Health Monthly Report"
 
 
 # =====================================================================
@@ -154,7 +150,7 @@ def test_application_runs_json_month_summary(
             return "summary"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             calls["json_renderer"] = True
 
         def render_month_summary(self, summary):
@@ -168,14 +164,7 @@ def test_application_runs_json_month_summary(
         "apple_health.application.application.ConfigLoader",
         FakeConfigLoader,
     )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -264,7 +253,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             return f"summary-{year}-{month}"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -274,7 +263,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             return f"text-summary:{summary}"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -287,14 +276,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
         "apple_health.application.application.ConfigLoader",
         FakeConfigLoader,
     )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -474,7 +456,7 @@ def test_generate_reports_resolves_effective_configuration(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             assert config is effective_config
 
         def render_month(self, summary):
@@ -484,7 +466,7 @@ def test_generate_reports_resolves_effective_configuration(
             return "summary-text"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             assert config is effective_config
 
         def render_month(self, summary):
@@ -497,14 +479,7 @@ def test_generate_reports_resolves_effective_configuration(
         "apple_health.application.application.EffectiveConfigResolver",
         FakeEffectiveConfigResolver,
     )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -589,7 +564,7 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -599,7 +574,7 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
             return "summary-text"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -608,14 +583,7 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
         def render_month_summary(self, summary):
             return "summary-json"
 
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -632,7 +600,9 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
     AppleHealthApplication().generate_reports(options)
 
     assert captured_config is not None
-    assert captured_config.sleep.session_gap_threshold_minutes == 45
+    # The Apple provider receives only source-selection policy; sleep scoring is
+    # retained by the shared analysis configuration.
+    assert captured_config.source.apple_watch_source == AppConfig().source.apple_watch_source
     assert captured_config.source == SourceConfig()
 
 
@@ -690,7 +660,7 @@ def test_generate_reports_uses_selected_drive_config_when_upload_missing(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -700,7 +670,7 @@ def test_generate_reports_uses_selected_drive_config_when_upload_missing(
             return "summary-text"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -709,14 +679,7 @@ def test_generate_reports_uses_selected_drive_config_when_upload_missing(
         def render_month_summary(self, summary):
             return "summary-json"
 
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -792,7 +755,7 @@ def test_generate_reports_applies_source_overrides_to_selected_drive_config(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -811,14 +774,7 @@ def test_generate_reports_applies_source_overrides_to_selected_drive_config(
         def render_month_summary(self, summary):
             return "summary-json"
 
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -882,7 +838,7 @@ def test_generate_reports_exposes_effective_config(
             xml_stream,
             config,
         ):
-            assert config == expected_config
+            assert config == expected_config.provider
 
         def parse(
             self,
@@ -895,16 +851,9 @@ def test_generate_reports_exposes_effective_config(
             health_data,
             config,
         ):
-            assert config == expected_config
+            assert config == expected_config.analysis
 
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -967,7 +916,7 @@ def test_generate_reports_renders_only_selected_outputs(
             return f"summary-{year}-{month}"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -990,14 +939,7 @@ def test_generate_reports_renders_only_selected_outputs(
             calls["summary_json"] += 1
             return f"json-summary:{summary}"
 
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -1106,14 +1048,7 @@ def test_generate_reports_assigns_identity_per_month(
         def render_month(self, summary):
             return f"json:{summary}"
 
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthImporter",
-        FakeImporter,
-    )
-    monkeypatch.setattr(
-        "apple_health.application.application.AppleHealthParser",
-        FakeParser,
-    )
+    _patch_provider(monkeypatch, FakeImporter, FakeParser)
     monkeypatch.setattr(
         "apple_health.application.application.HealthAnalyzer",
         FakeAnalyzer,
@@ -1160,4 +1095,19 @@ def test_generate_reports_assigns_identity_per_month(
         20,
         31,
         tzinfo=UTC,
+    )
+
+
+def _patch_provider(monkeypatch, importer, parser) -> None:
+    class FakeProvider:
+        def load(self, path, *, config):
+            with importer(path).open_export() as xml_stream:
+                return SimpleNamespace(
+                    data=parser(xml_stream, config).parse(),
+                    provenance=SimpleNamespace(display_label="Apple Health"),
+                )
+
+    monkeypatch.setattr(
+        "apple_health.application.application.AppleHealthProvider",
+        FakeProvider,
     )
