@@ -1,4 +1,4 @@
-import sys
+import tomllib
 from datetime import time
 from math import isfinite
 from pathlib import Path
@@ -16,12 +16,6 @@ from apple_health.config.sleep_score_config import (
     WakeUpScoreConfig,
 )
 from apple_health.config.source_config import SourceConfig
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
 
 _TOP_LEVEL_KEYS = {"source", "sleep"}
 
@@ -556,7 +550,7 @@ class ConfigLoader:
                 f"Invalid configuration value: {path}. " "Expected time in HH:MM format."
             ) from exc
 
-        if parsed_time.second != 0 or parsed_time.microsecond != 0:
+        if value == "24:00" or parsed_time.second != 0 or parsed_time.microsecond != 0:
             raise ConfigurationError(
                 f"Invalid configuration value: {path}. " "Expected time in HH:MM format."
             )

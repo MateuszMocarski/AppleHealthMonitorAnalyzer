@@ -142,7 +142,7 @@ Install the project together with the development/test toolchain:
 python -m pip install -e ".[dev]"
 ```
 
-A runtime-only editable install can use `python -m pip install -e .`. The `dev` extra adds pytest, coverage support, Black, Ruff, the wheel build helper, and the HTTP client used by FastAPI's test client.
+A runtime-only editable install can use `python -m pip install -e .`. The `dev` extra adds pytest, coverage support, Black, Ruff, and the wheel build helper.
 
 ### Web Interface
 

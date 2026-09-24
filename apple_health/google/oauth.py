@@ -3,7 +3,7 @@ from secrets import token_urlsafe
 from typing import Protocol
 from urllib.parse import urlencode
 
-import httpx
+import httpx2 as httpx
 
 from apple_health.google.sessions import SessionStore
 

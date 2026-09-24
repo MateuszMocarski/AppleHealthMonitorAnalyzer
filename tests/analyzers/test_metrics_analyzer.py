@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -32,7 +32,7 @@ def _metrics(
                 day,
                 8,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
             is_user_entered=True,
         )

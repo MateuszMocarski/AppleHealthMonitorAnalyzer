@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 import pytest
 
@@ -368,7 +368,7 @@ def test_sleep_session_calculates_sleep_efficiency() -> None:
             1,
             0,
             0,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
         wake_up=datetime(
             2026,
@@ -376,7 +376,7 @@ def test_sleep_session_calculates_sleep_efficiency() -> None:
             1,
             8,
             0,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
         records=[],
         time_in_bed_minutes=480.0,
@@ -404,7 +404,7 @@ def test_sleep_session_before_noon_uses_same_reporting_date() -> None:
         1,
         1,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     session = SleepSession(
@@ -440,7 +440,7 @@ def test_sleep_session_at_noon_uses_next_reporting_date() -> None:
         1,
         12,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     session = SleepSession(
@@ -540,7 +540,7 @@ def test_zero_duration_sleep_session_has_zero_efficiency() -> None:
         1,
         0,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     session = SleepSession(

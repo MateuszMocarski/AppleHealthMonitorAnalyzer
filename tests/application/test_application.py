@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from apple_health.application.application import AppleHealthApplication
@@ -323,7 +323,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
                 10,
                 20,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
             datetime(
                 2026,
@@ -331,7 +331,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
                 10,
                 20,
                 31,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         )
     )
@@ -362,7 +362,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             10,
             20,
             30,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
     )
 
@@ -378,7 +378,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             10,
             20,
             31,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
     )
 
@@ -1047,7 +1047,7 @@ def test_generate_reports_assigns_identity_per_month(
                 10,
                 20,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
             datetime(
                 2026,
@@ -1055,7 +1055,7 @@ def test_generate_reports_assigns_identity_per_month(
                 10,
                 20,
                 31,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         )
     )
@@ -1149,7 +1149,7 @@ def test_generate_reports_assigns_identity_per_month(
         10,
         20,
         30,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     assert september.metadata.generation_id == "generation-september"
@@ -1159,5 +1159,5 @@ def test_generate_reports_assigns_identity_per_month(
         10,
         20,
         31,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )

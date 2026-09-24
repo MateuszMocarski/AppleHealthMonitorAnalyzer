@@ -1,15 +1,9 @@
-import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
 from apple_health.application.run_profile import RunProfile
 from apple_health.config.exceptions import ConfigurationError
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
 
 _TOP_LEVEL_KEYS = {
     "run",

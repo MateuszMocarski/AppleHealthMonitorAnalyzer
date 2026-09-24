@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from apple_health.google.oauth import (
@@ -239,7 +239,7 @@ def test_complete_oauth_stores_access_credentials_in_session() -> None:
         5,
         18,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     sessions = SessionStore(clock=lambda: current_time)
     session_id = sessions.create()

@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from statistics import pstdev
 
 import pytest
@@ -25,7 +25,7 @@ def _datetime(
         day,
         hour,
         minute,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
 

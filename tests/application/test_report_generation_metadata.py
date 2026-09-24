@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from apple_health.application.report_generation_metadata import (
     ReportGenerationMetadata,
@@ -24,7 +24,7 @@ def test_report_generation_metadata_builds_drive_app_properties() -> None:
             10,
             20,
             30,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
     )
 

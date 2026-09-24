@@ -3,24 +3,24 @@ name = "AppleHealthMonitorAnalyzer"
 version = "0.1.0"
 description = "Apple Health export analyzer"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 
 dependencies = [
-    "fastapi>=0.116.0",
-    "httpx",
-    "tomli>=2.0.0; python_version < '3.11'",
-    "uvicorn>=0.35.0",
-    "python-multipart",
+    "fastapi==0.141.1",
+    "httpx2==2.13.1",
+    "pydantic==2.13.5",
+    "python-dotenv==1.2.3",
+    "python-multipart==0.0.32",
+    "uvicorn==0.53.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "black==26.5.1",
-    "build",
-    "pytest",
-    "pytest-cov",
-    "python-dotenv",
-    "ruff==0.16.5",
+    "build==1.6.1",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.8",
 ]
 
 [tool.setuptools.packages.find]
@@ -37,10 +37,11 @@ include = ["apple_health*"]
 
 [tool.black]
 line-length = 100
-target-version = ["py310"]
+target-version = ["py314"]
 
 [tool.ruff]
 line-length = 100
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [

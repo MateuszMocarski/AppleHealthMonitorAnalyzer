@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -36,7 +36,7 @@ def _daily_metrics(
                 day,
                 8,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
             is_user_entered=True,
         )
@@ -64,7 +64,7 @@ def _workout(
         day,
         18,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     return Workout(
@@ -193,7 +193,7 @@ def test_summarize_day_includes_sleep_session_and_score() -> None:
         1,
         0,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     analyzer = HealthAnalyzer(
@@ -291,7 +291,7 @@ def test_summarize_month_builds_complete_monthly_summary() -> None:
         1,
         0,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     second_sleep_start = datetime(
@@ -300,7 +300,7 @@ def test_summarize_month_builds_complete_monthly_summary() -> None:
         2,
         0,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     analyzer = HealthAnalyzer(
@@ -430,7 +430,7 @@ def test_health_analyzer_propagates_sleep_config() -> None:
         1,
         bedtime_config.target.hour,
         bedtime_config.target.minute,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     deviation_minutes = bedtime_config.penalty_interval_minutes - 1
@@ -550,7 +550,7 @@ def test_sleep_only_data_determines_reporting_period() -> None:
         13,
         23,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     second_start = datetime(
@@ -559,7 +559,7 @@ def test_sleep_only_data_determines_reporting_period() -> None:
         14,
         23,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     analyzer = HealthAnalyzer(

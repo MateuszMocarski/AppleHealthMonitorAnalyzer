@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from apple_health.analyzers.activity_analyzer import ActivityAnalyzer
 from apple_health.enums import WorkoutType
@@ -18,7 +18,7 @@ def _workout(
         day,
         10,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     return Workout(
