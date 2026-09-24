@@ -8,6 +8,7 @@ from apple_health.application.effective_config_resolver import (
 )
 from apple_health.application.monthly_reports import MonthlyReports
 from apple_health.application.multi_month_run_options import MultiMonthRunOptions
+from apple_health.application.presentation import PresentationContext
 from apple_health.application.report_generation_metadata import ReportGenerationMetadata
 from apple_health.application.report_generation_result import (
     ReportGenerationResult,
@@ -37,14 +38,11 @@ class AppleHealthApplication:
             options.config_path,
         )
 
-        health_data = (
-            AppleHealthProvider()
-            .load(
-                options.archive_path,
-                config=getattr(config, "provider", config),
-            )
-            .data
+        loaded = AppleHealthProvider().load(
+            options.archive_path,
+            config=getattr(config, "provider", config),
         )
+        health_data = loaded.data
 
         analyzer = HealthAnalyzer(
             health_data,
@@ -63,6 +61,9 @@ class AppleHealthApplication:
         else:
             renderer = TextRenderer(
                 config=getattr(config, "analysis", config),
+                presentation=PresentationContext(
+                    report_title=f"{loaded.provenance.display_label} Monthly Report"
+                ),
             )
 
         if options.month_summary:
@@ -87,14 +88,11 @@ class AppleHealthApplication:
         )
 
         xml_parse_started = perf_counter()
-        health_data = (
-            AppleHealthProvider()
-            .load(
-                options.archive_path,
-                config=getattr(config, "provider", config),
-            )
-            .data
+        loaded = AppleHealthProvider().load(
+            options.archive_path,
+            config=getattr(config, "provider", config),
         )
+        health_data = loaded.data
         xml_parse_seconds = perf_counter() - xml_parse_started
         # The adapter owns the concrete archive-opening operation.  The legacy
         # timing field remains for response compatibility until provider timing
@@ -110,6 +108,9 @@ class AppleHealthApplication:
 
         text_renderer = TextRenderer(
             config=getattr(config, "analysis", config),
+            presentation=PresentationContext(
+                report_title=f"{loaded.provenance.display_label} Monthly Report"
+            ),
         )
 
         json_renderer = JsonRenderer(

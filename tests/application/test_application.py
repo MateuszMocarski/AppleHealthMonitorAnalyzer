@@ -65,7 +65,7 @@ def test_application_runs_monthly_text_report(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             calls["renderer_config"] = config
 
         def render_month(self, summary):
@@ -148,7 +148,7 @@ def test_application_runs_json_month_summary(
             return "summary"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             calls["json_renderer"] = True
 
         def render_month_summary(self, summary):
@@ -251,7 +251,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             return f"summary-{year}-{month}"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -261,7 +261,7 @@ def test_application_generates_all_report_variants_for_multiple_months(
             return f"text-summary:{summary}"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -454,7 +454,7 @@ def test_generate_reports_resolves_effective_configuration(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             assert config is effective_config
 
         def render_month(self, summary):
@@ -464,7 +464,7 @@ def test_generate_reports_resolves_effective_configuration(
             return "summary-text"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             assert config is effective_config
 
         def render_month(self, summary):
@@ -562,7 +562,7 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -572,7 +572,7 @@ def test_generate_reports_prefers_uploaded_config_over_selected_drive_config(
             return "summary-text"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -658,7 +658,7 @@ def test_generate_reports_uses_selected_drive_config_when_upload_missing(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -668,7 +668,7 @@ def test_generate_reports_uses_selected_drive_config_when_upload_missing(
             return "summary-text"
 
     class FakeJsonRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -753,7 +753,7 @@ def test_generate_reports_applies_source_overrides_to_selected_drive_config(
             return "summary"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -914,7 +914,7 @@ def test_generate_reports_renders_only_selected_outputs(
             return f"summary-{year}-{month}"
 
     class FakeTextRenderer:
-        def __init__(self, config):
+        def __init__(self, config, presentation=None):
             pass
 
         def render_month(self, summary):
@@ -1100,7 +1100,10 @@ def _patch_provider(monkeypatch, importer, parser) -> None:
     class FakeProvider:
         def load(self, path, *, config):
             with importer(path).open_export() as xml_stream:
-                return SimpleNamespace(data=parser(xml_stream, config).parse())
+                return SimpleNamespace(
+                    data=parser(xml_stream, config).parse(),
+                    provenance=SimpleNamespace(display_label="Apple Health"),
+                )
 
     monkeypatch.setattr(
         "apple_health.application.application.AppleHealthProvider",
