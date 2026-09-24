@@ -16,7 +16,7 @@
 
     <meta
         name="description"
-        content="Private health report generator for selected monthly periods from Apple Health exports."
+        content="Private health report generator for selected monthly periods."
     >
 
     <meta
@@ -453,6 +453,61 @@
             box-shadow:
                 0 24px 70px rgba(0, 0, 0, 0.26),
                 inset 0 1px 0 rgba(255, 255, 255, 0.025);
+        }
+
+        .provider-selection {
+            margin-bottom: 24px;
+        }
+
+        .provider-card {
+            width: 100%;
+            min-height: 96px;
+            padding: 18px;
+
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+
+            transition:
+                border-color 160ms ease,
+                background 160ms ease,
+                transform 160ms ease;
+        }
+
+        .provider-card:hover,
+        .provider-card:focus-visible,
+        .provider-card.selected {
+            border-color: rgba(255, 55, 95, 0.62);
+            background: var(--accent-soft);
+        }
+
+        .provider-card:hover {
+            transform: translateY(-1px);
+        }
+
+        .provider-card:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+
+        .provider-card-name {
+            font-size: 16px;
+            font-weight: 650;
+        }
+
+        .provider-card-description {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.5;
         }
 
         .section + .section {
@@ -1628,12 +1683,47 @@
             </h1>
 
             <p class="subtitle">
-                Upload an Apple Health export, choose the months you want
+                Choose a health data provider, select the periods you want
                 to analyse, and generate detailed private reports.
             </p>
         </header>
 
-        <section class="panel">
+        <section
+            class="panel provider-selection"
+            aria-labelledby="provider-selection-title"
+        >
+            <div class="section-header">
+                <div
+                    class="section-title"
+                    id="provider-selection-title"
+                >
+                    Health data provider
+                </div>
+            </div>
+
+            <p class="provider-card-description">
+                Choose the source of the health data you want to analyse.
+            </p>
+
+            <button
+                class="provider-card"
+                id="apple-provider-button"
+                type="button"
+                aria-pressed="false"
+            >
+                <span class="provider-card-name">Apple Health</span>
+                <span class="provider-card-description">
+                    Analyse an Apple Health export ZIP.
+                </span>
+            </button>
+        </section>
+
+        <section
+            class="panel"
+            id="generation-workflow"
+            data-provider-workflow="apple"
+            hidden
+        >
             <div
                 class="google-recovery"
                 id="google-recovery"
@@ -2327,6 +2417,18 @@
                 "archive-source-status",
             );
 
+        const generationWorkflow =
+            document.getElementById(
+                "generation-workflow",
+            );
+
+        const appleProviderButton =
+            document.getElementById(
+                "apple-provider-button",
+            );
+
+        let selectedProvider = null;
+
         let selectedDriveFileId = null;
         let selectedDriveFileName = null;
 
@@ -2669,6 +2771,11 @@
                 "Generation summary";
 
             const summaryLines = [
+                `Provider: ${
+                    selectedProvider === "apple"
+                        ? "Apple Health"
+                        : "Not selected"
+                }`,
                 `ZIP: ${archiveSource}`,
                 `Periods: ${periods}`,
                 `Config: ${configSource}`,
@@ -4196,6 +4303,14 @@
         generateButton.addEventListener(
             "click",
             async () => {
+                if (selectedProvider !== "apple") {
+                    showStatus(
+                        "Choose Apple Health before generating reports.",
+                        "error",
+                    );
+                    return;
+                }
+
                 const file =
                     archiveInput.files[0];
 
@@ -4345,6 +4460,19 @@
                     generateButton.textContent =
                         "Generate reports";
                 }
+            },
+        );
+        appleProviderButton.addEventListener(
+            "click",
+            () => {
+                selectedProvider = "apple";
+                appleProviderButton.setAttribute(
+                    "aria-pressed",
+                    "true",
+                );
+                appleProviderButton.classList.add("selected");
+                generationWorkflow.hidden = false;
+                updateGenerationSummary();
             },
         );
         updateGenerationSummary();
