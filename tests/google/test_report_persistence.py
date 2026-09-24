@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -58,7 +58,7 @@ def test_upload_report_artifacts_uploads_only_generated_outputs() -> None:
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -157,7 +157,7 @@ def test_verify_report_artifacts_accepts_complete_uploaded_generation() -> None:
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -280,7 +280,7 @@ def test_save_new_report_month_commits_only_after_verification(
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -462,7 +462,7 @@ def test_save_new_report_month_rejects_existing_month(
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -559,7 +559,7 @@ def test_save_new_report_month_does_not_commit_when_verification_fails(
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -752,7 +752,7 @@ def test_stage_report_generation_uploads_artifacts_into_staging(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -863,7 +863,7 @@ def test_verify_staged_generation_validates_uploaded_artifacts(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -1281,7 +1281,7 @@ def test_replace_report_month_uses_safe_commit_order(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -1435,7 +1435,7 @@ def test_replace_report_month_does_not_commit_or_archive_when_verify_fails(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -1692,7 +1692,7 @@ def test_replace_report_month_cleans_staging_when_prepare_fails(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -1835,7 +1835,7 @@ def test_replace_report_month_cleans_new_artifacts_when_commit_fails(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -1957,7 +1957,7 @@ def test_replace_report_month_ignores_archive_failure_after_commit(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2098,7 +2098,7 @@ def test_replace_report_month_cleans_staging_after_success(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2239,7 +2239,7 @@ def test_replace_report_month_ignores_staging_cleanup_failure_after_commit(
                 12,
                 17,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2388,7 +2388,7 @@ def test_replace_existing_report_month_discovers_month_and_replaces(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2512,7 +2512,7 @@ def test_find_existing_report_periods_uses_single_report_index(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2532,7 +2532,7 @@ def test_find_existing_report_periods_uses_single_report_index(
                 12,
                 18,
                 1,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2643,7 +2643,7 @@ def test_stage_report_generation_cleans_staging_when_upload_fails(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2732,7 +2732,7 @@ def test_replace_report_month_preserves_verify_error_when_cleanup_fails(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -2851,7 +2851,7 @@ def test_verify_report_artifacts_accepts_only_selected_outputs() -> None:
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )

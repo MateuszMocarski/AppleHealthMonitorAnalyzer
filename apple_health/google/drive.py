@@ -6,7 +6,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Protocol
 
-import httpx
+import httpx2 as httpx
 
 _HTTP_CLIENT = httpx.Client(
     limits=httpx.Limits(

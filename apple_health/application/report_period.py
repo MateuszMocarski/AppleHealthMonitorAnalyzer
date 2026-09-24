@@ -20,7 +20,7 @@ class ReportPeriod:
     def from_string(
         cls,
         value: str,
-    ) -> "ReportPeriod":
+    ) -> ReportPeriod:
         match = _PERIOD_PATTERN.fullmatch(value)
 
         if match is None:

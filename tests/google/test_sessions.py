@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -65,7 +65,7 @@ def test_session_expires_after_eight_hours() -> None:
         3,
         12,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     store = SessionStore(clock=lambda: current_time)
 
@@ -89,7 +89,7 @@ def test_retrieving_session_does_not_extend_expiration() -> None:
         3,
         12,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     store = SessionStore(clock=lambda: current_time)
 
@@ -144,7 +144,7 @@ def test_session_expires_exactly_at_eight_hours() -> None:
         3,
         12,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     store = SessionStore(clock=lambda: current_time)
 
@@ -217,7 +217,7 @@ def test_google_access_credentials_can_be_stored_in_session() -> None:
         5,
         18,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     store = SessionStore(clock=lambda: current_time)
     session_id = store.create()
@@ -260,7 +260,7 @@ def test_google_mode_ready_requires_complete_valid_google_session() -> None:
         5,
         18,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     store = SessionStore(clock=lambda: current_time)
 
@@ -553,7 +553,7 @@ def test_session_mutators_reject_missing_session(operation) -> None:
 
 
 def test_google_mode_ready_requires_scope_and_expiry_state() -> None:
-    now = datetime(2026, 9, 13, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 13, 12, 0, tzinfo=UTC)
     store = SessionStore(clock=lambda: now)
     session_id = store.create()
 

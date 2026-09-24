@@ -1,7 +1,7 @@
 import json
 import re
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -253,7 +253,7 @@ def test_generate_reports_for_multiple_months(
                             10,
                             20,
                             30,
-                            tzinfo=timezone.utc,
+                            tzinfo=UTC,
                         ),
                     ),
                 ),
@@ -278,7 +278,7 @@ def test_generate_reports_for_multiple_months(
                             10,
                             20,
                             31,
-                            tzinfo=timezone.utc,
+                            tzinfo=UTC,
                         ),
                     ),
                 ),
@@ -1993,7 +1993,7 @@ def test_google_oauth_callback_handles_expired_session(
         5,
         18,
         0,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
     sessions = SessionStore(clock=lambda: current_time)
     session_id = sessions.create()
@@ -2862,7 +2862,7 @@ def test_google_status_reports_reconnect_required_for_expired_token(
         2026,
         1,
         1,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     sessions = SessionStore(
@@ -3212,7 +3212,7 @@ def test_google_oauth_reconnect_preserves_session_expiry(
         2026,
         1,
         1,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     sessions = SessionStore(
@@ -5902,14 +5902,17 @@ def test_google_callback_redirects_to_application_root(
         ),
     )
 
-    response = client.get(
+    callback_client = TestClient(app)
+    callback_client.cookies.set(
+        "ahm_session",
+        "test-session",
+    )
+
+    response = callback_client.get(
         "/auth/google/callback",
         params={
             "code": "test-code",
             "state": "test-state",
-        },
-        cookies={
-            "ahm_session": "test-session",
         },
         follow_redirects=False,
     )
@@ -5993,15 +5996,21 @@ def test_google_callback_completes_popup_without_root_redirect(
         ),
     )
 
-    response = client.get(
+    callback_client = TestClient(app)
+    callback_client.cookies.set(
+        "ahm_session",
+        "test-session",
+    )
+    callback_client.cookies.set(
+        "ahm_google_oauth_popup",
+        "1",
+    )
+
+    response = callback_client.get(
         "/auth/google/callback",
         params={
             "code": "test-code",
             "state": "test-state",
-        },
-        cookies={
-            "ahm_session": "test-session",
-            "ahm_google_oauth_popup": "1",
         },
         follow_redirects=False,
     )
@@ -6070,7 +6079,7 @@ def test_reports_api_serializes_unselected_outputs_as_none(
                                 10,
                                 20,
                                 30,
-                                tzinfo=timezone.utc,
+                                tzinfo=UTC,
                             ),
                         ),
                     ),
@@ -6321,7 +6330,7 @@ def test_reports_api_serializes_month_generation_metadata(
         10,
         20,
         30,
-        tzinfo=timezone.utc,
+        tzinfo=UTC,
     )
 
     class FakeApplication:
@@ -6439,7 +6448,7 @@ def test_generate_reports_autosaves_reports_for_google_session(
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -6578,7 +6587,7 @@ def test_generate_reports_skips_report_persistence_when_autosave_disabled(
                 11,
                 16,
                 30,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -6799,7 +6808,7 @@ def test_generate_reports_replaces_existing_month_when_explicitly_allowed(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -6930,7 +6939,7 @@ def test_generate_reports_replaces_only_explicitly_confirmed_periods(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -6955,7 +6964,7 @@ def test_generate_reports_replaces_only_explicitly_confirmed_periods(
                 12,
                 18,
                 1,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7094,7 +7103,7 @@ def test_generate_reports_preflights_existing_months_before_persistence(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7114,7 +7123,7 @@ def test_generate_reports_preflights_existing_months_before_persistence(
                 12,
                 18,
                 1,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7240,7 +7249,7 @@ def test_generate_reports_persists_confirmed_and_new_months_together(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7260,7 +7269,7 @@ def test_generate_reports_persists_confirmed_and_new_months_together(
                 12,
                 18,
                 1,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7433,7 +7442,7 @@ def test_generate_reports_skips_persistence_when_report_autosave_disabled(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7552,7 +7561,7 @@ def test_generate_reports_allows_partial_multi_month_persistence(
                 12,
                 18,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )
@@ -7572,7 +7581,7 @@ def test_generate_reports_allows_partial_multi_month_persistence(
                 12,
                 18,
                 1,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )

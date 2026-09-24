@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -30,7 +30,7 @@ def _report(*, period: ReportPeriod) -> MonthlyReports:
                 12,
                 20,
                 0,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
         ),
     )

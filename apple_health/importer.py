@@ -23,7 +23,7 @@ class AppleHealthImporter:
     @contextmanager
     def open_export(
         self,
-    ) -> Generator[ZipExtFile, None, None]:
+    ) -> Generator[ZipExtFile]:
         if not self.archive.exists():
             raise FileNotFoundError(self.archive)
 

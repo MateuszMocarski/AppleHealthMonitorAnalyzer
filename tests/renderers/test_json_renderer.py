@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 import pytest
 
@@ -667,7 +667,7 @@ def test_render_day_builds_sleep_session() -> None:
             1,
             0,
             30,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
         wake_up=datetime(
             2026,
@@ -675,7 +675,7 @@ def test_render_day_builds_sleep_session() -> None:
             1,
             8,
             0,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
         records=[],
         time_in_bed_minutes=450.456,
@@ -720,7 +720,7 @@ def test_render_day_builds_sleep_score() -> None:
             1,
             0,
             0,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
         wake_up=datetime(
             2026,
@@ -728,7 +728,7 @@ def test_render_day_builds_sleep_score() -> None:
             1,
             8,
             0,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         ),
         records=[],
         time_in_bed_minutes=480,

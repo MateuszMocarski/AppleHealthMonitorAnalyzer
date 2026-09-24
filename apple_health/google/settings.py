@@ -86,11 +86,11 @@ class GoogleSettings:
     cloud_project_number: str
 
     @classmethod
-    def load(cls) -> "GoogleSettings":
+    def load(cls) -> GoogleSettings:
         return cls.from_environment(os.environ)
 
     @classmethod
-    def from_environment(cls, environment: Mapping[str, str]) -> "GoogleSettings":
+    def from_environment(cls, environment: Mapping[str, str]) -> GoogleSettings:
         application_environment = _get_application_environment(environment)
         redirect_uri = _get_required_environment_value(
             environment,

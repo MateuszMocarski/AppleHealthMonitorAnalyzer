@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import perf_counter
 from uuid import uuid4
 
@@ -22,7 +22,7 @@ from apple_health.renderers.text_renderer import TextRenderer
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _generation_id() -> str:
