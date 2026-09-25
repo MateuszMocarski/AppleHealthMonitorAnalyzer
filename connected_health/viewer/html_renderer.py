@@ -838,6 +838,13 @@ class HtmlRenderer:
     def _daily_sleep(self, sleep: DailySleep | None) -> str:
         if sleep is None:
             return self._daily_unavailable("Sleep")
+        stage_fields: list[tuple[str, str, str | None]] = [
+            ("Core sleep", "core_minutes", "minutes"),
+            ("Deep sleep", "deep_minutes", "minutes"),
+            ("REM sleep", "rem_minutes", "minutes"),
+        ]
+        if sleep.session.stages.unspecified_minutes > 0:
+            stage_fields.append(("Unspecified sleep", "unspecified_minutes", "minutes"))
         fields = "".join(
             (
                 self._daily_fields(
@@ -855,12 +862,7 @@ class HtmlRenderer:
                 self._daily_fields(
                     "Sleep stages",
                     sleep.session.stages,
-                    (
-                        ("Core sleep", "core_minutes", "minutes"),
-                        ("Deep sleep", "deep_minutes", "minutes"),
-                        ("REM sleep", "rem_minutes", "minutes"),
-                        ("Unspecified sleep", "unspecified_minutes", "minutes"),
-                    ),
+                    tuple(stage_fields),
                 ),
                 self._daily_fields(
                     "Sleep score",

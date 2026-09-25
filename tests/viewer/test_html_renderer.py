@@ -473,6 +473,34 @@ def test_html_renderer_daily_sleep_session_uses_local_clock_without_timezone_suf
     assert "+0200" not in html
 
 
+def test_html_renderer_hides_only_zero_unspecified_daily_sleep_stage() -> None:
+    summary = _detailed_full_summary()
+    summary.days[0].total_steps = 0
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+    daily_html = html.split('<article class="viewer-day"', 1)[1]
+
+    assert report.days[0].sleep.session.stages.unspecified_minutes == 0
+    assert "Unspecified sleep" not in daily_html
+    assert "<dt>Steps</dt><dd>0</dd>" in daily_html
+
+
+def test_html_renderer_shows_positive_unspecified_daily_sleep_stage() -> None:
+    summary = _detailed_full_summary()
+    summary.days[0].sleep_session = replace(summary.days[0].sleep_session, unspecified_minutes=13)
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+    daily_html = html.split('<article class="viewer-day"', 1)[1]
+
+    assert report.days[0].sleep.session.stages.unspecified_minutes == 13
+    assert (
+        '<dt>Unspecified sleep</dt><dd>13 <span class="viewer-metric-unit">minutes</span>'
+        in daily_html
+    )
+
+
 def test_html_renderer_notes_partial_workout_energy_without_zero_filling() -> None:
     summary = _rich_summary()
     summary.activities[1].active_energy_kcal = None
