@@ -790,6 +790,272 @@
             font-size: 13px;
         }
 
+        .viewer-chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .viewer-chart {
+            min-width: 0;
+            margin: 0;
+            padding: 13px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        .viewer-chart figcaption {
+            margin-bottom: 10px;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .viewer-chart-svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            overflow: visible;
+        }
+
+        .viewer-chart-axis,
+        .viewer-chart-donut-track {
+            stroke: rgba(255, 255, 255, 0.16);
+            stroke-width: 1;
+        }
+
+        .viewer-chart-axis-label {
+            fill: var(--text-muted);
+            font-size: 8px;
+            text-anchor: middle;
+        }
+
+        .viewer-chart-slice,
+        .viewer-chart-donut-track {
+            stroke-width: 16;
+        }
+
+        .viewer-chart-slice--0,
+        .viewer-chart-bar--0 {
+            stroke: #7dd3fc;
+            fill: #7dd3fc;
+        }
+
+        .viewer-chart-swatch--0 { background: #7dd3fc; }
+
+        .viewer-chart-slice--1,
+        .viewer-chart-bar--1 {
+            stroke: #a7f3d0;
+            fill: #a7f3d0;
+        }
+
+        .viewer-chart-swatch--1 { background: #a7f3d0; }
+
+        .viewer-chart-slice--2,
+        .viewer-chart-bar--2 {
+            stroke: #c4b5fd;
+            fill: #c4b5fd;
+        }
+
+        .viewer-chart-swatch--2 { background: #c4b5fd; }
+
+        .viewer-chart-slice--3,
+        .viewer-chart-bar--3 {
+            stroke: #fcd34d;
+            fill: #fcd34d;
+        }
+
+        .viewer-chart-swatch--3 { background: #fcd34d; }
+
+        .viewer-chart-slice--4,
+        .viewer-chart-bar--4 {
+            stroke: #f9a8d4;
+            fill: #f9a8d4;
+        }
+
+        .viewer-chart-swatch--4 { background: #f9a8d4; }
+
+        .viewer-chart-slice--5,
+        .viewer-chart-bar--5 {
+            stroke: #fdba74;
+            fill: #fdba74;
+        }
+
+        .viewer-chart-swatch--5 { background: #fdba74; }
+
+        .viewer-chart-line,
+        .viewer-chart-line--left,
+        .viewer-chart-line--right {
+            fill: none;
+            stroke-width: 2.5;
+        }
+
+        .viewer-chart-line,
+        .viewer-chart-line--left,
+        .viewer-chart-point {
+            stroke: #7dd3fc;
+            fill: #7dd3fc;
+        }
+
+        .viewer-chart-line--right {
+            stroke: #fcd34d;
+        }
+
+        .viewer-chart-zero-line {
+            stroke: var(--text-secondary);
+            stroke-width: 1.5;
+        }
+
+        .viewer-chart-diverging-bar--positive {
+            fill: #a7f3d0;
+        }
+
+        .viewer-chart-diverging-bar--negative {
+            fill: #fda4af;
+        }
+
+        .viewer-chart-legend,
+        .viewer-config-groups ul {
+            display: grid;
+            gap: 5px;
+            margin: 10px 0 0;
+            padding: 0;
+
+            list-style: none;
+        }
+
+        .viewer-chart-legend li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        .viewer-chart-swatch {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 5px;
+
+            border-radius: 999px;
+        }
+
+        .viewer-chart-empty,
+        .viewer-chart-note {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .viewer-chart-note {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-chart-kpis {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin: 0;
+        }
+
+        .viewer-chart-kpis .viewer-metric {
+            border: 1px solid var(--border);
+        }
+
+        .viewer-config-button,
+        .viewer-sleep-config-dialog button {
+            padding: 8px 11px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 12px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .viewer-config-button {
+            margin-top: 16px;
+        }
+
+        .viewer-sleep-config-dialog {
+            width: min(720px, calc(100% - 32px));
+            max-height: min(80vh, 720px);
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: #1b2333;
+            color: var(--text);
+        }
+
+        .viewer-sleep-config-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.62);
+        }
+
+        .viewer-sleep-config-dialog header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .viewer-sleep-config-dialog h3,
+        .viewer-config-groups h4,
+        .viewer-config-groups h5 {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .viewer-config-groups {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .viewer-config-groups section {
+            padding: 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .viewer-config-groups dl {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 6px 10px;
+            margin: 10px 0 0;
+        }
+
+        .viewer-config-groups dt,
+        .viewer-config-groups li {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .viewer-config-groups dd {
+            margin: 0;
+            color: var(--text);
+            font-size: 11px;
+            text-align: right;
+        }
+
+        .viewer-config-groups h5 {
+            margin-top: 12px;
+            font-size: 12px;
+        }
+
         .viewer-index-status {
             margin: 0;
             color: var(--text-secondary);
@@ -2128,6 +2394,15 @@
 
             .viewer-daily-section--workouts {
                 grid-column: auto;
+            }
+
+            .viewer-chart-grid,
+            .viewer-config-groups {
+                grid-template-columns: 1fr;
+            }
+
+            .viewer-chart-kpis {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -3520,6 +3795,7 @@
                 viewerReportStatus.hidden = true;
                 viewerReportContent.innerHTML = viewerState.reportHtml;
                 initializeViewerDailyNavigation();
+                initializeViewerSleepConfiguration();
                 return;
             }
 
@@ -3599,6 +3875,33 @@
                 }
             });
             showDay(currentIndex);
+        }
+
+        function initializeViewerSleepConfiguration() {
+            const dialog = viewerReportContent.querySelector(
+                "[data-viewer-sleep-config]",
+            );
+            const openButton = viewerReportContent.querySelector(
+                "[data-viewer-config-open]",
+            );
+            const closeButton = viewerReportContent.querySelector(
+                "[data-viewer-config-close]",
+            );
+
+            if (
+                dialog === null
+                || openButton === null
+                || closeButton === null
+            ) {
+                return;
+            }
+
+            openButton.addEventListener("click", () => {
+                dialog.showModal();
+            });
+            closeButton.addEventListener("click", () => {
+                dialog.close();
+            });
         }
 
         function closeViewerSelector() {

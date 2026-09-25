@@ -6861,6 +6861,55 @@ def test_web_interface_initializes_server_rendered_daily_navigation_without_fetc
         assert css_hook in viewer_styles
 
 
+def test_web_interface_only_controls_the_server_rendered_sleep_config_dialog() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    config_function = html.split(
+        "function initializeViewerSleepConfiguration()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+    viewer_state_code = html.split(
+        "const viewerState = {",
+        1,
+    )[1].split(
+        "function updateGenerationSummary()",
+        1,
+    )[0]
+
+    assert "initializeViewerSleepConfiguration();" in report_render_function
+    assert "[data-viewer-sleep-config]" in config_function
+    assert "[data-viewer-config-open]" in config_function
+    assert "[data-viewer-config-close]" in config_function
+    assert "dialog.showModal();" in config_function
+    assert "dialog.close();" in config_function
+    assert "fetch(" not in config_function
+    assert "JSON.parse" not in config_function
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
+    assert "chart.js" not in html.lower()
+    assert "new Chart(" not in html
+
+    for css_hook in (
+        ".viewer-chart-grid",
+        ".viewer-chart-svg",
+        ".viewer-chart-zero-line",
+        ".viewer-sleep-config-dialog",
+    ):
+        assert css_hook in html
+
+
 # =====================================================================
 # Verifies that local, anonymous and reconnect-required transitions clear the
 # in-memory Viewer state and return the user to Generate.

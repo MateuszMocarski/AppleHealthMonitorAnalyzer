@@ -7,6 +7,14 @@ from datetime import date, datetime, time
 from html import escape
 from typing import Any
 
+from connected_health.viewer.charts import (
+    ChartDatum,
+    bar_chart,
+    diverging_bar_chart,
+    donut_chart,
+    dual_axis_line_chart,
+    line_chart,
+)
 from connected_health.viewer.report_contract import (
     DailyReport,
     DailySleep,
@@ -60,10 +68,12 @@ class HtmlRenderer:
     def _general_activity_section(self, report: ViewerReport) -> str:
         activity = report.general_activity
         if activity is None:
-            return self._unavailable_section("General activity", "activity")
-        return self._section(
-            "General activity",
-            "activity",
+            return self._unavailable_section_with_charts(
+                "General activity",
+                "activity",
+                self._activity_charts(report),
+            )
+        metrics = "".join(
             (
                 self._metric("Total steps", activity.total_steps),
                 self._metric(
@@ -84,13 +94,23 @@ class HtmlRenderer:
                     "cm",
                     activity.step_length_count_days,
                 ),
-            ),
+            )
+        )
+        return self._section(
+            "General activity",
+            "activity",
+            f'<dl class="viewer-metric-grid">{metrics}</dl>{self._activity_charts(report)}',
+            grid=False,
         )
 
     def _sleep_section(self, report: ViewerReport) -> str:
         sleep = report.sleep
         if sleep is None:
-            return self._unavailable_section("Sleep", "sleep")
+            return self._unavailable_section_with_charts(
+                "Sleep",
+                "sleep",
+                self._full_sleep_trends(report),
+            )
         session_metrics = "".join(
             (
                 self._metric("Sessions", sleep.sessions),
@@ -128,6 +148,9 @@ class HtmlRenderer:
             f'<dl class="viewer-metric-grid">{stage_metrics}</dl></section>'
             '<section class="viewer-monthly-subsection"><h3>Sleep score</h3>'
             f'<dl class="viewer-metric-grid">{score_metrics}</dl></section>'
+            f"{self._sleep_charts(sleep)}"
+            f"{self._full_sleep_trends(report)}"
+            f"{self._sleep_configuration(sleep.configuration)}"
         )
         return self._section("Sleep", "sleep", content, grid=False)
 
@@ -143,7 +166,8 @@ class HtmlRenderer:
         return self._section(
             "Workouts",
             "workouts",
-            f'<div class="viewer-workout-list">{workouts}</div>',
+            '<div class="viewer-workout-list">'
+            f"{workouts}</div>{self._workout_charts(report.workouts)}",
             grid=False,
         )
 
@@ -171,10 +195,12 @@ class HtmlRenderer:
     def _body_weight_section(self, report: ViewerReport) -> str:
         body_weight = report.body_weight
         if body_weight is None:
-            return self._unavailable_section("Body weight", "body-weight")
-        return self._section(
-            "Body weight",
-            "body-weight",
+            return self._unavailable_section_with_charts(
+                "Body weight",
+                "body-weight",
+                self._weight_chart(report),
+            )
+        metrics = "".join(
             (
                 self._metric("Average weight", body_weight.average_kg, "kg"),
                 self._metric("Starting weight", body_weight.start_kg, "kg"),
@@ -183,7 +209,13 @@ class HtmlRenderer:
                 self._metric("Minimum weight", body_weight.min_kg, "kg"),
                 self._metric("Maximum weight", body_weight.max_kg, "kg"),
                 self._metric("Measurements", body_weight.measurements),
-            ),
+            )
+        )
+        return self._section(
+            "Body weight",
+            "body-weight",
+            f'<dl class="viewer-metric-grid">{metrics}</dl>{self._weight_chart(report)}',
+            grid=False,
         )
 
     def _energy_section(self, report: ViewerReport) -> str:
@@ -215,10 +247,12 @@ class HtmlRenderer:
     def _nutrition_section(self, report: ViewerReport) -> str:
         nutrition = report.nutrition
         if nutrition is None:
-            return self._unavailable_section("Nutrition", "nutrition")
-        return self._section(
-            "Nutrition",
-            "nutrition",
+            return self._unavailable_section_with_charts(
+                "Nutrition",
+                "nutrition",
+                self._nutrition_charts(report),
+            )
+        metrics = "".join(
             (
                 self._metric(
                     "Average protein",
@@ -239,14 +273,18 @@ class HtmlRenderer:
                     "kcal",
                     nutrition.calories_count_days,
                 ),
-            ),
+            )
+        )
+        return self._section(
+            "Nutrition",
+            "nutrition",
+            f'<dl class="viewer-metric-grid">{metrics}</dl>{self._nutrition_charts(report)}',
+            grid=False,
         )
 
     def _calories_balance_section(self, report: ViewerReport) -> str:
         balance = report.calories_balance
-        return self._section(
-            "Calorie balance",
-            "calorie-balance",
+        metrics = "".join(
             (
                 self._metric(
                     "Average calorie balance",
@@ -260,8 +298,358 @@ class HtmlRenderer:
                     "kcal",
                     balance.calories_balance_count_days,
                 ),
+            )
+        )
+        return self._section(
+            "Calorie balance",
+            "calorie-balance",
+            f'<dl class="viewer-metric-grid">{metrics}</dl>{self._calorie_balance_chart(report)}',
+            grid=False,
+        )
+
+    def _activity_charts(self, report: ViewerReport) -> str:
+        if not isinstance(report, FullReport):
+            return ""
+        days = self._ordered_days(report)
+        return self._chart_grid(
+            dual_axis_line_chart(
+                "Daily steps and distance",
+                [self._day_label(day.date) for day in days],
+                [
+                    day.general_activity.steps if day.general_activity is not None else None
+                    for day in days
+                ],
+                [
+                    day.general_activity.distance_km if day.general_activity is not None else None
+                    for day in days
+                ],
+                left_label="Steps",
+                right_label="Distance (km)",
+            )
+        )
+
+    def _sleep_charts(self, sleep: Any) -> str:
+        charts = [
+            donut_chart(
+                "Average sleep stages",
+                (
+                    ChartDatum("Core", sleep.stages.core_minutes),
+                    ChartDatum("Deep", sleep.stages.deep_minutes),
+                    ChartDatum("REM", sleep.stages.rem_minutes),
+                    ChartDatum("Unspecified", sleep.stages.unspecified_minutes),
+                ),
+                "minutes",
+            ),
+            bar_chart(
+                "Average Sleep Score components",
+                (
+                    ChartDatum("Bedtime", sleep.score.average_bedtime),
+                    ChartDatum("Duration", sleep.score.average_duration),
+                    ChartDatum("Wake-up", sleep.score.average_wake_up),
+                ),
+                "points",
+                maximum=100,
+            ),
+            self._chart_kpis(
+                (
+                    ("Monthly score", sleep.score.monthly_score, None),
+                    ("Maximum monthly score", sleep.score.monthly_score_max, None),
+                    ("Average bonus", sleep.score.average_bonus, None),
+                    ("Consistency bonus", sleep.score.consistency_bonus, None),
+                )
+            ),
+        ]
+        return self._chart_grid(*charts)
+
+    def _full_sleep_trends(self, report: ViewerReport) -> str:
+        if not isinstance(report, FullReport):
+            return ""
+        days = self._ordered_days(report)
+        return self._chart_grid(
+            line_chart(
+                "Bedtime by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        (
+                            self._bedtime_minutes(day.sleep.session.bedtime)
+                            if day.sleep is not None
+                            else None
+                        ),
+                    )
+                    for day in days
+                ],
+                "",
+                axis_label="Bedtime",
+                axis_formatter=self._clock_label,
+            ),
+            line_chart(
+                "Wake-up time by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        (
+                            self._clock_minutes(day.sleep.session.wake_up)
+                            if day.sleep is not None
+                            else None
+                        ),
+                    )
+                    for day in days
+                ],
+                "",
+                axis_label="Wake-up",
+                axis_formatter=self._clock_label,
             ),
         )
+
+    def _workout_charts(self, workouts: list[MonthlyWorkout]) -> str:
+        duration = donut_chart(
+            "Total workout duration by type",
+            tuple(
+                ChartDatum(self._workout_label(workout.type), workout.duration_minutes)
+                for workout in workouts
+            ),
+            "minutes",
+        )
+        with_energy = [workout for workout in workouts if workout.active_energy_kcal is not None]
+        energy = donut_chart(
+            "Total active energy by type",
+            tuple(
+                ChartDatum(self._workout_label(workout.type), workout.active_energy_kcal)
+                for workout in with_energy
+            ),
+            "kcal",
+        )
+        missing_note = ""
+        if len(with_energy) != len(workouts):
+            missing_note = (
+                '<p class="viewer-chart-note">'
+                "Some workout types have unavailable active-energy data; "
+                "the chart includes only types with persisted active energy.</p>"
+            )
+        return self._chart_grid(duration, f"{energy}{missing_note}")
+
+    def _weight_chart(self, report: ViewerReport) -> str:
+        if not isinstance(report, FullReport):
+            return ""
+        return self._chart_grid(
+            line_chart(
+                "Body weight by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        day.body_weight.weight_kg if day.body_weight is not None else None,
+                    )
+                    for day in self._ordered_days(report)
+                ],
+                "kg",
+                axis_label="Weight (kg)",
+            )
+        )
+
+    def _nutrition_charts(self, report: ViewerReport) -> str:
+        if not isinstance(report, FullReport):
+            return ""
+        days = self._ordered_days(report)
+        charts = (
+            line_chart(
+                "Protein by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        day.nutrition.protein_g if day.nutrition is not None else None,
+                    )
+                    for day in days
+                ],
+                "g",
+                axis_label="Protein (g)",
+            ),
+            line_chart(
+                "Carbohydrates by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        day.nutrition.carbohydrates_g if day.nutrition is not None else None,
+                    )
+                    for day in days
+                ],
+                "g",
+                axis_label="Carbohydrates (g)",
+            ),
+            line_chart(
+                "Fat by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        day.nutrition.fat_g if day.nutrition is not None else None,
+                    )
+                    for day in days
+                ],
+                "g",
+                axis_label="Fat (g)",
+            ),
+            line_chart(
+                "Calories by day",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        day.nutrition.calories_kcal if day.nutrition is not None else None,
+                    )
+                    for day in days
+                ],
+                "kcal",
+                axis_label="Calories (kcal)",
+            ),
+        )
+        return self._chart_grid(*charts)
+
+    def _calorie_balance_chart(self, report: ViewerReport) -> str:
+        if not isinstance(report, FullReport):
+            return ""
+        return self._chart_grid(
+            diverging_bar_chart(
+                "Daily calorie balance",
+                [
+                    ChartDatum(self._day_label(day.date), day.calories_balance_kcal)
+                    for day in self._ordered_days(report)
+                ],
+                "kcal",
+            )
+        )
+
+    def _sleep_configuration(self, configuration: Any) -> str:
+        monthly_bonus = configuration.monthly_bonus
+        groups = (
+            self._config_section(
+                "General",
+                (
+                    (
+                        "Session gap threshold",
+                        self._value(configuration.session_gap_threshold_minutes, "minutes"),
+                    ),
+                    ("Penalty style", "Linear" if configuration.linear_penalties else "Step"),
+                ),
+            ),
+            self._config_section(
+                "Bedtime",
+                (
+                    ("Target", self._time_value(configuration.bedtime.target)),
+                    (
+                        "Penalty interval",
+                        self._value(configuration.bedtime.penalty_interval_minutes, "minutes"),
+                    ),
+                    ("Penalty points", self._value(configuration.bedtime.penalty_points)),
+                ),
+            ),
+            self._config_section(
+                "Duration",
+                (
+                    ("Target", self._value(configuration.duration.target_minutes, "minutes")),
+                    ("Tolerance", self._value(configuration.duration.tolerance_minutes, "minutes")),
+                    (
+                        "Penalty interval",
+                        self._value(configuration.duration.penalty_interval_minutes, "minutes"),
+                    ),
+                    ("Penalty points", self._value(configuration.duration.penalty_points)),
+                    ("Oversleep weight", self._value(configuration.duration.oversleep_weight)),
+                    ("Undersleep weight", self._value(configuration.duration.undersleep_weight)),
+                ),
+            ),
+            self._config_section(
+                "Wake-up",
+                (
+                    ("Target", self._time_value(configuration.wake_up.target)),
+                    ("Bedtime weight", self._value(configuration.wake_up.bedtime_weight)),
+                    ("Duration weight", self._value(configuration.wake_up.duration_weight)),
+                    (
+                        "Penalty interval",
+                        self._value(configuration.wake_up.penalty_interval_minutes, "minutes"),
+                    ),
+                    ("Penalty points", self._value(configuration.wake_up.penalty_points)),
+                ),
+            ),
+            self._config_section(
+                "Score weights",
+                (
+                    ("Bedtime", self._value(configuration.weights.bedtime)),
+                    ("Duration", self._value(configuration.weights.duration)),
+                    ("Wake-up", self._value(configuration.weights.wake_up)),
+                ),
+            ),
+            self._config_section(
+                "Monthly bonus",
+                (
+                    ("Enabled", "Yes" if monthly_bonus.enabled else "No"),
+                    ("Maximum points", self._value(monthly_bonus.max_points)),
+                ),
+                "<h5>Average thresholds</h5><ul>"
+                f"{self._threshold_list(monthly_bonus.average_thresholds)}</ul>"
+                "<h5>Consistency thresholds</h5><ul>"
+                f"{self._threshold_list(monthly_bonus.consistency_thresholds)}</ul>",
+            ),
+        )
+        return "".join(
+            (
+                '<button class="viewer-config-button" type="button" data-viewer-config-open>',
+                "Sleep score configuration</button>",
+                '<dialog class="viewer-sleep-config-dialog" data-viewer-sleep-config>',
+                "<header><h3>Sleep score configuration</h3>",
+                '<button type="button" data-viewer-config-close '
+                'aria-label="Close sleep score configuration">'
+                "Close</button></header>",
+                '<div class="viewer-config-groups">',
+                *groups,
+                "</div></dialog>",
+            )
+        )
+
+    @staticmethod
+    def _config_section(title: str, rows: tuple[tuple[str, str], ...], extra: str = "") -> str:
+        details = "".join(f"<dt>{escape(label)}</dt><dd>{value}</dd>" for label, value in rows)
+        return f"<section><h4>{escape(title)}</h4><dl>{details}</dl>{extra}</section>"
+
+    def _threshold_list(self, thresholds: list[Any]) -> str:
+        return (
+            "".join(
+                f"<li>{self._value(item.threshold)}: {self._value(item.bonus)} bonus</li>"
+                for item in thresholds
+            )
+            or "<li>Unavailable</li>"
+        )
+
+    @staticmethod
+    def _chart_grid(*charts: str) -> str:
+        rendered = "".join(chart for chart in charts if chart)
+        return f'<div class="viewer-chart-grid">{rendered}</div>' if rendered else ""
+
+    def _chart_kpis(self, values: tuple[tuple[str, Any, str | None], ...]) -> str:
+        metrics = "".join(self._metric(label, value, unit) for label, value, unit in values)
+        return f'<dl class="viewer-chart-kpis">{metrics}</dl>'
+
+    @staticmethod
+    def _ordered_days(report: FullReport) -> list[DailyReport]:
+        return sorted(report.days, key=lambda day: day.date)
+
+    @staticmethod
+    def _day_label(value: date) -> str:
+        return value.strftime("%b %d").replace(" 0", " ")
+
+    @staticmethod
+    def _workout_label(value: str) -> str:
+        return value.replace("_", " ").capitalize()
+
+    @staticmethod
+    def _clock_minutes(value: datetime) -> float:
+        return float(value.hour * 60 + value.minute + value.second / 60)
+
+    def _bedtime_minutes(self, value: datetime) -> float:
+        minutes = self._clock_minutes(value)
+        return minutes + 24 * 60 if minutes < 12 * 60 else minutes
+
+    @staticmethod
+    def _clock_label(value: float) -> str:
+        minutes = int(round(value)) % (24 * 60)
+        return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
     def _section(
         self, title: str, name: str, content: tuple[str, ...] | str, *, grid: bool = True
@@ -280,6 +668,15 @@ class HtmlRenderer:
             f'<section class="viewer-monthly-section viewer-monthly-section--{name} '
             'viewer-monthly-section--unavailable">'
             f'<h2>{escape(title)}</h2><p class="viewer-unavailable">Unavailable</p></section>'
+        )
+
+    def _unavailable_section_with_charts(self, title: str, name: str, charts: str) -> str:
+        return (
+            f'<section class="viewer-monthly-section viewer-monthly-section--{name} '
+            'viewer-monthly-section--unavailable">'
+            f"<h2>{escape(title)}</h2>"
+            '<p class="viewer-unavailable">Unavailable</p>'
+            f"{charts}</section>"
         )
 
     def _metric(
@@ -373,16 +770,7 @@ class HtmlRenderer:
                         ("TDEE", "tdee_kcal", "kcal"),
                     ),
                 ),
-                self._daily_fields(
-                    "Nutrition",
-                    day.nutrition,
-                    (
-                        ("Protein", "protein_g", "g"),
-                        ("Carbohydrates", "carbohydrates_g", "g"),
-                        ("Fat", "fat_g", "g"),
-                        ("Calories", "calories_kcal", "kcal"),
-                    ),
-                ),
+                self._daily_nutrition(day),
                 self._daily_value("Calorie balance", day.calories_balance_kcal, "kcal"),
                 "</div></article>",
             )
@@ -391,7 +779,7 @@ class HtmlRenderer:
     def _daily_sleep(self, sleep: DailySleep | None) -> str:
         if sleep is None:
             return self._daily_unavailable("Sleep")
-        return "".join(
+        fields = "".join(
             (
                 self._daily_fields(
                     "Sleep session",
@@ -427,6 +815,61 @@ class HtmlRenderer:
                 ),
             )
         )
+        charts = [
+            donut_chart(
+                "Sleep stages",
+                (
+                    ChartDatum("Core", sleep.session.stages.core_minutes),
+                    ChartDatum("Deep", sleep.session.stages.deep_minutes),
+                    ChartDatum("REM", sleep.session.stages.rem_minutes),
+                    ChartDatum("Unspecified", sleep.session.stages.unspecified_minutes),
+                ),
+                "minutes",
+            )
+        ]
+        if sleep.score is not None:
+            charts.extend(
+                (
+                    bar_chart(
+                        "Sleep Score components",
+                        (
+                            ChartDatum("Bedtime", sleep.score.bedtime),
+                            ChartDatum("Duration", sleep.score.duration),
+                            ChartDatum("Wake-up", sleep.score.wake_up),
+                        ),
+                        "points",
+                        maximum=100,
+                    ),
+                    self._chart_kpis((("Total score", sleep.score.total, None),)),
+                )
+            )
+        return f"{fields}{self._chart_grid(*charts)}"
+
+    def _daily_nutrition(self, day: DailyReport) -> str:
+        nutrition = day.nutrition
+        fields = self._daily_fields(
+            "Nutrition",
+            nutrition,
+            (
+                ("Protein", "protein_g", "g"),
+                ("Carbohydrates", "carbohydrates_g", "g"),
+                ("Fat", "fat_g", "g"),
+                ("Calories", "calories_kcal", "kcal"),
+            ),
+        )
+        if nutrition is None:
+            return fields
+        chart = bar_chart(
+            "Daily macros",
+            (
+                ChartDatum("Protein", nutrition.protein_g),
+                ChartDatum("Carbohydrates", nutrition.carbohydrates_g),
+                ChartDatum("Fat", nutrition.fat_g),
+            ),
+            "g",
+        )
+        calories_kpi = self._chart_kpis((("Calories", nutrition.calories_kcal, "kcal"),))
+        return f"{fields}{self._chart_grid(chart, calories_kpi)}"
 
     def _daily_workouts(self, day: DailyReport) -> str:
         if not day.workouts:

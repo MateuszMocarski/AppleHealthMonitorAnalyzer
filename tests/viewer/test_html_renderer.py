@@ -206,6 +206,20 @@ def test_html_renderer_renders_validated_summary_without_daily_content() -> None
     assert "-300" in html
     assert "average_daily_steps" not in html
     assert "ActivityMetricsSummary(" not in html
+    assert "Average sleep stages" in html
+    assert "Average Sleep Score components" in html
+    assert "Total workout duration by type" in html
+    assert "Total active energy by type" in html
+    assert "viewer-sleep-config-dialog" in html
+    assert "Session gap threshold" in html
+    assert "Penalty style" in html
+    assert "Average thresholds" in html
+    assert '<dialog class="viewer-sleep-config-dialog" data-viewer-sleep-config>' in html
+    assert "Bedtime by day" not in html
+    assert "Daily steps and distance" not in html
+    assert "Daily macros" not in html
+    assert "NaN" not in html
+    assert "Infinity" not in html
 
 
 def test_html_renderer_uses_semantic_metric_lists_and_associates_activity_coverage() -> None:
@@ -274,6 +288,28 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "Body weight" in html
     assert "Energy expenditure" in html
     assert "Nutrition" in html
+    assert "Average sleep stages" in html
+    assert "Average Sleep Score components" in html
+    assert "Bedtime by day" in html
+    assert "Wake-up time by day" in html
+    assert "Daily steps and distance" in html
+    assert "Body weight by day" in html
+    assert "Daily calorie balance" in html
+    assert "Protein by day" in html
+    assert "Carbohydrates by day" in html
+    assert "Fat by day" in html
+    assert "Calories by day" in html
+    assert "Daily macros" in html
+    assert "Sleep Score components" in html
+    monthly_score_chart = html.split("<figcaption>Average Sleep Score components</figcaption>", 1)[
+        1
+    ].split("</figure>", 1)[0]
+    daily_score_chart = html.split("<figcaption>Sleep Score components</figcaption>", 1)[1].split(
+        "</figure>", 1
+    )[0]
+    assert "Monthly score" not in monthly_score_chart
+    assert "Average bonus" not in monthly_score_chart
+    assert "Total score" not in daily_score_chart
 
 
 def test_html_renderer_orders_daily_articles_and_selects_the_latest_day() -> None:
@@ -290,6 +326,38 @@ def test_html_renderer_orders_daily_articles_and_selects_the_latest_day() -> Non
     assert '<time data-viewer-current-day datetime="2026-08-02">August 2, 2026</time>' in html
     assert '<button type="button" data-viewer-day-previous>Previous day</button>' in html
     assert '<button type="button" data-viewer-day-next disabled>Next day</button>' in html
+
+
+def test_html_renderer_normalizes_bedtime_chart_geometry_but_keeps_clock_labels() -> None:
+    summary = _multi_day_full_summary()
+    summary.days[0].sleep_session = replace(
+        summary.days[0].sleep_session,
+        bedtime=datetime(2026, 8, 1, 23, 0, tzinfo=UTC),
+    )
+    summary.days[1].sleep_session = replace(
+        summary.days[1].sleep_session,
+        bedtime=datetime(2026, 8, 2, 1, 0, tzinfo=UTC),
+    )
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+    bedtime_chart = html.split("Bedtime by day", 1)[1].split("</figure>", 1)[0]
+
+    assert "01:00" in bedtime_chart
+    assert "25:00" not in bedtime_chart
+
+
+def test_html_renderer_notes_partial_workout_energy_without_zero_filling() -> None:
+    summary = _rich_summary()
+    summary.activities[1].active_energy_kcal = None
+    report = parse_persisted_report(JsonRenderer().render_month_summary(summary))
+
+    html = HtmlRenderer().render(report)
+    energy_chart = html.split("Total active energy by type", 1)[1].split("</figure>", 1)[0]
+
+    assert "Some workout types have unavailable active-energy data" in html
+    assert "Indoor cycling" not in energy_chart
+    assert "<title>Indoor cycling:" not in energy_chart
 
 
 def test_html_renderer_renders_a_controlled_empty_daily_state_for_full_reports() -> None:
