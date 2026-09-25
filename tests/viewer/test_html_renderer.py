@@ -348,11 +348,21 @@ def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -
     assert "Deep sleep" not in monthly_stages_group
     assert "REM sleep" not in monthly_stages_group
     assert "Average Sleep Score components" in monthly_score_group
+    assert 'class="viewer-score-progress-chart"' in monthly_score_group
+    for component in ("Bedtime", "Duration", "Wake-up"):
+        assert component in monthly_score_group
+    assert "viewer-score-progress-row" in monthly_score_group
+    assert 'max="100"' in monthly_score_group
+    assert "/ 100" in monthly_score_group
+    for score_value in ("80 / 100", "90 / 100", "70 / 100"):
+        assert f'class="viewer-score-progress-value">{score_value}</span>' in monthly_score_group
+    assert "viewer-chart--bar" not in monthly_score_group
+    assert "viewer-chart-tooltip" not in monthly_score_group
+    assert "data-viewer-chart-tooltip" not in monthly_score_group
     ordered_monthly_labels = (
         "Average sleep score",
         "Average bonus",
         "Consistency bonus",
-        "Maximum monthly score",
         "Monthly score",
     )
     assert [monthly_score_group.index(label) for label in ordered_monthly_labels] == sorted(
@@ -362,12 +372,49 @@ def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -
         "Average bedtime score",
         "Average duration score",
         "Average wake-up score",
+        "Maximum monthly score",
     ):
         assert redundant_label not in monthly_score_group
     assert 'class="viewer-metric viewer-metric--score-primary"' in monthly_score_group
+    assert "Sleep score configuration" in monthly_score_group
+    assert "data-viewer-config-open" in monthly_score_group
+    assert html.index("Sleep score configuration") < html.index("Bedtime by day")
+    assert html.index("data-viewer-sleep-config") > html.index("Bedtime by day")
     assert "Sleep Score components" in daily_score_group
     assert "Total score" in daily_score_group
     assert 'class="viewer-metric viewer-metric--score-primary"' in daily_score_group
+
+
+def test_monthly_score_shows_data_driven_actual_and_maximum() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month_summary(_rich_summary()))
+    assert report.sleep is not None
+    report.sleep.score.monthly_score = 87.25
+    report.sleep.score.monthly_score_max = 137
+
+    html = HtmlRenderer().render(report)
+    score_group = html.split('<section class="viewer-sleep-score-chart">', 1)[1].split(
+        "</section>", 1
+    )[0]
+
+    monthly_score = score_group.split(">Monthly score</dt>", 1)[1].split("</dd>", 1)[0]
+    assert "87.25 / 137" in monthly_score
+    assert "Maximum monthly score" not in score_group
+
+
+def test_calorie_balance_chart_uses_prominent_layout_without_changing_scale() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
+    html = HtmlRenderer().render(report)
+    balance_section = html.split('viewer-monthly-section--calorie-balance">', 1)[1].split(
+        "</section>", 1
+    )[0]
+
+    assert (
+        'class="viewer-chart-grid viewer-chart-grid--wide '
+        'viewer-chart-grid--calorie-balance"' in balance_section
+    )
+    assert 'class="viewer-chart-zero-line"' in balance_section
+    assert "viewer-chart-diverging-bar--negative" in balance_section
+    assert balance_section.count('class="viewer-chart-diverging-bar ') == 1
 
 
 def test_html_renderer_rounds_minutes_for_presentation_without_mutating_viewer_values() -> None:

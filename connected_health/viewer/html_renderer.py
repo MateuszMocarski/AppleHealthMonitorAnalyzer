@@ -338,23 +338,17 @@ class HtmlRenderer:
             tuple(ChartDatum(label, value) for label, value in stage_chart_values),
             "minutes",
         )
-        score = bar_chart(
-            "Average Sleep Score components",
-            (
-                ChartDatum("Bedtime", sleep.score.average_bedtime),
-                ChartDatum("Duration", sleep.score.average_duration),
-                ChartDatum("Wake-up", sleep.score.average_wake_up),
-            ),
-            "points",
-            maximum=100,
+        score = self._sleep_score_progress(sleep.score)
+        monthly_score = (
+            f"{self._number_text(sleep.score.monthly_score)} / "
+            f"{self._number_text(sleep.score.monthly_score_max)}"
         )
         score_metrics = self._chart_kpis(
             (
                 ("Average sleep score", sleep.score.average_total, None),
                 ("Average bonus", sleep.score.average_bonus, None),
                 ("Consistency bonus", sleep.score.consistency_bonus, None),
-                ("Maximum monthly score", sleep.score.monthly_score_max, None),
-                ("Monthly score", sleep.score.monthly_score, None),
+                ("Monthly score", monthly_score, None),
             ),
             emphasized_last=True,
         )
@@ -363,7 +357,37 @@ class HtmlRenderer:
             '<section class="viewer-sleep-stages-chart">'
             f"{stages}</section>"
             '<section class="viewer-sleep-score-chart">'
-            f"{score}{score_metrics}</section></div>"
+            f"{score}{score_metrics}{self._sleep_configuration_trigger()}"
+            "</section></div>"
+        )
+
+    def _sleep_score_progress(self, score: Any) -> str:
+        rows = "".join(
+            self._sleep_score_progress_row(label, value, index)
+            for index, (label, value) in enumerate(
+                (
+                    ("Bedtime", score.average_bedtime),
+                    ("Duration", score.average_duration),
+                    ("Wake-up", score.average_wake_up),
+                )
+            )
+        )
+        return (
+            '<figure class="viewer-score-progress-chart">'
+            "<figcaption>Average Sleep Score components</figcaption>"
+            f'<div class="viewer-score-progress-list">{rows}</div></figure>'
+        )
+
+    def _sleep_score_progress_row(self, label: str, value: Any, index: int) -> str:
+        numeric_value = self._number_text(value)
+        return (
+            f'<div class="viewer-score-progress-row viewer-score-progress-row--{index}">'
+            f'<span class="viewer-score-progress-label">{escape(label)}</span>'
+            '<progress class="viewer-score-progress" max="100" '
+            f'aria-label="{escape(label, quote=True)}" '
+            f'value="{escape(str(value), quote=True)}">{escape(numeric_value)} / 100</progress>'
+            f'<span class="viewer-score-progress-value">{escape(numeric_value)} / 100</span>'
+            "</div>"
         )
 
     def _full_sleep_trends(self, report: ViewerReport) -> str:
@@ -524,7 +548,7 @@ class HtmlRenderer:
                 ],
                 "kcal",
             ),
-            modifier="viewer-chart-grid--wide",
+            modifier="viewer-chart-grid--wide viewer-chart-grid--calorie-balance",
         )
 
     def _sleep_configuration(self, configuration: Any) -> str:
@@ -600,17 +624,22 @@ class HtmlRenderer:
         )
         return "".join(
             (
-                '<button class="viewer-config-button" type="button" data-viewer-config-open>',
-                "Sleep score configuration</button>",
                 '<dialog class="viewer-sleep-config-dialog" data-viewer-sleep-config>',
                 "<header><h3>Sleep score configuration</h3>",
                 '<button type="button" data-viewer-config-close '
-                'aria-label="Close sleep score configuration">'
+                'aria-label="Close sleep score configuration">',
                 "Close</button></header>",
                 '<div class="viewer-config-groups">',
                 *groups,
                 "</div></dialog>",
             )
+        )
+
+    @staticmethod
+    def _sleep_configuration_trigger() -> str:
+        return (
+            '<button class="viewer-config-button" type="button" data-viewer-config-open>'
+            "Sleep score configuration</button>"
         )
 
     @staticmethod
@@ -1056,16 +1085,19 @@ class HtmlRenderer:
             if minute_label is None:
                 return escape(rendered)
             return f'{escape(rendered)} <span class="viewer-metric-unit">' f"{minute_label}</span>"
-        if isinstance(value, float):
-            rendered = f"{value:,.2f}".rstrip("0").rstrip(".")
-        elif isinstance(value, int):
-            rendered = f"{value:,}"
-        else:
-            rendered = str(value)
+        rendered = HtmlRenderer._number_text(value)
         unit_html = (
             f' <span class="viewer-metric-unit">{escape(unit)}</span>' if unit is not None else ""
         )
         return f"{escape(rendered)}{unit_html}"
+
+    @staticmethod
+    def _number_text(value: Any) -> str:
+        if isinstance(value, float):
+            return f"{value:,.2f}".rstrip("0").rstrip(".")
+        if isinstance(value, int):
+            return f"{value:,}"
+        return str(value)
 
     @staticmethod
     def _duration_value(value: int | float) -> tuple[str, str | None]:
