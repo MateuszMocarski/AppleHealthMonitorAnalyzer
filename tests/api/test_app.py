@@ -7104,10 +7104,15 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
         ".viewer-chart-grid--wide .viewer-chart-svg",
         ".viewer-chart-gridline",
         ".viewer-chart-legend-value",
+        ".viewer-sleep-chart-layout",
+        ".viewer-daily-secondary-summary",
+        ".viewer-metric-grid--three",
     ):
         assert css_hook in html
     assert ".viewer-chart-slice {\n            stroke: none;" in html
     assert ".viewer-chart-line {\n            fill: none;" in html
+    assert ".viewer-chart-diverging-bar--positive {\n            fill: #93c5fd;" in html
+    assert ".viewer-chart-diverging-bar--negative {\n            fill: #c4b5fd;" in html
     assert "data-viewer-daily" in viewer_styles
     assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
     assert "average_daily_steps" not in viewer_state_code

@@ -134,10 +134,6 @@ class HtmlRenderer:
                 self._metric("Average duration score", sleep.score.average_duration),
                 self._metric("Average wake-up score", sleep.score.average_wake_up),
                 self._metric("Average sleep score", sleep.score.average_total),
-                self._metric("Average bonus", sleep.score.average_bonus),
-                self._metric("Consistency bonus", sleep.score.consistency_bonus),
-                self._metric("Monthly score", sleep.score.monthly_score),
-                self._metric("Maximum monthly score", sleep.score.monthly_score_max),
             )
         )
         content = (
@@ -224,23 +220,28 @@ class HtmlRenderer:
         return self._section(
             "Energy expenditure",
             "energy",
-            (
-                self._metric(
-                    "Average basal energy",
-                    energy.average_basal_kcal,
-                    "kcal",
-                    energy.basal_count_days,
-                ),
-                self._metric(
-                    "Average active energy",
-                    energy.average_active_kcal,
-                    "kcal",
-                    energy.active_count_days,
-                ),
-                self._metric(
-                    "Average TDEE", energy.average_tdee_kcal, "kcal", energy.tdee_count_days
-                ),
-            ),
+            '<dl class="viewer-metric-grid viewer-metric-grid--three">'
+            + "".join(
+                (
+                    self._metric(
+                        "Average basal energy",
+                        energy.average_basal_kcal,
+                        "kcal",
+                        energy.basal_count_days,
+                    ),
+                    self._metric(
+                        "Average active energy",
+                        energy.average_active_kcal,
+                        "kcal",
+                        energy.active_count_days,
+                    ),
+                    self._metric(
+                        "Average TDEE", energy.average_tdee_kcal, "kcal", energy.tdee_count_days
+                    ),
+                )
+            )
+            + "</dl>",
+            grid=False,
         )
 
     def _nutrition_section(self, report: ViewerReport) -> str:
@@ -344,37 +345,40 @@ class HtmlRenderer:
         )
 
     def _sleep_charts(self, sleep: Any) -> str:
-        charts = [
-            pie_chart(
-                "Average sleep stages",
-                (
-                    ChartDatum("Core", sleep.stages.core_minutes),
-                    ChartDatum("Deep", sleep.stages.deep_minutes),
-                    ChartDatum("REM", sleep.stages.rem_minutes),
-                    ChartDatum("Unspecified", sleep.stages.unspecified_minutes),
-                ),
-                "minutes",
+        stages = pie_chart(
+            "Average sleep stages",
+            (
+                ChartDatum("Core", sleep.stages.core_minutes),
+                ChartDatum("Deep", sleep.stages.deep_minutes),
+                ChartDatum("REM", sleep.stages.rem_minutes),
+                ChartDatum("Unspecified", sleep.stages.unspecified_minutes),
             ),
-            bar_chart(
-                "Average Sleep Score components",
-                (
-                    ChartDatum("Bedtime", sleep.score.average_bedtime),
-                    ChartDatum("Duration", sleep.score.average_duration),
-                    ChartDatum("Wake-up", sleep.score.average_wake_up),
-                ),
-                "points",
-                maximum=100,
+            "minutes",
+        )
+        score = bar_chart(
+            "Average Sleep Score components",
+            (
+                ChartDatum("Bedtime", sleep.score.average_bedtime),
+                ChartDatum("Duration", sleep.score.average_duration),
+                ChartDatum("Wake-up", sleep.score.average_wake_up),
             ),
-            self._chart_kpis(
-                (
-                    ("Monthly score", sleep.score.monthly_score, None),
-                    ("Maximum monthly score", sleep.score.monthly_score_max, None),
-                    ("Average bonus", sleep.score.average_bonus, None),
-                    ("Consistency bonus", sleep.score.consistency_bonus, None),
-                )
-            ),
-        ]
-        return self._chart_grid(*charts)
+            "points",
+            maximum=100,
+        )
+        kpis = self._chart_kpis(
+            (
+                ("Monthly score", sleep.score.monthly_score, None),
+                ("Maximum monthly score", sleep.score.monthly_score_max, None),
+                ("Average bonus", sleep.score.average_bonus, None),
+                ("Consistency bonus", sleep.score.consistency_bonus, None),
+            )
+        )
+        return (
+            '<div class="viewer-sleep-chart-layout">'
+            f"{stages}"
+            '<section class="viewer-sleep-score-chart">'
+            f"{score}{kpis}</section></div>"
+        )
 
     def _full_sleep_trends(self, report: ViewerReport) -> str:
         if not isinstance(report, FullReport):
@@ -461,7 +465,8 @@ class HtmlRenderer:
                 ],
                 "kg",
                 axis_label="Weight (kg)",
-            )
+            ),
+            modifier="viewer-chart-grid--wide",
         )
 
     def _nutrition_charts(self, report: ViewerReport) -> str:
@@ -783,8 +788,12 @@ class HtmlRenderer:
                 ),
                 self._daily_sleep(day.sleep),
                 self._daily_workouts(day),
+                '<div class="viewer-daily-secondary-summary">',
                 self._daily_fields(
-                    "Body weight", day.body_weight, (("Weight", "weight_kg", "kg"),)
+                    "Body weight",
+                    day.body_weight,
+                    (("Weight", "weight_kg", "kg"),),
+                    modifier="viewer-daily-section--secondary",
                 ),
                 self._daily_fields(
                     "Energy expenditure",
@@ -794,9 +803,16 @@ class HtmlRenderer:
                         ("Active energy", "active_kcal", "kcal"),
                         ("TDEE", "tdee_kcal", "kcal"),
                     ),
+                    modifier="viewer-daily-section--secondary",
                 ),
-                self._daily_nutrition(day),
-                self._daily_value("Calorie balance", day.calories_balance_kcal, "kcal"),
+                self._daily_nutrition(day, modifier="viewer-daily-section--secondary"),
+                self._daily_value(
+                    "Calorie balance",
+                    day.calories_balance_kcal,
+                    "kcal",
+                    modifier="viewer-daily-section--secondary",
+                ),
+                "</div>",
                 "</div></article>",
             )
         )
@@ -835,42 +851,45 @@ class HtmlRenderer:
                         ("Bedtime score", "bedtime", None),
                         ("Duration score", "duration", None),
                         ("Wake-up score", "wake_up", None),
-                        ("Total score", "total", None),
                     ),
                 ),
             )
         )
-        charts = [
-            pie_chart(
-                "Sleep stages",
-                (
-                    ChartDatum("Core", sleep.session.stages.core_minutes),
-                    ChartDatum("Deep", sleep.session.stages.deep_minutes),
-                    ChartDatum("REM", sleep.session.stages.rem_minutes),
-                    ChartDatum("Unspecified", sleep.session.stages.unspecified_minutes),
-                ),
-                "minutes",
-            )
-        ]
+        stages_chart = pie_chart(
+            "Sleep stages",
+            (
+                ChartDatum("Core", sleep.session.stages.core_minutes),
+                ChartDatum("Deep", sleep.session.stages.deep_minutes),
+                ChartDatum("REM", sleep.session.stages.rem_minutes),
+                ChartDatum("Unspecified", sleep.session.stages.unspecified_minutes),
+            ),
+            "minutes",
+        )
         if sleep.score is not None:
-            charts.extend(
+            score_chart = bar_chart(
+                "Sleep Score components",
                 (
-                    bar_chart(
-                        "Sleep Score components",
-                        (
-                            ChartDatum("Bedtime", sleep.score.bedtime),
-                            ChartDatum("Duration", sleep.score.duration),
-                            ChartDatum("Wake-up", sleep.score.wake_up),
-                        ),
-                        "points",
-                        maximum=100,
-                    ),
-                    self._chart_kpis((("Total score", sleep.score.total, None),)),
-                )
+                    ChartDatum("Bedtime", sleep.score.bedtime),
+                    ChartDatum("Duration", sleep.score.duration),
+                    ChartDatum("Wake-up", sleep.score.wake_up),
+                ),
+                "points",
+                maximum=100,
             )
-        return f'{fields}{self._chart_grid(*charts, modifier="viewer-chart-grid--daily")}'
+            score_content = (
+                '<section class="viewer-daily-sleep-score-chart">'
+                f'{score_chart}{self._chart_kpis((("Total score", sleep.score.total, None),))}'
+                "</section>"
+            )
+        else:
+            score_content = ""
+        charts = (
+            '<div class="viewer-chart-grid viewer-chart-grid--daily viewer-daily-sleep-charts">'
+            f"{stages_chart}{score_content}</div>"
+        )
+        return f"{fields}{charts}"
 
-    def _daily_nutrition(self, day: DailyReport) -> str:
+    def _daily_nutrition(self, day: DailyReport, *, modifier: str = "") -> str:
         nutrition = day.nutrition
         fields = self._daily_fields(
             "Nutrition",
@@ -881,6 +900,7 @@ class HtmlRenderer:
                 ("Fat", "fat_g", "g"),
                 ("Calories", "calories_kcal", "kcal"),
             ),
+            modifier=modifier,
         )
         return fields
 
@@ -906,31 +926,39 @@ class HtmlRenderer:
         )
 
     def _daily_fields(
-        self, title: str, source: Any, fields: tuple[tuple[str, str, str | None], ...]
+        self,
+        title: str,
+        source: Any,
+        fields: tuple[tuple[str, str, str | None], ...],
+        *,
+        modifier: str = "",
     ) -> str:
         if source is None:
-            return self._daily_unavailable(title)
+            return self._daily_unavailable(title, modifier=modifier)
         values = "".join(
             self._daily_metric(label, getattr(source, field), unit) for label, field, unit in fields
         )
         return (
-            '<section class="viewer-daily-section">'
+            f'<section class="viewer-daily-section {escape(modifier)}">'
             f"<h4>{escape(title)}</h4>"
             f'<dl class="viewer-metric-grid viewer-daily-metric-grid">{values}</dl></section>'
         )
 
-    def _daily_value(self, title: str, value: Any, unit: str | None = None) -> str:
+    def _daily_value(
+        self, title: str, value: Any, unit: str | None = None, *, modifier: str = ""
+    ) -> str:
         return (
-            '<section class="viewer-daily-section">'
+            f'<section class="viewer-daily-section {escape(modifier)}">'
             f"<h4>{escape(title)}</h4>"
             '<dl class="viewer-metric-grid viewer-daily-metric-grid">'
             f"{self._daily_metric('Daily balance', value, unit)}</dl></section>"
         )
 
     @staticmethod
-    def _daily_unavailable(title: str) -> str:
+    def _daily_unavailable(title: str, *, modifier: str = "") -> str:
         return (
-            '<section class="viewer-daily-section viewer-daily-section--unavailable">'
+            '<section class="viewer-daily-section viewer-daily-section--unavailable '
+            f'{escape(modifier)}">'
             f"<h4>{escape(title)}</h4>"
             '<p class="viewer-unavailable unavailable">Unavailable</p></section>'
         )

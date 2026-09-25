@@ -160,7 +160,9 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
     maximum_value = max((abs(value) for _, value in plotted if value is not None), default=0.0)
     ticks = _symmetric_ticks(maximum_value)
     maximum = max(abs(ticks[0]), abs(ticks[-1]))
-    x_positions = _x_positions(len(plotted), 32.0, 288.0)
+    left, right = 32.0, 288.0
+    x_positions = _x_positions(len(plotted), left, right)
+    bar_width = min(12.0, max(3.0, (right - left) / max(len(plotted), 1) * 0.58))
     top, bottom = 34.0, 186.0
     center = (top + bottom) / 2
     bars = []
@@ -172,11 +174,12 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
         bars.append(
             '<rect class="viewer-chart-diverging-bar '
             f'viewer-chart-diverging-bar--{"positive" if value >= 0 else "negative"}" '
-            f'x="{x - 6:.2f}" y="{y:.2f}" width="12" height="{height:.2f}">'
+            f'x="{x - bar_width / 2:.2f}" y="{y:.2f}" width="{bar_width:.2f}" '
+            f'height="{height:.2f}">'
             f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title></rect>"
         )
     labels = _x_labels([item.label for item, _ in plotted], x_positions, y=232.0)
-    grid = _horizontal_axis(ticks, -maximum, maximum, top, bottom, 32.0, 288.0)
+    grid = _horizontal_axis(ticks, -maximum, maximum, top, bottom, left, right)
     description = f"{title}; zero baseline separates deficit and surplus."
     return _figure(
         title,
@@ -184,9 +187,9 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
         description,
         '<svg class="viewer-chart-svg" role="img" viewBox="0 0 320 244">'
         f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        f'<text class="viewer-chart-unit-label" x="32" y="20">{escape(unit)}</text>'
-        f'{grid}<line class="viewer-chart-zero-line" x1="32" y1="{center:.2f}" '
-        f'x2="288" y2="{center:.2f}"></line>{"".join(bars)}{labels}</svg>',
+        f'<text class="viewer-chart-unit-label" x="{left}" y="20">{escape(unit)}</text>'
+        f'{grid}<line class="viewer-chart-zero-line" x1="{left}" y1="{center:.2f}" '
+        f'x2="{right}" y2="{center:.2f}"></line>{"".join(bars)}{labels}</svg>',
     )
 
 

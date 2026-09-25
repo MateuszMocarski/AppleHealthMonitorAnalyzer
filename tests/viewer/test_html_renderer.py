@@ -230,7 +230,7 @@ def test_html_renderer_uses_semantic_metric_lists_and_associates_activity_covera
     html = HtmlRenderer().render(report)
 
     assert '<div class="viewer-metric-grid">' not in html
-    assert html.count('<dl class="viewer-metric-grid">') >= 10
+    assert html.count('<dl class="viewer-metric-grid') >= 10
     assert '<dl class="viewer-metric-grid"><div class="viewer-metric"><dt>Total steps</dt>' in html
 
     total_steps = html.split("<dt>Total steps</dt>", 1)[1].split("</div>", 1)[0]
@@ -284,7 +284,7 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert 'class="viewer-chart-line" fill="none"' in html
     assert 'class="viewer-chart-area"' not in html
     assert 'class="viewer-chart viewer-chart--line"' in html
-    assert 'class="viewer-chart-grid viewer-chart-grid--daily"' in html
+    assert 'class="viewer-chart-grid viewer-chart-grid--daily viewer-daily-sleep-charts"' in html
     assert "1,900" in html
     assert "150" in html
     assert "2,000" in html
@@ -324,6 +324,51 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "Monthly score" not in monthly_score_chart
     assert "Average bonus" not in monthly_score_chart
     assert "Total score" not in daily_score_chart
+
+
+def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
+
+    html = HtmlRenderer().render(report)
+
+    assert '<div class="viewer-sleep-chart-layout">' in html
+    monthly_score_group = html.split('<section class="viewer-sleep-score-chart">', 1)[1].split(
+        "</section>", 1
+    )[0]
+    daily_score_group = html.split('<section class="viewer-daily-sleep-score-chart">', 1)[1].split(
+        "</section>", 1
+    )[0]
+    monthly_metrics = html.split("<h3>Sleep score</h3>", 1)[1].split("</section>", 1)[0]
+
+    assert "Average Sleep Score components" in monthly_score_group
+    assert "Monthly score" in monthly_score_group
+    assert "Maximum monthly score" in monthly_score_group
+    assert "Average bonus" in monthly_score_group
+    assert "Consistency bonus" in monthly_score_group
+    assert "Monthly score" not in monthly_metrics
+    assert "Sleep Score components" in daily_score_group
+    assert "Total score" in daily_score_group
+
+
+def test_html_renderer_uses_wide_weight_chart_and_compact_daily_secondary_grid() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
+
+    html = HtmlRenderer().render(report)
+
+    weight_section = html.split('viewer-monthly-section--body-weight">', 1)[1].split(
+        "</section>", 1
+    )[0]
+    secondary_summary = html.split('<div class="viewer-daily-secondary-summary">', 1)[1].split(
+        "</div></div></article>", 1
+    )[0]
+
+    assert 'class="viewer-chart-grid viewer-chart-grid--wide"' in weight_section
+    assert "Body weight by day" in weight_section
+    assert 'class="viewer-metric-grid viewer-metric-grid--three"' in html
+    assert secondary_summary.count("viewer-daily-section--secondary") == 4
+    for heading in ("Body weight", "Energy expenditure", "Nutrition", "Calorie balance"):
+        assert f"<h4>{heading}</h4>" in secondary_summary
+    assert "Daily macros" not in secondary_summary
 
 
 def test_full_activity_renders_separate_steps_and_distance_series() -> None:

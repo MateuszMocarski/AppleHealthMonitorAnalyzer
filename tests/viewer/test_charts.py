@@ -1,3 +1,5 @@
+import re
+
 from connected_health.viewer.charts import (
     ChartDatum,
     bar_chart,
@@ -126,6 +128,20 @@ def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
     assert ">0</text>" in html
     assert "NaN" not in html
     assert "Infinity" not in html
+
+
+def test_dense_diverging_bar_chart_uses_thinner_bars_without_dropping_days() -> None:
+    html = diverging_bar_chart(
+        "Daily calorie balance",
+        tuple(ChartDatum(f"Aug {day}", float(day if day % 2 else -day)) for day in range(1, 32)),
+        "kcal",
+    )
+
+    widths = re.findall(r'width="([0-9.]+)" height="', html)
+
+    assert len(widths) == 31
+    assert all(float(width) < 12 for width in widths)
+    assert html.count('class="viewer-chart-diverging-bar ') == 31
 
 
 def test_long_daily_axes_thin_labels_without_dropping_plotted_values() -> None:
