@@ -6777,6 +6777,91 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
 
 
 # =====================================================================
+# Verifies that the browser only navigates already-rendered Full-report day
+# articles. It neither fetches day data nor derives health values.
+# =====================================================================
+
+
+def test_web_interface_initializes_server_rendered_daily_navigation_without_fetches() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    navigation_function = html.split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+    module_function = html.split(
+        "function setActiveModule(moduleName)",
+        1,
+    )[1].split(
+        "function clearViewerState()",
+        1,
+    )[0]
+    clear_function = html.split(
+        "function clearViewerState()",
+        1,
+    )[1].split(
+        "function enableViewer()",
+        1,
+    )[0]
+    reset_function = html.split(
+        "function resetViewerReportState(",
+        1,
+    )[1].split(
+        "function applyViewerDefaultSelection()",
+        1,
+    )[0]
+    viewer_styles = html.split(
+        ".viewer-report {",
+        1,
+    )[1].split(
+        ".google-recovery {",
+        1,
+    )[0]
+
+    assert "initializeViewerDailyNavigation();" in report_render_function
+    assert "[data-viewer-daily='true']" in navigation_function
+    assert 'querySelectorAll("[data-viewer-day]")' in navigation_function
+    assert "days.findIndex" in navigation_function
+    assert "days.length - 1" in navigation_function
+    assert "day.hidden = dayIndex !== index;" in navigation_function
+    assert "previousButton.disabled = index === 0;" in navigation_function
+    assert "nextButton.disabled = index === days.length - 1;" in navigation_function
+    assert "showDay(currentIndex - 1);" in navigation_function
+    assert "showDay(currentIndex + 1);" in navigation_function
+    assert "selectedDay.dataset.viewerDay" in navigation_function
+    assert "fetch(" not in navigation_function
+    assert "JSON.parse" not in navigation_function
+    assert "average_daily_steps" not in navigation_function
+    assert "calories_balance" not in navigation_function
+    assert "renderViewerReportState" not in module_function
+    assert "resetViewerReportState(true);" in clear_function
+    assert "renderViewerReportState();" in reset_function
+    assert "viewerReportContent.replaceChildren();" in report_render_function
+
+    for css_hook in (
+        ".viewer-daily-view",
+        ".viewer-daily-navigation",
+        ".viewer-daily-dashboard",
+        ".viewer-daily-section",
+        ".viewer-daily-workout-card",
+    ):
+        assert css_hook in viewer_styles
+
+
+# =====================================================================
 # Verifies that local, anonymous and reconnect-required transitions clear the
 # in-memory Viewer state and return the user to Generate.
 # =====================================================================

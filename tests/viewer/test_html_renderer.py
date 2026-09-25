@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 from connected_health.enums import WorkoutType
@@ -162,6 +163,13 @@ def _rich_summary() -> MonthlySummary:
     return summary
 
 
+def _multi_day_full_summary() -> MonthlySummary:
+    summary = _detailed_full_summary()
+    summary.reporting_days = 2
+    summary.days.append(replace(summary.days[0], date=date(2026, 8, 2)))
+    return summary
+
+
 def test_html_renderer_renders_validated_summary_without_daily_content() -> None:
     report = parse_persisted_report(JsonRenderer().render_month_summary(_rich_summary()))
 
@@ -173,7 +181,11 @@ def test_html_renderer_renders_validated_summary_without_daily_content() -> None
     assert "Summary report" in html
     assert "Reporting days" in html
     assert "Data through" in html
-    assert "Daily details" not in html
+    assert "Daily details are not available in Summary reports." in html
+    assert 'data-viewer-daily="true"' not in html
+    assert "data-viewer-day=" not in html
+    assert "Previous day" not in html
+    assert "Next day" not in html
     assert "General activity" in html
     assert "Total steps" in html
     assert "8,421" in html
@@ -231,9 +243,20 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
 
     assert 'data-report-kind="full"' in html
     assert 'data-viewer-daily="true"' in html
+    assert 'class="viewer-daily-navigation"' in html
+    assert 'data-viewer-day="2026-08-01"' in html
+    assert '<time data-viewer-day-label datetime="2026-08-01">August 1, 2026</time>' in html
+    assert '<button type="button" data-viewer-day-previous disabled>Previous day</button>' in html
+    assert "Next day" in html
     assert "Full report" in html
+    assert "General activity" in html
     assert "Average daily steps" in html
     assert "Sleep score" in html
+    assert "Bedtime score" in html
+    assert "Duration score" in html
+    assert "Wake-up score" in html
+    assert "Total score" in html
+    assert "Workouts" in html
     assert "2026-08-01" in html
     assert "1,234" in html
     assert "1.5" in html
@@ -243,8 +266,44 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "1,900" in html
     assert "150" in html
     assert "2,000" in html
-    assert "walking" in html
-    assert "<h4>Calories balance</h4><p>-500</p>" in html
+    assert "Walking" in html
+    assert "<h4>Calorie balance</h4>" in html
+    assert "Sleep session" in html
+    assert "Sleep stages" in html
+    assert "Sleep score" in html
+    assert "Body weight" in html
+    assert "Energy expenditure" in html
+    assert "Nutrition" in html
+
+
+def test_html_renderer_orders_daily_articles_and_selects_the_latest_day() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_multi_day_full_summary()))
+
+    html = HtmlRenderer().render(report)
+
+    first_day = html.index('data-viewer-day="2026-08-01"')
+    latest_day = html.index('data-viewer-day="2026-08-02"')
+
+    assert first_day < latest_day
+    assert 'data-viewer-day="2026-08-01" data-viewer-day-label="August 1, 2026" hidden' in html
+    assert 'data-viewer-day="2026-08-02" data-viewer-day-label="August 2, 2026">' in html
+    assert '<time data-viewer-current-day datetime="2026-08-02">August 2, 2026</time>' in html
+    assert '<button type="button" data-viewer-day-previous>Previous day</button>' in html
+    assert '<button type="button" data-viewer-day-next disabled>Next day</button>' in html
+
+
+def test_html_renderer_renders_a_controlled_empty_daily_state_for_full_reports() -> None:
+    summary = _summary()
+    summary.days = []
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+
+    assert 'data-viewer-daily="true"' in html
+    assert "No daily details are available for this Full report." in html
+    assert "data-viewer-day=" not in html
+    assert "Previous day" not in html
+    assert "Next day" not in html
 
 
 def test_html_renderer_renders_missing_daily_values_as_unavailable_without_model_repr() -> None:
@@ -252,7 +311,7 @@ def test_html_renderer_renders_missing_daily_values_as_unavailable_without_model
 
     html = HtmlRenderer().render(report)
 
-    assert 'class="unavailable">Unavailable' in html
+    assert 'class="viewer-unavailable unavailable">Unavailable' in html
     assert "None" not in html
     assert "DailyGeneralActivity(" not in html
     assert "DailySleep(" not in html
@@ -273,11 +332,11 @@ def test_html_renderer_renders_missing_nested_daily_values_as_unavailable() -> N
     html = HtmlRenderer().render(report)
 
     assert (
-        '<dt>active kcal</dt><dd><span class="viewer-unavailable unavailable">Unavailable</span>'
+        '<dt>Active energy</dt><dd><span class="viewer-unavailable unavailable">Unavailable</span>'
         in html
     )
     assert (
-        "<dt>carbohydrates g</dt><dd>"
+        "<dt>Carbohydrates</dt><dd>"
         '<span class="viewer-unavailable unavailable">Unavailable</span>' in html
     )
     assert "None" not in html
@@ -303,3 +362,16 @@ def test_html_renderer_preserves_zero_values_and_provider_neutrality() -> None:
     assert "<dt>Total steps</dt><dd>0</dd>" in html
     assert "Apple" not in html
     assert "apple" not in HtmlRenderer.__doc__.lower()
+
+
+def test_html_renderer_preserves_daily_zero_values_and_escapes_daily_strings() -> None:
+    summary = _detailed_full_summary()
+    summary.days[0].total_steps = 0
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+    report.days[0].workouts[0].type = '<img src=x onerror="alert(1)">'
+
+    html = HtmlRenderer().render(report)
+
+    assert "<dt>Steps</dt><dd>0</dd>" in html
+    assert "<img" not in html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in html

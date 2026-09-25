@@ -649,6 +649,147 @@
             margin-top: 20px;
         }
 
+        .viewer-daily-view,
+        .viewer-daily-summary-notice {
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .viewer-daily-header,
+        .viewer-day-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+
+        .viewer-daily-header h2,
+        .viewer-daily-summary-notice h2,
+        .viewer-day-header h3,
+        .viewer-daily-section h4,
+        .viewer-daily-workout-card h5 {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .viewer-daily-header h2,
+        .viewer-daily-summary-notice h2 {
+            font-size: 16px;
+        }
+
+        .viewer-daily-navigation {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .viewer-daily-navigation button {
+            padding: 7px 10px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 12px;
+            font-weight: 650;
+
+            cursor: pointer;
+        }
+
+        .viewer-daily-navigation button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .viewer-daily-current-day {
+            min-width: 138px;
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+            text-align: center;
+        }
+
+        .viewer-day {
+            margin-top: 18px;
+            padding-top: 18px;
+
+            border-top: 1px solid var(--border);
+        }
+
+        .viewer-day-header h3 {
+            font-size: 15px;
+        }
+
+        .viewer-daily-dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 14px;
+        }
+
+        .viewer-daily-section {
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .viewer-daily-section h4 {
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .viewer-daily-section--workouts {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-daily-section--unavailable {
+            border-style: dashed;
+        }
+
+        .viewer-daily-metric-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .viewer-daily-workout-list {
+            display: grid;
+            gap: 10px;
+            margin: 0;
+            padding: 0;
+
+            list-style: none;
+        }
+
+        .viewer-daily-workout-card {
+            padding: 12px;
+
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .viewer-daily-workout-card h5 {
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .viewer-daily-summary-notice {
+            margin-top: 20px;
+        }
+
+        .viewer-daily-summary-notice p {
+            margin: 10px 0 0;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
         .viewer-index-status {
             margin: 0;
             color: var(--text-secondary);
@@ -1969,6 +2110,23 @@
 
             .viewer-monthly-section--sleep,
             .viewer-monthly-section--workouts {
+                grid-column: auto;
+            }
+
+            .viewer-daily-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .viewer-daily-navigation {
+                justify-content: space-between;
+            }
+
+            .viewer-daily-dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .viewer-daily-section--workouts {
                 grid-column: auto;
             }
         }
@@ -3361,6 +3519,7 @@
             if (viewerState.reportHtml !== null) {
                 viewerReportStatus.hidden = true;
                 viewerReportContent.innerHTML = viewerState.reportHtml;
+                initializeViewerDailyNavigation();
                 return;
             }
 
@@ -3369,6 +3528,77 @@
             viewerReportStatus.textContent =
                 viewerState.reportNotice
                 ?? "Select a saved report to view it.";
+        }
+
+        function initializeViewerDailyNavigation() {
+            const dailyView = viewerReportContent.querySelector(
+                "[data-viewer-daily='true']",
+            );
+
+            if (dailyView === null) {
+                return;
+            }
+
+            const days = Array.from(
+                dailyView.querySelectorAll("[data-viewer-day]"),
+            );
+
+            if (days.length === 0) {
+                return;
+            }
+
+            const previousButton = dailyView.querySelector(
+                "[data-viewer-day-previous]",
+            );
+            const nextButton = dailyView.querySelector(
+                "[data-viewer-day-next]",
+            );
+            const currentDay = dailyView.querySelector(
+                "[data-viewer-current-day]",
+            );
+
+            if (
+                previousButton === null
+                || nextButton === null
+                || currentDay === null
+            ) {
+                return;
+            }
+
+            let currentIndex = days.findIndex(
+                (day) => !day.hidden,
+            );
+
+            if (currentIndex === -1) {
+                currentIndex = days.length - 1;
+            }
+
+            function showDay(index) {
+                days.forEach((day, dayIndex) => {
+                    day.hidden = dayIndex !== index;
+                });
+
+                const selectedDay = days[index];
+
+                currentDay.dateTime = selectedDay.dataset.viewerDay;
+                currentDay.textContent =
+                    selectedDay.dataset.viewerDayLabel;
+                previousButton.disabled = index === 0;
+                nextButton.disabled = index === days.length - 1;
+                currentIndex = index;
+            }
+
+            previousButton.addEventListener("click", () => {
+                if (currentIndex > 0) {
+                    showDay(currentIndex - 1);
+                }
+            });
+            nextButton.addEventListener("click", () => {
+                if (currentIndex < days.length - 1) {
+                    showDay(currentIndex + 1);
+                }
+            });
+            showDay(currentIndex);
         }
 
         function closeViewerSelector() {
