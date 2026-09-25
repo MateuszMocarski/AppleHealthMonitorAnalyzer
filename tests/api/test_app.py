@@ -34,8 +34,10 @@ from connected_health.config.exceptions import ConfigurationError
 from connected_health.google.config_profiles import ConfigProfile
 from connected_health.google.drive import (
     DriveAccessError,
+    DriveConflictError,
     DriveDownloadTooLargeError,
     DriveFileMetadata,
+    DriveNotFoundError,
     DriveTransientError,
 )
 from connected_health.google.drive_structure import ViewerReportArtifact
@@ -50,6 +52,8 @@ from connected_health.providers.apple.errors import (
     HealthDataParseError,
     InvalidArchiveError,
 )
+from connected_health.viewer.report_contract import parse_persisted_report
+from connected_health.viewer.report_loader import ViewerReportLoadError
 
 client = TestClient(app)
 
@@ -277,6 +281,133 @@ def test_viewer_report_index_uses_google_reconnect_recovery_for_drive_access_fai
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Google reconnect is required."}
+
+
+def _connected_google_session() -> tuple[SessionStore, str]:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+    return sessions, session_id
+
+
+def test_open_viewer_report_verifies_file_id_before_loading_body(
+    monkeypatch,
+) -> None:
+    selected = ViewerReportArtifact(
+        file_id="selected-file-id",
+        period="2026-08",
+        kind="summary",
+        generation_id="generation-123",
+        generated_at="2026-09-12T18:00:00Z",
+    )
+    load_calls = []
+
+    class FakeDriveClient:
+        def __init__(self, access_token: str) -> None:
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(api_app_module, "HttpGoogleDriveClient", FakeDriveClient)
+    monkeypatch.setattr(api_app_module, "discover_viewer_report_index", lambda _client: (selected,))
+    monkeypatch.setattr(
+        api_app_module,
+        "load_viewer_report",
+        lambda _client, *, artifact: load_calls.append(artifact.file_id) or "validated-report",
+    )
+
+    session = SimpleNamespace(google_access_token="access-token")
+    artifact, report = api_app_module.open_viewer_report_for_session(
+        session,
+        file_id="selected-file-id",
+    )
+
+    assert artifact == selected
+    assert report == "validated-report"
+    assert load_calls == ["selected-file-id"]
+
+    with pytest.raises(api_app_module.ViewerReportArtifactUnavailableError):
+        api_app_module.open_viewer_report_for_session(session, file_id="arbitrary-file-id")
+
+    assert load_calls == ["selected-file-id"]
+
+
+def test_open_viewer_report_endpoint_returns_validated_html_and_disables_caching(
+    monkeypatch,
+) -> None:
+    sessions, session_id = _connected_google_session()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+    artifact = ViewerReportArtifact(
+        file_id="selected-file-id",
+        period="2026-08",
+        kind="summary",
+        generation_id="generation-123",
+        generated_at="2026-09-12T18:00:00Z",
+    )
+    report = parse_persisted_report(
+        '{"schema_version":"1.0","report":{"type":"monthly","year":2026,'
+        '"month":8,"reporting_days":0,"data_through":null},'
+        '"general_activity":null,"sleep":null,"workouts":[],"body_weight":null,'
+        '"energy_expenditure":null,"nutrition":null,"calories_balance":'
+        '{"average_calories_balance_kcal":null,"total_calories_balance_kcal":null,'
+        '"calories_balance_count_days":null}}'
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "open_viewer_report_for_session",
+        lambda _session, *, file_id: (artifact, report),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+    response = auth_client.get("/viewer/reports/selected-file-id")
+
+    assert response.status_code == 200
+    assert response.json()["artifact"]["file_id"] == "selected-file-id"
+    assert "Monthly report: 2026-08" in response.json()["html"]
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "detail"),
+    [
+        (DriveAccessError("access denied"), 401, "Google reconnect is required."),
+        (DriveTransientError("temporary failure"), 502, "Google Drive is temporarily unavailable."),
+        (DriveConflictError("conflict"), 409, "Managed Viewer reports are conflicted."),
+        (DriveNotFoundError("missing"), 404, "Selected Viewer report is unavailable."),
+        (DriveDownloadTooLargeError("too large"), 413, "Selected Viewer report is too large."),
+        (ViewerReportLoadError("invalid"), 422, "Selected Viewer report is invalid."),
+    ],
+)
+def test_open_viewer_report_endpoint_maps_controlled_load_errors(
+    monkeypatch,
+    error: Exception,
+    status_code: int,
+    detail: str,
+) -> None:
+    sessions, session_id = _connected_google_session()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    def fail_open(_session, *, file_id: str):
+        assert file_id == "selected-file-id"
+        raise error
+
+    monkeypatch.setattr(api_app_module, "open_viewer_report_for_session", fail_open)
+
+    recovery_client = TestClient(app, raise_server_exceptions=False)
+    recovery_client.cookies.set("ahm_session", session_id)
+    response = recovery_client.get("/viewer/reports/selected-file-id")
+
+    assert response.status_code == status_code
+    assert response.json() == {"detail": detail}
 
 
 # =====================================================================

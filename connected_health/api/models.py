@@ -29,3 +29,8 @@ class ViewerReportArtifactResponse(BaseModel):
 
 class ViewerReportIndexResponse(BaseModel):
     artifacts: list[ViewerReportArtifactResponse]
+
+
+class ViewerReportOpenResponse(BaseModel):
+    artifact: ViewerReportArtifactResponse
+    html: str

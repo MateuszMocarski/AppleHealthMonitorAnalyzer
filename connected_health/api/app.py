@@ -18,6 +18,7 @@ from connected_health.api.models import (
     MonthlyReportResponse,
     MultiMonthReportResponse,
     ViewerReportIndexResponse,
+    ViewerReportOpenResponse,
 )
 from connected_health.application.application import AppleHealthApplication
 from connected_health.application.multi_month_run_options import MultiMonthRunOptions
@@ -72,6 +73,11 @@ from connected_health.providers.apple.errors import (
     MultipleExportXmlError,
 )
 from connected_health.providers.contract import HealthDataProviderError
+from connected_health.viewer.html_renderer import HtmlRenderer
+from connected_health.viewer.report_loader import (
+    ViewerReportLoadError,
+    load_viewer_report,
+)
 
 MAX_UPLOAD_SIZE = 1024 * 1024 * 1024  # 1 GB
 MAX_CONFIG_UPLOAD_SIZE = 1024 * 1024  # 1 MB
@@ -108,7 +114,7 @@ async def add_browser_security_headers(
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
 
-    if request.url.path in _NO_STORE_PATHS:
+    if request.url.path in _NO_STORE_PATHS or request.url.path.startswith("/viewer/reports/"):
         response.headers["Cache-Control"] = "no-store"
 
     return response
@@ -252,6 +258,38 @@ def discover_viewer_report_index_for_session(
 
     return discover_viewer_report_index(
         drive_client,
+    )
+
+
+class ViewerReportArtifactUnavailableError(ValueError):
+    """Raised when a requested report is no longer an active Viewer artifact."""
+
+
+def open_viewer_report_for_session(
+    session,
+    *,
+    file_id: str,
+):
+    assert session.google_access_token is not None
+
+    drive_client = HttpGoogleDriveClient(
+        session.google_access_token,
+    )
+    artifact = next(
+        (
+            candidate
+            for candidate in discover_viewer_report_index(drive_client)
+            if candidate.file_id == file_id
+        ),
+        None,
+    )
+
+    if artifact is None:
+        raise ViewerReportArtifactUnavailableError("Viewer report is unavailable.")
+
+    return artifact, load_viewer_report(
+        drive_client,
+        artifact=artifact,
     )
 
 
@@ -655,6 +693,77 @@ def get_viewer_report_index(
             }
             for artifact in discover_viewer_report_index_for_session(session)
         ]
+    )
+
+
+@app.get("/viewer/reports/{file_id}")
+def open_viewer_report(
+    file_id: str,
+    ahm_session: str | None = Cookie(default=None),
+) -> ViewerReportOpenResponse:
+    if ahm_session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    if not session_store.is_google_mode_ready(
+        ahm_session,
+        frozenset(GoogleOAuthService.SCOPES),
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        )
+
+    try:
+        artifact, report = open_viewer_report_for_session(
+            session,
+            file_id=file_id,
+        )
+    except ViewerReportArtifactUnavailableError as error:
+        raise HTTPException(
+            status_code=404,
+            detail="Selected Viewer report is unavailable.",
+        ) from error
+    except DriveNotFoundError as error:
+        raise HTTPException(
+            status_code=404,
+            detail="Selected Viewer report is unavailable.",
+        ) from error
+    except DriveConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Managed Viewer reports are conflicted.",
+        ) from error
+    except DriveDownloadTooLargeError as error:
+        raise HTTPException(
+            status_code=413,
+            detail="Selected Viewer report is too large.",
+        ) from error
+    except ViewerReportLoadError as error:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected Viewer report is invalid.",
+        ) from error
+
+    return ViewerReportOpenResponse(
+        artifact={
+            "file_id": artifact.file_id,
+            "period": artifact.period,
+            "kind": artifact.kind,
+            "generation_id": artifact.generation_id,
+            "generated_at": artifact.generated_at,
+        },
+        html=HtmlRenderer().render(report),
     )
 
 
