@@ -6407,7 +6407,6 @@ def test_web_interface_keeps_viewer_index_metadata_only_and_failure_local() -> N
     assert "No saved JSON reports are available." in html
     assert "Saved report discovery is temporarily unavailable." in html
     assert "viewerState.artifacts = payload.artifacts;" in html
-    assert "Saved report index loaded" in html
     assert 'id="viewer-index-status"' in html
     assert 'id="output-viewer' not in html
     assert 'id="viewer-report-picker"' not in html
@@ -6501,6 +6500,236 @@ def test_web_interface_shows_empty_viewer_state_only_after_current_index_load() 
     assert load_function.index("viewerState.indexLoaded = true;") < load_function.index(
         "viewerState.indexLoading = false;", -200
     )
+
+
+# =====================================================================
+# Verifies that the connected Viewer builds a compact selector from the
+# discovered metadata with human-facing labels only.
+# =====================================================================
+
+
+def test_web_interface_builds_safe_grouped_viewer_report_selector() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    selector_function = html.split(
+        "function renderViewerSelector()",
+        1,
+    )[1].split(
+        "function renderViewerReportState()",
+        1,
+    )[0]
+
+    assert 'id="viewer-selector"' in html
+    assert 'id="viewer-selector-toggle"' in html
+    assert 'id="viewer-selector-menu"' in html
+    assert 'aria-expanded="false"' in html
+    assert "viewerState.artifacts.forEach" in selector_function
+    assert "formatViewerPeriod(artifact.period)" in selector_function
+    assert '"Full report"' in selector_function
+    assert '"Summary report"' in selector_function
+    assert "document.createElement" in selector_function
+    assert ".textContent" in selector_function
+    assert ".innerHTML" not in selector_function
+    assert "generation_id" not in selector_function
+    assert "generated_at" not in selector_function
+
+
+# =====================================================================
+# Verifies that backend discovery order is preserved for selector grouping,
+# so newest periods and Full-before-Summary remain authoritative.
+# =====================================================================
+
+
+def test_web_interface_preserves_backend_viewer_artifact_order_for_selector() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    selector_function = html.split(
+        "function renderViewerSelector()",
+        1,
+    )[1].split(
+        "function renderViewerReportState()",
+        1,
+    )[0]
+
+    assert "viewerState.artifacts.forEach" in selector_function
+    assert ".sort(" not in selector_function
+    assert "previousYear" in selector_function
+    assert "previousPeriod" in selector_function
+    assert 'artifact.kind === "full"' in selector_function
+
+
+# =====================================================================
+# Verifies that opening Viewer, rather than login/index discovery, performs
+# the one default lazy body load for the first Full artifact in backend order.
+# =====================================================================
+
+
+def test_web_interface_defaults_to_newest_full_only_after_viewer_is_opened() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    default_function = html.split(
+        "function applyViewerDefaultSelection()",
+        1,
+    )[1].split(
+        "function viewerReportErrorMessage",
+        1,
+    )[0]
+    module_function = html.split(
+        "function setActiveModule(moduleName)",
+        1,
+    )[1].split(
+        "function clearViewerState()",
+        1,
+    )[0]
+    google_state_function = html.split(
+        "async function loadGoogleConnectionState()",
+        1,
+    )[1].split(
+        "async function loadConfigProfileState()",
+        1,
+    )[0]
+
+    assert 'viewerState.activeModule !== "viewer"' in default_function
+    assert "viewerState.defaultSelectionAttempted" in default_function
+    assert 'artifact.kind === "full"' in default_function
+    assert "selectViewerArtifact(defaultArtifact);" in default_function
+    assert "No Full report available for default viewing." in default_function
+    assert 'moduleName === "viewer"' in module_function
+    assert "applyViewerDefaultSelection();" in module_function
+    assert "selectViewerArtifact(" not in google_state_function
+    assert 'fetch("/viewer/reports/' not in google_state_function
+
+
+# =====================================================================
+# Verifies that one manual Full or Summary selection uses its file identifier,
+# consumes backend-rendered HTML, and leaves no client-side report rebuilding.
+# =====================================================================
+
+
+def test_web_interface_opens_selected_viewer_report_at_the_server_rendering_boundary() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+
+    assert "closeViewerSelector();" in selection_function
+    assert "viewerState.selectedArtifact = artifact;" in selection_function
+    assert "viewerState.reportLoading = true;" in selection_function
+    assert "encodeURIComponent(artifact.file_id)" in selection_function
+    assert "payload.artifact?.file_id !== artifact.file_id" in selection_function
+    assert "viewerState.selectedArtifact = payload.artifact;" in selection_function
+    assert "viewerState.reportHtml = payload.html;" in selection_function
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in report_render_function
+    assert "JSON.parse" not in selection_function
+    assert "model_dump" not in selection_function
+
+
+# =====================================================================
+# Verifies that report-body loads have their own generation and cannot surface
+# stale content or recovery after selection, index refresh, or Viewer clear.
+# =====================================================================
+
+
+def test_web_interface_invalidates_stale_viewer_report_body_loads() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    reset_function = html.split(
+        "function resetViewerReportState(",
+        1,
+    )[1].split(
+        "function applyViewerDefaultSelection()",
+        1,
+    )[0]
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "let viewerReportRequestGeneration = 0;" in html
+    assert "viewerReportRequestGeneration += 1;" in reset_function
+    assert "const requestGeneration =" in selection_function
+    assert "viewerReportRequestGeneration = requestGeneration;" in selection_function
+    assert selection_function.count("!== viewerReportRequestGeneration") == 4
+    assert selection_function.rindex(
+        "!== viewerReportRequestGeneration"
+    ) < selection_function.index("viewerState.reportHtml = payload.html;")
+    assert selection_function.index("!== viewerReportRequestGeneration") < selection_function.index(
+        "showReconnectRecovery();"
+    )
+    assert "resetViewerReportState(true);" in index_load_function
+
+
+# =====================================================================
+# Verifies that report-open failures stay controlled and local, with only a
+# current 401 following the established reconnect-and-clear behavior.
+# =====================================================================
+
+
+def test_web_interface_exposes_controlled_viewer_report_open_errors() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    error_function = html.split(
+        "function viewerReportErrorMessage(statusCode)",
+        1,
+    )[1].split(
+        "async function selectViewerArtifact",
+        1,
+    )[0]
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+
+    for status_code in (404, 409, 413, 422, 502):
+        assert f"{status_code}:" in error_function
+
+    assert "response.status === 401" in selection_function
+    assert "showReconnectRecovery();" in selection_function
+    assert "viewerReportErrorMessage(response.status)" in selection_function
+    assert "response.json" not in selection_function.split("if (!response.ok)", 1)[0]
 
 
 # =====================================================================

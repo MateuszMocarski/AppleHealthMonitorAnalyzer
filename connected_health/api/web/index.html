@@ -334,6 +334,135 @@
             padding: 28px;
         }
 
+        .viewer-layout {
+            display: grid;
+            grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .viewer-selector {
+            position: relative;
+        }
+
+        .viewer-selector-label {
+            display: block;
+            margin-bottom: 7px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .viewer-selector-toggle {
+            width: 100%;
+            min-height: 46px;
+            padding: 10px 12px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .viewer-selector-toggle:hover,
+        .viewer-selector-toggle:focus-visible {
+            border-color: var(--accent);
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .viewer-selector-menu {
+            z-index: 1;
+            width: 100%;
+            max-height: 360px;
+            margin-top: 6px;
+            padding: 8px;
+            overflow-y: auto;
+
+            position: absolute;
+            left: 0;
+
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-small);
+            background: #12151c;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+        }
+
+        .viewer-selector-year {
+            margin: 10px 6px 5px;
+
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .viewer-selector-period {
+            margin: 0;
+            padding: 7px 6px;
+        }
+
+        .viewer-selector-period + .viewer-selector-period {
+            border-top: 1px solid var(--border);
+        }
+
+        .viewer-selector-period-title {
+            margin: 0 0 5px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .viewer-selector-option {
+            width: 100%;
+            min-height: 32px;
+            padding: 5px 7px;
+
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text);
+
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .viewer-selector-option:hover,
+        .viewer-selector-option:focus-visible,
+        .viewer-selector-option.selected {
+            background: var(--accent-soft);
+            outline: none;
+        }
+
+        .viewer-report-status {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .viewer-report-status.error {
+            color: var(--error);
+        }
+
+        .viewer-report-content {
+            min-width: 0;
+        }
+
         .viewer-index-status {
             margin: 0;
             color: var(--text-secondary);
@@ -1630,6 +1759,14 @@
             .config-defaults-button {
                 width: 100%;
             }
+
+            .viewer-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .viewer-selector-menu {
+                position: static;
+            }
         }
     </style>
 </head>
@@ -2508,6 +2645,52 @@
             >
                 Saved report discovery is unavailable until Google is connected.
             </p>
+
+            <div
+                class="viewer-layout"
+                id="viewer-layout"
+                hidden
+            >
+                <aside
+                    class="viewer-selector"
+                    id="viewer-selector"
+                    aria-label="Saved report selector"
+                >
+                    <span class="viewer-selector-label">Report</span>
+
+                    <button
+                        class="viewer-selector-toggle"
+                        id="viewer-selector-toggle"
+                        type="button"
+                        aria-expanded="false"
+                        aria-controls="viewer-selector-menu"
+                    >
+                        <span id="viewer-selector-current">Select a saved report</span>
+                        <span aria-hidden="true">▾</span>
+                    </button>
+
+                    <div
+                        class="viewer-selector-menu"
+                        id="viewer-selector-menu"
+                        hidden
+                    ></div>
+                </aside>
+
+                <section
+                    class="viewer-report-content"
+                    aria-label="Selected saved report"
+                >
+                    <p
+                        class="viewer-report-status"
+                        id="viewer-report-status"
+                        aria-live="polite"
+                    >
+                        Select a saved report to view it.
+                    </p>
+
+                    <div id="viewer-report-content"></div>
+                </section>
+            </div>
         </section>
     </main>
     <script src="https://apis.google.com/js/api.js"></script>
@@ -2554,13 +2737,37 @@
         const viewerIndexStatus =
             document.getElementById("viewer-index-status");
 
+        const viewerLayout =
+            document.getElementById("viewer-layout");
+
+        const viewerSelectorToggle =
+            document.getElementById("viewer-selector-toggle");
+
+        const viewerSelectorCurrent =
+            document.getElementById("viewer-selector-current");
+
+        const viewerSelectorMenu =
+            document.getElementById("viewer-selector-menu");
+
+        const viewerReportStatus =
+            document.getElementById("viewer-report-status");
+
+        const viewerReportContent =
+            document.getElementById("viewer-report-content");
+
         const viewerState = {
             activeModule: "generate",
             artifacts: [],
             available: false,
+            defaultSelectionAttempted: false,
             indexError: null,
             indexLoaded: false,
             indexLoading: false,
+            reportError: null,
+            reportHtml: null,
+            reportLoading: false,
+            reportNotice: null,
+            selectedArtifact: null,
         };
 
         const appleProviderButton =
@@ -2770,6 +2977,7 @@
         let lastGoogleRetryAction = null;
         let googleOAuthPopup = null;
         let viewerIndexRequestGeneration = 0;
+        let viewerReportRequestGeneration = 0;
 
         function renderViewerIndexState() {
             viewerIndexStatus.classList.toggle(
@@ -2778,12 +2986,16 @@
             );
 
             if (viewerState.indexLoading) {
+                viewerLayout.hidden = true;
+                viewerIndexStatus.hidden = false;
                 viewerIndexStatus.textContent =
                     "Loading saved report index…";
                 return;
             }
 
             if (viewerState.indexError !== null) {
+                viewerLayout.hidden = true;
+                viewerIndexStatus.hidden = false;
                 viewerIndexStatus.textContent =
                     viewerState.indexError;
                 return;
@@ -2793,19 +3005,331 @@
                 viewerState.indexLoaded
                 && viewerState.artifacts.length === 0
             ) {
+                viewerLayout.hidden = true;
+                viewerIndexStatus.hidden = false;
                 viewerIndexStatus.textContent =
                     "No saved JSON reports are available.";
                 return;
             }
 
             if (viewerState.indexLoaded) {
-                viewerIndexStatus.textContent =
-                    `Saved report index loaded (${viewerState.artifacts.length} artifact(s)).`;
+                viewerIndexStatus.hidden = true;
+                viewerLayout.hidden = false;
+                renderViewerSelector();
+                renderViewerReportState();
                 return;
             }
 
+            viewerLayout.hidden = true;
+            viewerIndexStatus.hidden = false;
             viewerIndexStatus.textContent =
                 "Saved report discovery is unavailable until Google is connected.";
+        }
+
+        function formatViewerPeriod(period) {
+            const [year, month] = period.split("-");
+            const monthNames = [
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ];
+
+            return `${monthNames[Number(month) - 1]} ${year}`;
+        }
+
+        function formatViewerArtifactLabel(artifact) {
+            const kind =
+                artifact.kind === "full"
+                    ? "Full"
+                    : "Summary";
+
+            return `${formatViewerPeriod(artifact.period)} · ${kind}`;
+        }
+
+        function renderViewerSelector() {
+            viewerSelectorMenu.replaceChildren();
+
+            if (
+                !viewerState.indexLoaded
+                || viewerState.artifacts.length === 0
+            ) {
+                viewerSelectorCurrent.textContent =
+                    "Select a saved report";
+                return;
+            }
+
+            viewerSelectorCurrent.textContent =
+                viewerState.selectedArtifact === null
+                    ? "Select a saved report"
+                    : formatViewerArtifactLabel(
+                        viewerState.selectedArtifact,
+                    );
+
+            let previousYear = null;
+            let previousPeriod = null;
+            let periodOptions = null;
+
+            viewerState.artifacts.forEach((artifact) => {
+                const [year] = artifact.period.split("-");
+
+                if (year !== previousYear) {
+                    const yearHeading =
+                        document.createElement("div");
+
+                    yearHeading.className =
+                        "viewer-selector-year";
+                    yearHeading.textContent = year;
+                    viewerSelectorMenu.appendChild(yearHeading);
+                    previousYear = year;
+                    previousPeriod = null;
+                }
+
+                if (artifact.period !== previousPeriod) {
+                    const periodGroup =
+                        document.createElement("section");
+                    const periodTitle =
+                        document.createElement("p");
+
+                    periodGroup.className =
+                        "viewer-selector-period";
+                    periodTitle.className =
+                        "viewer-selector-period-title";
+                    periodTitle.textContent =
+                        formatViewerPeriod(artifact.period);
+                    periodGroup.appendChild(periodTitle);
+                    viewerSelectorMenu.appendChild(periodGroup);
+                    periodOptions = periodGroup;
+                    previousPeriod = artifact.period;
+                }
+
+                const option = document.createElement("button");
+
+                option.className = "viewer-selector-option";
+                option.type = "button";
+                option.textContent =
+                    artifact.kind === "full"
+                        ? "Full report"
+                        : "Summary report";
+                option.classList.toggle(
+                    "selected",
+                    viewerState.selectedArtifact?.file_id
+                        === artifact.file_id,
+                );
+                option.addEventListener(
+                    "click",
+                    () => selectViewerArtifact(artifact),
+                );
+                periodOptions.appendChild(option);
+            });
+        }
+
+        function renderViewerReportState() {
+            viewerReportStatus.classList.toggle(
+                "error",
+                viewerState.reportError !== null,
+            );
+
+            if (viewerState.reportLoading) {
+                viewerReportContent.replaceChildren();
+                viewerReportStatus.hidden = false;
+                viewerReportStatus.textContent =
+                    "Loading saved report…";
+                return;
+            }
+
+            if (viewerState.reportError !== null) {
+                viewerReportContent.replaceChildren();
+                viewerReportStatus.hidden = false;
+                viewerReportStatus.textContent =
+                    viewerState.reportError;
+                return;
+            }
+
+            if (viewerState.reportHtml !== null) {
+                viewerReportStatus.hidden = true;
+                viewerReportContent.innerHTML = viewerState.reportHtml;
+                return;
+            }
+
+            viewerReportContent.replaceChildren();
+            viewerReportStatus.hidden = false;
+            viewerReportStatus.textContent =
+                viewerState.reportNotice
+                ?? "Select a saved report to view it.";
+        }
+
+        function closeViewerSelector() {
+            viewerSelectorMenu.hidden = true;
+            viewerSelectorToggle.setAttribute(
+                "aria-expanded",
+                "false",
+            );
+        }
+
+        function resetViewerReportState(
+            resetDefaultSelection = false,
+        ) {
+            viewerReportRequestGeneration += 1;
+            viewerState.reportError = null;
+            viewerState.reportHtml = null;
+            viewerState.reportLoading = false;
+            viewerState.reportNotice = null;
+            viewerState.selectedArtifact = null;
+
+            if (resetDefaultSelection) {
+                viewerState.defaultSelectionAttempted = false;
+            }
+
+            closeViewerSelector();
+            renderViewerReportState();
+        }
+
+        function applyViewerDefaultSelection() {
+            if (
+                !viewerState.available
+                || viewerState.activeModule !== "viewer"
+                || !viewerState.indexLoaded
+                || viewerState.defaultSelectionAttempted
+            ) {
+                return;
+            }
+
+            viewerState.defaultSelectionAttempted = true;
+
+            const defaultArtifact =
+                viewerState.artifacts.find(
+                    (artifact) => artifact.kind === "full",
+                );
+
+            if (defaultArtifact === undefined) {
+                viewerState.reportNotice =
+                    "No Full report available for default viewing. Choose a Summary report.";
+                renderViewerReportState();
+                return;
+            }
+
+            selectViewerArtifact(defaultArtifact);
+        }
+
+        function viewerReportErrorMessage(statusCode) {
+            const messages = {
+                404: "Selected saved report is no longer available. Choose another report.",
+                409: "Saved reports are currently conflicted. Choose another report later.",
+                413: "Selected saved report is too large to open.",
+                422: "Selected saved report is invalid and cannot be displayed.",
+                502: "Saved report is temporarily unavailable. Choose another report later.",
+            };
+
+            return messages[statusCode]
+                ?? "Selected saved report could not be opened.";
+        }
+
+        async function selectViewerArtifact(artifact) {
+            const requestGeneration =
+                viewerReportRequestGeneration + 1;
+
+            viewerReportRequestGeneration = requestGeneration;
+            viewerState.selectedArtifact = artifact;
+            viewerState.reportError = null;
+            viewerState.reportHtml = null;
+            viewerState.reportLoading = true;
+            viewerState.reportNotice = null;
+            closeViewerSelector();
+            renderViewerSelector();
+            renderViewerReportState();
+
+            let response;
+
+            try {
+                response = await fetch(
+                    `/viewer/reports/${encodeURIComponent(artifact.file_id)}`,
+                );
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerReportRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    "Selected saved report could not be opened.";
+                renderViewerReportState();
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerReportRequestGeneration
+            ) {
+                return;
+            }
+
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
+            if (!response.ok) {
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    viewerReportErrorMessage(response.status);
+                renderViewerReportState();
+                return;
+            }
+
+            let payload;
+
+            try {
+                payload = await response.json();
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerReportRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    "Selected saved report could not be opened.";
+                renderViewerReportState();
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerReportRequestGeneration
+            ) {
+                return;
+            }
+
+            if (
+                payload.artifact?.file_id !== artifact.file_id
+                || typeof payload.html !== "string"
+            ) {
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    "Selected saved report could not be opened.";
+                renderViewerReportState();
+                return;
+            }
+
+            viewerState.selectedArtifact = payload.artifact;
+            viewerState.reportHtml = payload.html;
+            viewerState.reportLoading = false;
+            renderViewerSelector();
+            renderViewerReportState();
         }
 
         function setActiveModule(moduleName) {
@@ -2834,10 +3358,15 @@
                 "aria-selected",
                 String(viewerIsActive),
             );
+
+            if (viewerIsActive) {
+                applyViewerDefaultSelection();
+            }
         }
 
         function clearViewerState() {
             viewerIndexRequestGeneration += 1;
+            resetViewerReportState(true);
             viewerState.artifacts = [];
             viewerState.available = false;
             viewerState.indexError = null;
@@ -2849,6 +3378,7 @@
         }
 
         function enableViewer() {
+            resetViewerReportState(true);
             viewerState.artifacts = [];
             viewerState.available = true;
             viewerState.indexError = null;
@@ -2864,6 +3394,7 @@
                 viewerIndexRequestGeneration + 1;
 
             viewerIndexRequestGeneration = requestGeneration;
+            resetViewerReportState(true);
             viewerState.artifacts = [];
             viewerState.indexLoading = true;
             viewerState.indexError = null;
@@ -2943,6 +3474,7 @@
             viewerState.indexLoaded = true;
             viewerState.indexLoading = false;
             renderViewerIndexState();
+            applyViewerDefaultSelection();
         }
 
         generateModuleTab.addEventListener(
@@ -2953,6 +3485,21 @@
         viewerModuleTab.addEventListener(
             "click",
             () => setActiveModule("viewer"),
+        );
+
+        viewerSelectorToggle.addEventListener(
+            "click",
+            () => {
+                const isExpanded =
+                    viewerSelectorToggle.getAttribute("aria-expanded")
+                    === "true";
+
+                viewerSelectorMenu.hidden = isExpanded;
+                viewerSelectorToggle.setAttribute(
+                    "aria-expanded",
+                    String(!isExpanded),
+                );
+            },
         );
 
         function openGoogleOAuthPopup(event) {
