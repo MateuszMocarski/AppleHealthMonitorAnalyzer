@@ -342,9 +342,13 @@ def test_html_renderer_normalizes_bedtime_chart_geometry_but_keeps_clock_labels(
 
     html = HtmlRenderer().render(report)
     bedtime_chart = html.split("Bedtime by day", 1)[1].split("</figure>", 1)[0]
+    wake_up_chart = html.split("Wake-up time by day", 1)[1].split("</figure>", 1)[0]
 
     assert "01:00" in bedtime_chart
     assert "25:00" not in bedtime_chart
+    assert "<title>Aug 2: 01:00</title>" in bedtime_chart
+    assert "1500" not in bedtime_chart
+    assert "<title>Aug 2: 08:00</title>" in wake_up_chart
 
 
 def test_html_renderer_notes_partial_workout_energy_without_zero_filling() -> None:

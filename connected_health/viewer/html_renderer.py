@@ -382,6 +382,7 @@ class HtmlRenderer:
                 "",
                 axis_label="Bedtime",
                 axis_formatter=self._clock_label,
+                value_formatter=self._clock_label,
             ),
             line_chart(
                 "Wake-up time by day",
@@ -399,6 +400,7 @@ class HtmlRenderer:
                 "",
                 axis_label="Wake-up",
                 axis_formatter=self._clock_label,
+                value_formatter=self._clock_label,
             ),
         )
 

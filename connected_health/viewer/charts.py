@@ -108,6 +108,7 @@ def line_chart(
     start_at_zero: bool = False,
     axis_label: str | None = None,
     axis_formatter: Callable[[float], str] | None = None,
+    value_formatter: Callable[[float], str] | None = None,
 ) -> str:
     """Render a single series, retaining missing values as breaks in the path."""
     points = [(item.label, _finite(item.value)) for item in values]
@@ -126,6 +127,7 @@ def line_chart(
         upper,
         axis_label or unit,
         axis_formatter or _format,
+        value_formatter or _format,
     )
 
 
@@ -157,6 +159,8 @@ def dual_axis_line_chart(
         paths += (
             f'<path class="viewer-chart-line viewer-chart-line--right" d="{right_path}"></path>'
         )
+    points = _dual_axis_points(left, labels, x_positions, 0, left_maximum, left_label, "left")
+    points += _dual_axis_points(right, labels, x_positions, 0, right_maximum, right_label, "right")
     return _figure(
         title,
         "dual-line",
@@ -170,7 +174,7 @@ def dual_axis_line_chart(
         f'<text class="viewer-chart-axis-label" x="4" y="32">{_format(left_maximum)}</text>'
         f'<text class="viewer-chart-axis-label" x="272" y="108">0</text>'
         f'<text class="viewer-chart-axis-label" x="272" y="32">{_format(right_maximum)}</text>'
-        f"{paths}{labels_svg}</svg>",
+        f"{paths}{points}{labels_svg}</svg>",
     )
 
 
@@ -224,13 +228,15 @@ def _line_figure(
     upper: float,
     axis_label: str,
     axis_formatter: Callable[[float], str],
+    value_formatter: Callable[[float], str],
 ) -> str:
     x_positions = _x_positions(len(points))
     path = _line_path([value for _, value in points], x_positions, lower, upper)
     dots = "".join(
         '<circle class="viewer-chart-point" '
         f'cx="{x:.2f}" cy="{_y(value, lower, upper):.2f}" r="2.5">'
-        f"<title>{escape(label)}: {_format(value)} {escape(unit)}</title></circle>"
+        f"<title>{escape(label)}: {escape(value_formatter(value))}{_unit_suffix(unit)}</title>"
+        "</circle>"
         for (label, value), x in zip(points, x_positions, strict=True)
         if value is not None
     )
@@ -299,7 +305,39 @@ def _line_path(
 
 
 def _x_labels(labels: Iterable[str], x_positions: Sequence[float]) -> str:
+    tick_indexes = _x_tick_indexes(len(x_positions))
     return "".join(
-        f'<text class="viewer-chart-axis-label" x="{x:.2f}" y="132">{escape(label)}</text>'
-        for label, x in zip(labels, x_positions, strict=True)
+        '<text class="viewer-chart-axis-label viewer-chart-x-axis-label" '
+        f'x="{x_positions[index]:.2f}" y="132">{escape(label)}</text>'
+        for index, label in enumerate(labels)
+        if index in tick_indexes
     )
+
+
+def _x_tick_indexes(length: int, maximum_ticks: int = 7) -> set[int]:
+    """Keep chart geometry intact while making long daily axes readable."""
+    if length <= maximum_ticks:
+        return set(range(length))
+    return {round(index * (length - 1) / (maximum_ticks - 1)) for index in range(maximum_ticks)}
+
+
+def _dual_axis_points(
+    values: Sequence[float | None],
+    labels: Sequence[str],
+    x_positions: Sequence[float],
+    lower: float,
+    upper: float,
+    series_label: str,
+    side: str,
+) -> str:
+    return "".join(
+        '<circle class="viewer-chart-point '
+        f'viewer-chart-point--{side}" cx="{x:.2f}" cy="{_y(value, lower, upper):.2f}" r="2.5">'
+        f"<title>{escape(label)}: {escape(series_label)} {_format(value)}</title></circle>"
+        for value, label, x in zip(values, labels, x_positions, strict=True)
+        if value is not None
+    )
+
+
+def _unit_suffix(unit: str) -> str:
+    return f" {escape(unit)}" if unit else ""
