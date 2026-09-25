@@ -33,6 +33,25 @@ def test_pie_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
     assert "Infinity" not in html
 
 
+def test_pie_chart_rounds_minute_legend_values_without_changing_zero_semantics() -> None:
+    html = pie_chart(
+        "Sleep stages",
+        (
+            ChartDatum("Core", 280.61),
+            ChartDatum("Deep", 39.5),
+            ChartDatum("REM", 0.49),
+        ),
+        "minutes",
+    )
+
+    assert "280.61 minutes" not in html
+    assert "281 minutes" in html
+    assert "40 minutes" in html
+    assert "&lt;1 minute" in html
+    assert 'class="viewer-chart-legend-label"' in html
+    assert 'class="viewer-chart-legend-value"' in html
+
+
 def test_one_slice_pie_is_a_filled_circle_without_a_hole() -> None:
     html = pie_chart("Sleep stages", (ChartDatum("Core", 90),), "minutes")
 
@@ -66,6 +85,7 @@ def test_bar_chart_supports_a_fixed_scale() -> None:
     for tick in ("0", "25", "50", "75", "100"):
         assert f">{tick}</text>" in html
     assert html.count('class="viewer-chart-gridline"') == 5
+    assert 'class="viewer-chart-unit-label viewer-chart-unit-label--y" x="39.00" y="20"' in html
     assert "Bedtime" in html
     assert "Duration" in html
 

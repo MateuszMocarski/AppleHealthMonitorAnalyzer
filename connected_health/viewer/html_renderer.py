@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import math
 from datetime import date, datetime, time
 from html import escape
 from typing import Any
@@ -120,29 +121,9 @@ class HtmlRenderer:
                 self._metric("Average efficiency", sleep.average_efficiency_percent, "%"),
             )
         )
-        stage_metrics = "".join(
-            (
-                self._metric("Core sleep", sleep.stages.core_minutes, "minutes"),
-                self._metric("Deep sleep", sleep.stages.deep_minutes, "minutes"),
-                self._metric("REM sleep", sleep.stages.rem_minutes, "minutes"),
-                self._metric("Unspecified sleep", sleep.stages.unspecified_minutes, "minutes"),
-            )
-        )
-        score_metrics = "".join(
-            (
-                self._metric("Average bedtime score", sleep.score.average_bedtime),
-                self._metric("Average duration score", sleep.score.average_duration),
-                self._metric("Average wake-up score", sleep.score.average_wake_up),
-                self._metric("Average sleep score", sleep.score.average_total),
-            )
-        )
         content = (
             '<dl class="viewer-metric-grid">'
             f"{session_metrics}</dl>"
-            '<section class="viewer-monthly-subsection"><h3>Sleep stages</h3>'
-            f'<dl class="viewer-metric-grid">{stage_metrics}</dl></section>'
-            '<section class="viewer-monthly-subsection"><h3>Sleep score</h3>'
-            f'<dl class="viewer-metric-grid">{score_metrics}</dl></section>'
             f"{self._sleep_charts(sleep)}"
             f"{self._full_sleep_trends(report)}"
             f"{self._sleep_configuration(sleep.configuration)}"
@@ -365,19 +346,33 @@ class HtmlRenderer:
             "points",
             maximum=100,
         )
-        kpis = self._chart_kpis(
+        stage_metrics = self._chart_kpis(
             (
-                ("Monthly score", sleep.score.monthly_score, None),
-                ("Maximum monthly score", sleep.score.monthly_score_max, None),
+                ("Core sleep", sleep.stages.core_minutes, "minutes"),
+                ("Deep sleep", sleep.stages.deep_minutes, "minutes"),
+                ("REM sleep", sleep.stages.rem_minutes, "minutes"),
+                ("Unspecified sleep", sleep.stages.unspecified_minutes, "minutes"),
+            )
+        )
+        score_metrics = self._chart_kpis(
+            (
+                ("Average bedtime score", sleep.score.average_bedtime, None),
+                ("Average duration score", sleep.score.average_duration, None),
+                ("Average wake-up score", sleep.score.average_wake_up, None),
+                ("Average sleep score", sleep.score.average_total, None),
                 ("Average bonus", sleep.score.average_bonus, None),
                 ("Consistency bonus", sleep.score.consistency_bonus, None),
-            )
+                ("Maximum monthly score", sleep.score.monthly_score_max, None),
+                ("Monthly score", sleep.score.monthly_score, None),
+            ),
+            emphasized_last=True,
         )
         return (
             '<div class="viewer-sleep-chart-layout">'
-            f"{stages}"
+            '<section class="viewer-sleep-stages-chart">'
+            f"{stages}{stage_metrics}</section>"
             '<section class="viewer-sleep-score-chart">'
-            f"{score}{kpis}</section></div>"
+            f"{score}{score_metrics}</section></div>"
         )
 
     def _full_sleep_trends(self, report: ViewerReport) -> str:
@@ -652,8 +647,22 @@ class HtmlRenderer:
             classes += f" {modifier}"
         return f'<div class="{classes}">{rendered}</div>' if rendered else ""
 
-    def _chart_kpis(self, values: tuple[tuple[str, Any, str | None], ...]) -> str:
-        metrics = "".join(self._metric(label, value, unit) for label, value, unit in values)
+    def _chart_kpis(
+        self, values: tuple[tuple[str, Any, str | None], ...], *, emphasized_last: bool = False
+    ) -> str:
+        metrics = "".join(
+            self._metric(
+                label,
+                value,
+                unit,
+                modifier=(
+                    "viewer-metric--score-primary"
+                    if emphasized_last and index == len(values) - 1
+                    else ""
+                ),
+            )
+            for index, (label, value, unit) in enumerate(values)
+        )
         return f'<dl class="viewer-chart-kpis">{metrics}</dl>'
 
     @staticmethod
@@ -710,7 +719,13 @@ class HtmlRenderer:
         )
 
     def _metric(
-        self, label: str, value: Any, unit: str | None = None, coverage: int | None = None
+        self,
+        label: str,
+        value: Any,
+        unit: str | None = None,
+        coverage: int | None = None,
+        *,
+        modifier: str = "",
     ) -> str:
         coverage_html = ""
         if coverage is not None:
@@ -718,8 +733,11 @@ class HtmlRenderer:
             coverage_html = (
                 f'<span class="viewer-metric-coverage">Coverage: {coverage} {day_label}</span>'
             )
+        classes = "viewer-metric"
+        if modifier:
+            classes += f" {modifier}"
         return (
-            '<div class="viewer-metric">'
+            f'<div class="{escape(classes)}">'
             f"<dt>{escape(label)}</dt><dd>{self._value(value, unit)}{coverage_html}</dd></div>"
         )
 
@@ -876,9 +894,12 @@ class HtmlRenderer:
                 "points",
                 maximum=100,
             )
+            total_score = self._chart_kpis(
+                (("Total score", sleep.score.total, None),), emphasized_last=True
+            )
             score_content = (
                 '<section class="viewer-daily-sleep-score-chart">'
-                f'{score_chart}{self._chart_kpis((("Total score", sleep.score.total, None),))}'
+                f"{score_chart}{total_score}"
                 "</section>"
             )
         else:
@@ -990,6 +1011,9 @@ class HtmlRenderer:
     def _value(value: Any, unit: str | None = None) -> str:
         if value is None:
             return '<span class="viewer-unavailable unavailable">Unavailable</span>'
+        if unit == "minutes" and isinstance(value, int | float):
+            rendered, minute_label = HtmlRenderer._duration_value(value)
+            return f'{escape(rendered)} <span class="viewer-metric-unit">' f"{minute_label}</span>"
         if isinstance(value, float):
             rendered = f"{value:,.2f}".rstrip("0").rstrip(".")
         elif isinstance(value, int):
@@ -1000,3 +1024,12 @@ class HtmlRenderer:
             f' <span class="viewer-metric-unit">{escape(unit)}</span>' if unit is not None else ""
         )
         return f"{escape(rendered)}{unit_html}"
+
+    @staticmethod
+    def _duration_value(value: int | float) -> tuple[str, str]:
+        if value == 0:
+            return "0", "minutes"
+        rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
+        if value > 0 and rounded == 0:
+            return "<1", "minute"
+        return f"{rounded:,}", "minute" if abs(rounded) == 1 else "minutes"

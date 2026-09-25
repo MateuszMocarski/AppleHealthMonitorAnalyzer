@@ -602,6 +602,7 @@
         .viewer-monthly-section--workouts,
         .viewer-monthly-section--activity,
         .viewer-monthly-section--body-weight,
+        .viewer-monthly-section--energy,
         .viewer-monthly-section--calorie-balance {
             grid-column: 1 / -1;
         }
@@ -888,11 +889,13 @@
         }
 
         .viewer-sleep-score-chart,
+        .viewer-sleep-stages-chart,
         .viewer-daily-sleep-score-chart {
             min-width: 0;
         }
 
         .viewer-sleep-score-chart .viewer-chart-kpis,
+        .viewer-sleep-stages-chart .viewer-chart-kpis,
         .viewer-daily-sleep-score-chart .viewer-chart-kpis {
             margin-top: 10px;
         }
@@ -935,7 +938,7 @@
         }
 
         .viewer-chart--bar .viewer-chart-axis-label {
-            font-size: 7px;
+            font-size: 9px;
         }
 
         .viewer-chart-axis {
@@ -962,6 +965,11 @@
         .viewer-chart-unit-label {
             fill: var(--text-muted);
             font-size: 8px;
+        }
+
+        .viewer-chart--bar .viewer-chart-unit-label--y {
+            font-size: 10px;
+            text-anchor: middle;
         }
 
         .viewer-chart-slice {
@@ -1046,11 +1054,17 @@
 
         .viewer-chart-legend li {
             display: grid;
-            grid-template-columns: 10px minmax(0, 1fr) auto;
+            grid-template-columns: 10px minmax(0, max-content) max-content;
+            justify-content: start;
             align-items: center;
-            gap: 9px;
+            gap: 8px;
             color: var(--text-secondary);
             font-size: 11px;
+        }
+
+        .viewer-chart-legend-label {
+            max-width: min(18rem, 56vw);
+            overflow-wrap: anywhere;
         }
 
         .viewer-chart-swatch {
@@ -1086,6 +1100,15 @@
 
         .viewer-chart-kpis .viewer-metric {
             border: 1px solid var(--border);
+        }
+
+        .viewer-chart-kpis .viewer-metric--score-primary {
+            border-color: rgba(125, 211, 252, 0.52);
+            background: rgba(125, 211, 252, 0.09);
+        }
+
+        .viewer-chart-kpis .viewer-metric--score-primary dd {
+            font-size: 18px;
         }
 
         .viewer-config-button,
@@ -2503,6 +2526,7 @@
             .viewer-monthly-section--workouts,
             .viewer-monthly-section--activity,
             .viewer-monthly-section--body-weight,
+            .viewer-monthly-section--energy,
             .viewer-monthly-section--calorie-balance,
             .viewer-monthly-section--nutrition,
             .viewer-monthly-section {

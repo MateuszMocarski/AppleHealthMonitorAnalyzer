@@ -230,7 +230,7 @@ def test_html_renderer_uses_semantic_metric_lists_and_associates_activity_covera
     html = HtmlRenderer().render(report)
 
     assert '<div class="viewer-metric-grid">' not in html
-    assert html.count('<dl class="viewer-metric-grid') >= 10
+    assert html.count('<dl class="viewer-metric-grid') >= 8
     assert '<dl class="viewer-metric-grid"><div class="viewer-metric"><dt>Total steps</dt>' in html
 
     total_steps = html.split("<dt>Total steps</dt>", 1)[1].split("</div>", 1)[0]
@@ -338,16 +338,44 @@ def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -
     daily_score_group = html.split('<section class="viewer-daily-sleep-score-chart">', 1)[1].split(
         "</section>", 1
     )[0]
-    monthly_metrics = html.split("<h3>Sleep score</h3>", 1)[1].split("</section>", 1)[0]
 
     assert "Average Sleep Score components" in monthly_score_group
-    assert "Monthly score" in monthly_score_group
-    assert "Maximum monthly score" in monthly_score_group
-    assert "Average bonus" in monthly_score_group
-    assert "Consistency bonus" in monthly_score_group
-    assert "Monthly score" not in monthly_metrics
+    ordered_monthly_labels = (
+        "Average bedtime score",
+        "Average duration score",
+        "Average wake-up score",
+        "Average sleep score",
+        "Average bonus",
+        "Consistency bonus",
+        "Maximum monthly score",
+        "Monthly score",
+    )
+    assert [monthly_score_group.index(label) for label in ordered_monthly_labels] == sorted(
+        monthly_score_group.index(label) for label in ordered_monthly_labels
+    )
+    assert 'class="viewer-metric viewer-metric--score-primary"' in monthly_score_group
     assert "Sleep Score components" in daily_score_group
     assert "Total score" in daily_score_group
+    assert 'class="viewer-metric viewer-metric--score-primary"' in daily_score_group
+
+
+def test_html_renderer_rounds_minutes_for_presentation_without_mutating_viewer_values() -> None:
+    summary = _rich_summary()
+    summary.sleep_summary.average_core_minutes = 280.61
+    summary.sleep_summary.average_deep_minutes = 39.5
+    summary.sleep_summary.average_rem_minutes = 0.49
+    report = parse_persisted_report(JsonRenderer().render_month_summary(summary))
+
+    html = HtmlRenderer().render(report)
+
+    assert report.sleep.stages.core_minutes == 280.61
+    assert report.sleep.stages.deep_minutes == 39.5
+    assert report.sleep.stages.rem_minutes == 0.49
+    assert "280.61" not in html
+    assert '281 <span class="viewer-metric-unit">minutes</span>' in html
+    assert '40 <span class="viewer-metric-unit">minutes</span>' in html
+    assert '&lt;1 <span class="viewer-metric-unit">minute</span>' in html
+    assert HtmlRenderer._value(0, "minutes") == '0 <span class="viewer-metric-unit">minutes</span>'
 
 
 def test_html_renderer_uses_wide_weight_chart_and_compact_daily_secondary_grid() -> None:

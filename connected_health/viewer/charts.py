@@ -48,7 +48,8 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
             )
         slices.append(
             f'<g class="viewer-chart-slice viewer-chart-slice--{index % 6}" stroke="none">'
-            f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title>"
+            f"<title>{escape(item.label)}: {escape(_format_for_unit(value, unit))} "
+            f"{escape(unit)}</title>"
             f"{shape}</g>"
         )
         angle = end_angle
@@ -57,10 +58,11 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
         '<li><span class="viewer-chart-swatch '
         f'viewer-chart-swatch--{index % 6}"></span>'
         f'<span class="viewer-chart-legend-label">{escape(item.label)}</span>'
-        f'<span class="viewer-chart-legend-value">{_format(value)} {escape(unit)}</span></li>'
+        f'<span class="viewer-chart-legend-value">{escape(_format_for_unit(value, unit))} '
+        f"{escape(unit)}</span></li>"
         for index, (item, value) in enumerate(drawable)
     )
-    description = f"{title}. Total plotted value: {_format(total)} {unit}."
+    description = f"{title}. Total plotted value: {_format_for_unit(total, unit)} {unit}."
     return _figure(
         title,
         "pie",
@@ -113,7 +115,8 @@ def bar_chart(
         description,
         '<svg class="viewer-chart-svg" role="img" viewBox="0 0 420 250">'
         f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        f'<text class="viewer-chart-unit-label" x="{left}" y="20">{escape(unit)}</text>'
+        '<text class="viewer-chart-unit-label viewer-chart-unit-label--y" '
+        f'x="{left - 7:.2f}" y="20">{escape(unit)}</text>'
         f'{grid}<line class="viewer-chart-axis" x1="{left}" y1="{bottom}" '
         f'x2="{right}" y2="{bottom}"></line>{"".join(bars)}</svg>',
     )
@@ -263,6 +266,17 @@ def _finite(value: float | None) -> float | None:
 
 def _format(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def _format_for_unit(value: float, unit: str) -> str:
+    if unit != "minutes":
+        return _format(value)
+    if value == 0:
+        return "0"
+    rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
+    if value > 0 and rounded == 0:
+        return "<1"
+    return f"{rounded:,}"
 
 
 def _x_positions(length: int, start: float = 32.0, end: float = 268.0) -> list[float]:
