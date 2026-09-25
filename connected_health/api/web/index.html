@@ -287,6 +287,63 @@
             display: none !important;
         }
 
+        .module-switch {
+            display: inline-flex;
+            gap: 4px;
+            margin: 0 0 22px;
+            padding: 4px;
+
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .module-switch[hidden] {
+            display: none !important;
+        }
+
+        .module-switch-button {
+            min-height: 38px;
+            padding: 0 14px;
+
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+
+            font: inherit;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .module-switch-button:hover,
+        .module-switch-button:focus-visible {
+            color: var(--text);
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .module-switch-button[aria-selected="true"] {
+            background: var(--accent-soft);
+            color: var(--text);
+        }
+
+        .viewer-shell {
+            min-height: 180px;
+            padding: 28px;
+        }
+
+        .viewer-index-status {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .viewer-index-status.error {
+            color: var(--error);
+        }
+
         .google-recovery {
             margin-bottom: 22px;
             padding: 14px 16px;
@@ -1688,6 +1745,82 @@
             </p>
         </header>
 
+        <nav
+            class="module-switch"
+            id="module-switch"
+            aria-label="Application modules"
+            role="tablist"
+            hidden
+        >
+            <button
+                class="module-switch-button"
+                id="generate-module-tab"
+                type="button"
+                role="tab"
+                aria-controls="generate-module"
+                aria-selected="true"
+            >
+                Generate
+            </button>
+
+            <button
+                class="module-switch-button"
+                id="viewer-module-tab"
+                type="button"
+                role="tab"
+                aria-controls="viewer-module"
+                aria-selected="false"
+            >
+                Viewer
+            </button>
+        </nav>
+
+        <div
+            class="google-recovery"
+            id="google-recovery"
+            hidden
+        >
+            <div
+                class="google-recovery-message"
+                id="google-recovery-message"
+            ></div>
+
+            <div class="google-recovery-actions">
+                <a
+                    id="google-recovery-reconnect"
+                    href="/auth/google/start"
+                >
+                    Reconnect Google
+                </a>
+
+                <button
+                    id="google-recovery-retry"
+                    type="button"
+                >
+                    Retry Google Drive
+                </button>
+
+                <button
+                    id="google-recovery-local"
+                    type="button"
+                >
+                    Choose local ZIP
+                </button>
+
+                <button
+                    id="google-recovery-anonymous"
+                    type="button"
+                >
+                    Continue without Google
+                </button>
+            </div>
+        </div>
+
+        <section
+            id="generate-module"
+            role="tabpanel"
+            aria-labelledby="generate-module-tab"
+        >
         <section
             class="panel provider-selection"
             aria-labelledby="provider-selection-title"
@@ -1724,47 +1857,6 @@
             data-provider-workflow="apple"
             hidden
         >
-            <div
-                class="google-recovery"
-                id="google-recovery"
-                hidden
-            >
-                <div
-                    class="google-recovery-message"
-                    id="google-recovery-message"
-                ></div>
-
-                <div class="google-recovery-actions">
-                    <a
-                        id="google-recovery-reconnect"
-                        href="/auth/google/start"
-                    >
-                        Reconnect Google
-                    </a>
-
-                    <button
-                        id="google-recovery-retry"
-                        type="button"
-                    >
-                        Retry Google Drive
-                    </button>
-
-                    <button
-                        id="google-recovery-local"
-                        type="button"
-                    >
-                        Choose local ZIP
-                    </button>
-
-                    <button
-                        id="google-recovery-anonymous"
-                        type="button"
-                    >
-                        Continue without Google
-                    </button>
-                </div>
-            </div>
-
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">
@@ -2395,6 +2487,28 @@
 
             <div id="result-list"></div>
         </section>
+
+        </section>
+
+        <section
+            class="panel viewer-shell"
+            id="viewer-module"
+            role="tabpanel"
+            aria-labelledby="viewer-module-tab"
+            hidden
+        >
+            <div class="section-header">
+                <div class="section-title">Saved reports</div>
+            </div>
+
+            <p
+                class="viewer-index-status"
+                id="viewer-index-status"
+                aria-live="polite"
+            >
+                Saved report discovery is unavailable until Google is connected.
+            </p>
+        </section>
     </main>
     <script src="https://apis.google.com/js/api.js"></script>
     <script>
@@ -2421,6 +2535,32 @@
             document.getElementById(
                 "generation-workflow",
             );
+
+        const moduleSwitch =
+            document.getElementById("module-switch");
+
+        const generateModule =
+            document.getElementById("generate-module");
+
+        const viewerModule =
+            document.getElementById("viewer-module");
+
+        const generateModuleTab =
+            document.getElementById("generate-module-tab");
+
+        const viewerModuleTab =
+            document.getElementById("viewer-module-tab");
+
+        const viewerIndexStatus =
+            document.getElementById("viewer-index-status");
+
+        const viewerState = {
+            activeModule: "generate",
+            artifacts: [],
+            available: false,
+            indexError: null,
+            indexLoading: false,
+        };
 
         const appleProviderButton =
             document.getElementById(
@@ -2628,6 +2768,129 @@
 
         let lastGoogleRetryAction = null;
         let googleOAuthPopup = null;
+
+        function renderViewerIndexState() {
+            viewerIndexStatus.classList.toggle(
+                "error",
+                viewerState.indexError !== null,
+            );
+
+            if (viewerState.indexLoading) {
+                viewerIndexStatus.textContent =
+                    "Loading saved report index…";
+                return;
+            }
+
+            if (viewerState.indexError !== null) {
+                viewerIndexStatus.textContent =
+                    viewerState.indexError;
+                return;
+            }
+
+            if (viewerState.artifacts.length === 0) {
+                viewerIndexStatus.textContent =
+                    "No saved JSON reports are available.";
+                return;
+            }
+
+            viewerIndexStatus.textContent =
+                `Saved report index loaded (${viewerState.artifacts.length} artifact(s)).`;
+        }
+
+        function setActiveModule(moduleName) {
+            if (
+                moduleName === "viewer"
+                && !viewerState.available
+            ) {
+                return;
+            }
+
+            const viewerIsActive =
+                moduleName === "viewer";
+
+            viewerState.activeModule =
+                viewerIsActive
+                    ? "viewer"
+                    : "generate";
+
+            generateModule.hidden = viewerIsActive;
+            viewerModule.hidden = !viewerIsActive;
+            generateModuleTab.setAttribute(
+                "aria-selected",
+                String(!viewerIsActive),
+            );
+            viewerModuleTab.setAttribute(
+                "aria-selected",
+                String(viewerIsActive),
+            );
+        }
+
+        function clearViewerState() {
+            viewerState.artifacts = [];
+            viewerState.available = false;
+            viewerState.indexError = null;
+            viewerState.indexLoading = false;
+            moduleSwitch.hidden = true;
+            setActiveModule("generate");
+            renderViewerIndexState();
+        }
+
+        function enableViewer() {
+            viewerState.available = true;
+            moduleSwitch.hidden = false;
+            setActiveModule("generate");
+            renderViewerIndexState();
+        }
+
+        async function loadViewerReportIndex() {
+            viewerState.indexLoading = true;
+            viewerState.indexError = null;
+            renderViewerIndexState();
+
+            let response;
+
+            try {
+                response = await fetch("/viewer/reports");
+            } catch {
+                viewerState.indexLoading = false;
+                viewerState.indexError =
+                    "Saved report discovery is temporarily unavailable.";
+                renderViewerIndexState();
+                showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            if (response.status === 401) {
+                clearViewerState();
+                showReconnectRecovery();
+                return;
+            }
+
+            if (!response.ok) {
+                viewerState.indexLoading = false;
+                viewerState.indexError =
+                    "Saved report discovery is temporarily unavailable.";
+                renderViewerIndexState();
+                showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            const payload = await response.json();
+
+            viewerState.artifacts = payload.artifacts;
+            viewerState.indexLoading = false;
+            renderViewerIndexState();
+        }
+
+        generateModuleTab.addEventListener(
+            "click",
+            () => setActiveModule("generate"),
+        );
+
+        viewerModuleTab.addEventListener(
+            "click",
+            () => setActiveModule("viewer"),
+        );
 
         function openGoogleOAuthPopup(event) {
             if (event) {
@@ -3210,6 +3473,7 @@
         }
 
         function applyAnonymousGoogleState() {
+            clearViewerState();
             resetDriveArchiveSelection();
 
             googleConnectLabel.textContent =
@@ -3286,6 +3550,7 @@
         }
 
         function showReconnectRecovery() {
+            clearViewerState();
             showGoogleRecovery(
                 "Google needs to be reconnected before Drive features can be used.",
                 {
@@ -3344,8 +3609,10 @@
                 configSaveControls.hidden = false;
                 configAutosaveControl.hidden = false;
 
+                enableViewer();
                 await loadConfigProfileState();
                 await loadReportAutosaveState();
+                await loadViewerReportIndex();
                 updateGenerationSummary();
 
                 return;

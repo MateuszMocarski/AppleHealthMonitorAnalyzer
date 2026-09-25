@@ -6296,6 +6296,161 @@ def test_web_interface_loads_config_profiles_only_when_google_connected() -> Non
 
 
 # =====================================================================
+# Verifies that the top-level Viewer shell is unavailable in the initial
+# anonymous page state, while Generate remains the active module.
+# =====================================================================
+
+
+def test_web_interface_starts_in_anonymous_generate_only_mode() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    module_switch = html[
+        html.index('id="module-switch"') - 160 : html.index('id="module-switch"') + 220
+    ]
+    viewer_module = html[
+        html.index('id="viewer-module"') - 160 : html.index('id="viewer-module"') + 260
+    ]
+
+    assert "hidden" in module_switch
+    assert 'id="generate-module"' in html
+    assert 'aria-selected="true"' in html
+    assert "hidden" in viewer_module
+
+
+# =====================================================================
+# Verifies that a confirmed Google connection enables the accessible module
+# switch, retains Generate as the default, and loads only report metadata.
+# =====================================================================
+
+
+def test_web_interface_enables_and_loads_viewer_index_after_google_connection() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    google_state_function = html.split(
+        "async function loadGoogleConnectionState()",
+        1,
+    )[1].split(
+        "async function loadConfigProfileState()",
+        1,
+    )[0]
+
+    assert 'role="tablist"' in html
+    assert 'id="generate-module-tab"' in html
+    assert 'id="viewer-module-tab"' in html
+    assert 'aria-controls="generate-module"' in html
+    assert 'aria-controls="viewer-module"' in html
+    assert 'googleStatus.status === "connected"' in google_state_function
+    assert "enableViewer();" in google_state_function
+    assert "await loadConfigProfileState();" in google_state_function
+    assert "await loadReportAutosaveState();" in google_state_function
+    assert "await loadViewerReportIndex();" in google_state_function
+    assert 'fetch("/viewer/reports")' in html
+    assert 'fetch("/viewer/reports/' not in html
+    assert 'activeModule: "generate"' in html
+
+
+# =====================================================================
+# Verifies that module switching is independent from the Apple provider and
+# simply hides or reveals the stable module regions, preserving form inputs.
+# =====================================================================
+
+
+def test_web_interface_switches_modules_without_resetting_generate_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    module_switch_function = html.split(
+        "function setActiveModule(moduleName)",
+        1,
+    )[1].split(
+        "function clearViewerState()",
+        1,
+    )[0]
+
+    assert "selectedProvider" not in module_switch_function
+    assert "generateModule.hidden = viewerIsActive;" in module_switch_function
+    assert "viewerModule.hidden = !viewerIsActive;" in module_switch_function
+    assert "archiveInput.value" not in module_switch_function
+    assert "selectedMonths.clear" not in module_switch_function
+    assert 'setActiveModule("viewer")' in html
+    assert 'setActiveModule("generate")' in html
+
+
+# =====================================================================
+# Verifies that Viewer index state handles loading, empty and controlled
+# failure states without opening a report or adding report-selection UI.
+# =====================================================================
+
+
+def test_web_interface_keeps_viewer_index_metadata_only_and_failure_local() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "Loading saved report index" in html
+    assert "No saved JSON reports are available." in html
+    assert "Saved report discovery is temporarily unavailable." in html
+    assert "viewerState.artifacts = payload.artifacts;" in html
+    assert "Saved report index loaded" in html
+    assert 'id="viewer-index-status"' in html
+    assert 'id="output-viewer' not in html
+    assert 'id="viewer-report-picker"' not in html
+
+
+# =====================================================================
+# Verifies that local, anonymous and reconnect-required transitions clear the
+# in-memory Viewer state and return the user to Generate.
+# =====================================================================
+
+
+def test_web_interface_clears_viewer_state_when_google_becomes_unavailable() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    clear_function = html.split(
+        "function clearViewerState()",
+        1,
+    )[1].split(
+        "function enableViewer()",
+        1,
+    )[0]
+    anonymous_function = html.split(
+        "function applyAnonymousGoogleState()",
+        1,
+    )[1].split(
+        "async function continueWithoutGoogle()",
+        1,
+    )[0]
+    reconnect_function = html.split(
+        "function showReconnectRecovery()",
+        1,
+    )[1].split(
+        "function showTransientDriveRecovery",
+        1,
+    )[0]
+
+    assert "viewerState.artifacts = [];" in clear_function
+    assert "viewerState.available = false;" in clear_function
+    assert "moduleSwitch.hidden = true;" in clear_function
+    assert 'setActiveModule("generate");' in clear_function
+    assert "clearViewerState();" in anonymous_function
+    assert "clearViewerState();" in reconnect_function
+
+
+# =====================================================================
 # Verifies that the reports API can serialize unselected report outputs
 # as missing values while returning the selected Full JSON output.
 # =====================================================================
