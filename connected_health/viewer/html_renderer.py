@@ -5,7 +5,12 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from connected_health.viewer.report_contract import FullReport, ViewerReport
+from connected_health.viewer.report_contract import (
+    DailyReport,
+    DailySleep,
+    FullReport,
+    ViewerReport,
+)
 
 
 class HtmlRenderer:
@@ -89,19 +94,118 @@ class HtmlRenderer:
         if not report.days:
             return '<section data-viewer-daily="true"><h2>Daily details</h2></section>'
 
-        days = "".join(
-            '<article class="viewer-day">'
-            f"<h3>{self._value(day.date)}</h3>"
-            f"<p>Activity: {self._value(day.general_activity)}</p>"
-            f"<p>Sleep: {self._value(day.sleep)}</p>"
-            f"<p>Workouts: {self._value(len(day.workouts))}</p>"
-            f"<p>Body weight: {self._value(day.body_weight)}</p>"
-            f"<p>Energy expenditure: {self._value(day.energy_expenditure)}</p>"
-            f"<p>Nutrition: {self._value(day.nutrition)}</p>"
-            "</article>"
-            for day in report.days
-        )
+        days = "".join(self._daily_report(day) for day in report.days)
         return f'<section data-viewer-daily="true"><h2>Daily details</h2>{days}</section>'
+
+    def _daily_report(self, day: DailyReport) -> str:
+        return "".join(
+            (
+                '<article class="viewer-day">',
+                f"<h3>{self._value(day.date)}</h3>",
+                self._daily_fields(
+                    "General activity",
+                    day.general_activity,
+                    ("steps", "distance_km", "step_length_cm"),
+                ),
+                self._daily_sleep(day.sleep),
+                self._daily_workouts(day),
+                self._daily_fields("Body weight", day.body_weight, ("weight_kg",)),
+                self._daily_fields(
+                    "Energy expenditure",
+                    day.energy_expenditure,
+                    ("basal_kcal", "active_kcal", "tdee_kcal"),
+                ),
+                self._daily_fields(
+                    "Nutrition",
+                    day.nutrition,
+                    ("protein_g", "carbohydrates_g", "fat_g", "calories_kcal"),
+                ),
+                self._daily_value("Calories balance", day.calories_balance_kcal),
+                "</article>",
+            )
+        )
+
+    def _daily_sleep(self, sleep: DailySleep | None) -> str:
+        if sleep is None:
+            return self._daily_unavailable("Sleep")
+
+        return "".join(
+            (
+                self._daily_fields(
+                    "Sleep session",
+                    sleep.session,
+                    (
+                        "bedtime",
+                        "wake_up",
+                        "time_in_bed_minutes",
+                        "time_asleep_minutes",
+                        "awake_minutes",
+                        "efficiency_percent",
+                    ),
+                ),
+                self._daily_fields(
+                    "Sleep stages",
+                    sleep.session.stages,
+                    (
+                        "core_minutes",
+                        "deep_minutes",
+                        "rem_minutes",
+                        "unspecified_minutes",
+                    ),
+                ),
+                self._daily_fields(
+                    "Sleep score",
+                    sleep.score,
+                    ("bedtime", "duration", "wake_up", "total"),
+                ),
+            )
+        )
+
+    def _daily_workouts(self, day: DailyReport) -> str:
+        if not day.workouts:
+            return (
+                '<section class="viewer-day-section"><h4>Workouts</h4>'
+                "<p>No workouts recorded.</p></section>"
+            )
+
+        workouts = "".join(
+            "<li><dl>"
+            f"<dt>type</dt><dd>{escape(workout.type)}</dd>"
+            f"<dt>sessions</dt><dd>{self._value(workout.sessions)}</dd>"
+            f"<dt>duration minutes</dt><dd>{self._value(workout.duration_minutes)}</dd>"
+            f"<dt>active energy kcal</dt><dd>{self._value(workout.active_energy_kcal)}</dd>"
+            f"<dt>distance km</dt><dd>{self._value(workout.distance_km)}</dd>"
+            "</dl></li>"
+            for workout in day.workouts
+        )
+        return f'<section class="viewer-day-section"><h4>Workouts</h4><ul>{workouts}</ul></section>'
+
+    def _daily_fields(self, title: str, source: Any, fields: tuple[str, ...]) -> str:
+        if source is None:
+            return self._daily_unavailable(title)
+
+        values = "".join(
+            f"<dt>{escape(field.replace('_', ' '))}</dt>"
+            f"<dd>{self._value(getattr(source, field))}</dd>"
+            for field in fields
+        )
+        return (
+            f'<section class="viewer-day-section"><h4>{escape(title)}</h4>'
+            f"<dl>{values}</dl></section>"
+        )
+
+    def _daily_value(self, title: str, value: Any) -> str:
+        return (
+            f'<section class="viewer-day-section"><h4>{escape(title)}</h4>'
+            f"<p>{self._value(value)}</p></section>"
+        )
+
+    @staticmethod
+    def _daily_unavailable(title: str) -> str:
+        return (
+            f'<section class="viewer-day-section"><h4>{escape(title)}</h4>'
+            '<p class="unavailable">Unavailable</p></section>'
+        )
 
     def _section(self, title: str, source: Any, fields: tuple[str, ...]) -> str:
         if source is None:
