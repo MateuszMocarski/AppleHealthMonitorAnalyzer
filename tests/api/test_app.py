@@ -6842,13 +6842,7 @@ def test_web_interface_reconciles_viewer_selection_after_persisted_report_refres
     )[0]
 
     assert "viewerReportRequestGeneration += 1;" in index_load_function
-    assert index_load_function.index("selectedArtifactBeforeRefresh") < index_load_function.index(
-        "viewerState.reportLoading = false;"
-    )
-    assert index_load_function.index("reportWasLoading") < index_load_function.index(
-        "viewerState.reportLoading = false;"
-    )
-    assert "viewerState.reportLoading = false;" in index_load_function
+    assert "viewerState.reportLoading = false;" not in index_load_function
     assert "activeSelectedArtifact" in index_load_function
     assert "viewerState.artifacts.find" in index_load_function
     assert "resetViewerReportState(false);" in index_load_function
@@ -6901,6 +6895,38 @@ def test_web_interface_restarts_only_still_current_inflight_viewer_report_load()
         "selectViewerArtifact(restartSelectedArtifact);"
     )
     assert index_load_function.count("selectViewerArtifact(") == 1
+
+
+# =====================================================================
+# Verifies that an index refresh retains the synthetic pending-load state after
+# invalidating the old body request, so either a manual retry or the newest of
+# overlapping refreshes can restart the selected artifact exactly once.
+# =====================================================================
+
+
+def test_web_interface_retains_pending_load_across_index_refreshes() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "const reportWasLoading =" in index_load_function
+    assert "viewerState.reportLoading = false;" not in index_load_function
+    assert index_load_function.count("showTransientDriveRecovery(loadViewerReportIndex);") == 3
+    assert index_load_function.count("!== viewerIndexRequestGeneration") == 4
+    assert index_load_function.index(
+        "!== viewerIndexRequestGeneration"
+    ) < index_load_function.index("showTransientDriveRecovery(loadViewerReportIndex);")
+    assert "if (activeSelectedArtifact === undefined)" in index_load_function
+    assert "resetViewerReportState(false);" in index_load_function
 
 
 # =====================================================================
