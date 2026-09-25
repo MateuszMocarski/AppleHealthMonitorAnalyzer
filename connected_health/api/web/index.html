@@ -602,7 +602,7 @@
         .viewer-monthly-section--workouts,
         .viewer-monthly-section--activity,
         .viewer-monthly-section--body-weight,
-        .viewer-monthly-section--calories-balance {
+        .viewer-monthly-section--calorie-balance {
             grid-column: 1 / -1;
         }
 
@@ -846,7 +846,7 @@
             margin-top: 20px;
         }
 
-        .viewer-chart-grid--prominent {
+        .viewer-chart-grid--wide {
             grid-template-columns: minmax(0, 1fr);
         }
 
@@ -859,8 +859,8 @@
             min-height: 250px;
         }
 
-        .viewer-chart-grid--prominent .viewer-chart-svg {
-            min-height: 360px;
+        .viewer-chart-grid--wide .viewer-chart-svg {
+            min-height: 420px;
         }
 
         .viewer-chart {
@@ -888,7 +888,7 @@
         }
 
         .viewer-chart-svg--pie {
-            max-height: 420px;
+            max-height: 520px;
         }
 
         .viewer-chart--bar .viewer-chart-svg {
@@ -896,9 +896,8 @@
         }
 
         .viewer-chart--line .viewer-chart-svg,
-        .viewer-chart--dual-line .viewer-chart-svg,
         .viewer-chart--diverging-bar .viewer-chart-svg {
-            min-height: 290px;
+            min-height: 350px;
         }
 
         .viewer-chart--bar .viewer-chart-axis-label {
@@ -916,14 +915,27 @@
             text-anchor: middle;
         }
 
+        .viewer-chart-y-axis-label {
+            text-anchor: end;
+        }
+
+        .viewer-chart-gridline {
+            stroke: rgba(255, 255, 255, 0.10);
+            stroke-width: 0.8;
+            stroke-dasharray: 2 3;
+        }
+
+        .viewer-chart-unit-label {
+            fill: var(--text-muted);
+            font-size: 8px;
+        }
+
         .viewer-chart-slice {
-            stroke: rgba(7, 9, 13, 0.55);
-            stroke-width: 1.5;
+            stroke: none;
         }
 
         .viewer-chart-slice--0,
         .viewer-chart-bar--0 {
-            stroke: #7dd3fc;
             fill: #7dd3fc;
         }
 
@@ -931,7 +943,6 @@
 
         .viewer-chart-slice--1,
         .viewer-chart-bar--1 {
-            stroke: #a7f3d0;
             fill: #a7f3d0;
         }
 
@@ -939,7 +950,6 @@
 
         .viewer-chart-slice--2,
         .viewer-chart-bar--2 {
-            stroke: #c4b5fd;
             fill: #c4b5fd;
         }
 
@@ -947,7 +957,6 @@
 
         .viewer-chart-slice--3,
         .viewer-chart-bar--3 {
-            stroke: #fcd34d;
             fill: #fcd34d;
         }
 
@@ -955,7 +964,6 @@
 
         .viewer-chart-slice--4,
         .viewer-chart-bar--4 {
-            stroke: #f9a8d4;
             fill: #f9a8d4;
         }
 
@@ -963,33 +971,20 @@
 
         .viewer-chart-slice--5,
         .viewer-chart-bar--5 {
-            stroke: #fdba74;
             fill: #fdba74;
         }
 
         .viewer-chart-swatch--5 { background: #fdba74; }
 
-        .viewer-chart-line,
-        .viewer-chart-line--left,
-        .viewer-chart-line--right {
+        .viewer-chart-line {
             fill: none;
+            stroke: #7dd3fc;
             stroke-width: 2.5;
         }
 
-        .viewer-chart-line,
-        .viewer-chart-line--left,
         .viewer-chart-point {
-            stroke: #7dd3fc;
             fill: #7dd3fc;
-        }
-
-        .viewer-chart-line--right {
-            stroke: #fcd34d;
-        }
-
-        .viewer-chart-point--right {
-            fill: #fcd34d;
-            stroke: #fcd34d;
+            stroke: #7dd3fc;
         }
 
         .viewer-chart-zero-line {
@@ -1016,10 +1011,10 @@
         }
 
         .viewer-chart-legend li {
-            display: flex;
+            display: grid;
+            grid-template-columns: 10px minmax(0, 1fr) auto;
             align-items: center;
-            justify-content: space-between;
-            gap: 8px;
+            gap: 9px;
             color: var(--text-secondary);
             font-size: 11px;
         }
@@ -1028,9 +1023,12 @@
             display: inline-block;
             width: 8px;
             height: 8px;
-            margin-right: 5px;
-
             border-radius: 999px;
+        }
+
+        .viewer-chart-legend-value {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
         .viewer-chart-empty,
@@ -2471,7 +2469,7 @@
             .viewer-monthly-section--workouts,
             .viewer-monthly-section--activity,
             .viewer-monthly-section--body-weight,
-            .viewer-monthly-section--calories-balance,
+            .viewer-monthly-section--calorie-balance,
             .viewer-monthly-section--nutrition,
             .viewer-monthly-section {
                 grid-column: 1;
@@ -2499,8 +2497,8 @@
                 grid-template-columns: 1fr;
             }
 
-            .viewer-chart-grid--prominent .viewer-chart-svg {
-                min-height: 260px;
+            .viewer-chart-grid--wide .viewer-chart-svg {
+                min-height: 300px;
             }
 
             .viewer-chart-grid--daily {
@@ -2508,7 +2506,7 @@
             }
 
             .viewer-chart-svg--pie {
-                max-height: 340px;
+                max-height: 420px;
             }
 
             .viewer-chart-kpis {

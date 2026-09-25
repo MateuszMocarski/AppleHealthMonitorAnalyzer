@@ -7097,13 +7097,17 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
     assert ".viewer-report-header h1" in viewer_styles
     for css_hook in (
         ".viewer-controls",
-        ".viewer-chart-grid--prominent",
+        ".viewer-chart-grid--wide",
         ".viewer-chart-grid--daily",
         ".viewer-monthly-section--activity",
         ".viewer-chart--line .viewer-chart-svg",
-        ".viewer-chart-grid--prominent .viewer-chart-svg",
+        ".viewer-chart-grid--wide .viewer-chart-svg",
+        ".viewer-chart-gridline",
+        ".viewer-chart-legend-value",
     ):
         assert css_hook in html
+    assert ".viewer-chart-slice {\n            stroke: none;" in html
+    assert ".viewer-chart-line {\n            fill: none;" in html
     assert "data-viewer-daily" in viewer_styles
     assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
     assert "average_daily_steps" not in viewer_state_code

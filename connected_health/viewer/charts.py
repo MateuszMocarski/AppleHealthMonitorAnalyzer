@@ -26,11 +26,12 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
 
     center = 110.0
     radius = 94.0
-    angle = -math.pi / 2
+    first_angle = -math.pi / 2
+    angle = first_angle
     slices: list[str] = []
     for index, (item, value) in enumerate(drawable):
         sweep = 2 * math.pi * value / total
-        end_angle = angle + sweep
+        end_angle = first_angle + 2 * math.pi if index == len(drawable) - 1 else angle + sweep
         start_x = center + radius * math.cos(angle)
         start_y = center + radius * math.sin(angle)
         end_x = center + radius * math.cos(end_angle)
@@ -46,7 +47,7 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
                 f'{end_x:.2f},{end_y:.2f} Z"></path>'
             )
         slices.append(
-            f'<g class="viewer-chart-slice viewer-chart-slice--{index % 6}">'
+            f'<g class="viewer-chart-slice viewer-chart-slice--{index % 6}" stroke="none">'
             f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title>"
             f"{shape}</g>"
         )
@@ -54,8 +55,9 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
 
     legend = "".join(
         '<li><span class="viewer-chart-swatch '
-        f'viewer-chart-swatch--{index % 6}"></span>{escape(item.label)} '
-        f"<span>{_format(value)} {escape(unit)}</span></li>"
+        f'viewer-chart-swatch--{index % 6}"></span>'
+        f'<span class="viewer-chart-legend-label">{escape(item.label)}</span>'
+        f'<span class="viewer-chart-legend-value">{_format(value)} {escape(unit)}</span></li>'
         for index, (item, value) in enumerate(drawable)
     )
     description = f"{title}. Total plotted value: {_format(total)} {unit}."
@@ -82,34 +84,38 @@ def bar_chart(
     plotted = [(item, value) for item, value in plotted if value is not None]
     if not plotted:
         return ""
-    chart_maximum = maximum if maximum is not None else max(value for _, value in plotted)
+    chart_maximum = (
+        maximum if maximum is not None else _nice_ceiling(max(value for _, value in plotted))
+    )
     if chart_maximum <= 0:
         chart_maximum = 1.0
-    width = 220 / max(len(plotted), 1)
+    ticks = _fixed_scale_ticks(chart_maximum)
+    left, right, top, bottom = 46.0, 402.0, 34.0, 204.0
+    width = (right - left) / max(len(plotted), 1)
     bars = []
     for index, (item, value) in enumerate(plotted):
-        height = max(0.0, min(value, chart_maximum)) / chart_maximum * 84
-        x = 28 + index * width + 5
-        y = 104 - height
+        height = max(0.0, min(value, chart_maximum)) / chart_maximum * (bottom - top)
+        x = left + index * width + width * 0.18
+        bar_width = width * 0.64
+        y = bottom - height
         bars.append(
             f'<rect class="viewer-chart-bar viewer-chart-bar--{index % 6}" x="{x:.2f}" '
-            f'y="{y:.2f}" width="{max(width - 10, 3):.2f}" height="{height:.2f}">'
+            f'y="{y:.2f}" width="{bar_width:.2f}" height="{height:.2f}">'
             f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title></rect>"
             '<text class="viewer-chart-axis-label" '
-            f'x="{x + max(width - 10, 3) / 2:.2f}" y="124">{escape(item.label)}</text>'
+            f'x="{x + bar_width / 2:.2f}" y="230">{escape(item.label)}</text>'
         )
-    scale = f"0–{_format(chart_maximum)} {unit}"
-    description = f"{title}; scale {scale}."
+    grid = _horizontal_axis(ticks, 0.0, chart_maximum, top, bottom, left, right)
+    description = f"{title}; fixed scale from 0 to {_format(chart_maximum)} {unit}."
     return _figure(
         title,
         "bar",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 260 136">'
+        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 420 250">'
         f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        '<line class="viewer-chart-axis" x1="28" y1="104" x2="248" y2="104"></line>'
-        '<text class="viewer-chart-axis-label" x="4" y="18">%s</text>'
-        '<text class="viewer-chart-axis-label" x="8" y="108">0</text>%s</svg>'
-        % (escape(scale), "".join(bars)),
+        f'<text class="viewer-chart-unit-label" x="{left}" y="20">{escape(unit)}</text>'
+        f'{grid}<line class="viewer-chart-axis" x1="{left}" y1="{bottom}" '
+        f'x2="{right}" y2="{bottom}"></line>{"".join(bars)}</svg>',
     )
 
 
@@ -128,10 +134,11 @@ def line_chart(
     present = [value for _, value in points if value is not None]
     if not present:
         return ""
-    lower = 0.0 if start_at_zero else min(present)
-    upper = max(present)
-    if upper <= lower:
-        upper = lower + 1.0
+    if start_at_zero:
+        lower = 0.0
+        upper = max(_nice_ceiling(max(present)), 1.0)
+    else:
+        lower, upper, _ = _numeric_axis_bounds(min(present), max(present))
     return _line_figure(
         title,
         points,
@@ -141,53 +148,7 @@ def line_chart(
         axis_label or unit,
         axis_formatter or _format,
         value_formatter or _format,
-    )
-
-
-def dual_axis_line_chart(
-    title: str,
-    labels: Sequence[str],
-    left_values: Sequence[float | None],
-    right_values: Sequence[float | None],
-    *,
-    left_label: str,
-    right_label: str,
-) -> str:
-    """Render two independently zero-based daily series without correlating scales."""
-    left = [_finite(value) for value in left_values]
-    right = [_finite(value) for value in right_values]
-    if not any(value is not None for value in left + right):
-        return ""
-    left_maximum = max((value for value in left if value is not None), default=0.0) or 1.0
-    right_maximum = max((value for value in right if value is not None), default=0.0) or 1.0
-    x_positions = _x_positions(len(labels))
-    left_path = _line_path(left, x_positions, 0, left_maximum)
-    right_path = _line_path(right, x_positions, 0, right_maximum)
-    labels_svg = _x_labels(labels, x_positions)
-    description = f"{title}. Left axis: {left_label}; right axis: {right_label}."
-    paths = ""
-    if left_path:
-        paths += f'<path class="viewer-chart-line viewer-chart-line--left" d="{left_path}"></path>'
-    if right_path:
-        paths += (
-            f'<path class="viewer-chart-line viewer-chart-line--right" d="{right_path}"></path>'
-        )
-    points = _dual_axis_points(left, labels, x_positions, 0, left_maximum, left_label, "left")
-    points += _dual_axis_points(right, labels, x_positions, 0, right_maximum, right_label, "right")
-    return _figure(
-        title,
-        "dual-line",
-        description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 300 154">'
-        f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        '<line class="viewer-chart-axis" x1="32" y1="112" x2="268" y2="112"></line>'
-        f'<text class="viewer-chart-axis-label" x="2" y="18">{escape(left_label)}</text>'
-        f'<text class="viewer-chart-axis-label" x="218" y="18">{escape(right_label)}</text>'
-        f'<text class="viewer-chart-axis-label" x="4" y="108">0</text>'
-        f'<text class="viewer-chart-axis-label" x="4" y="32">{_format(left_maximum)}</text>'
-        f'<text class="viewer-chart-axis-label" x="272" y="108">0</text>'
-        f'<text class="viewer-chart-axis-label" x="272" y="32">{_format(right_maximum)}</text>'
-        f"{paths}{points}{labels_svg}</svg>",
+        time_axis=axis_formatter is not None,
     )
 
 
@@ -196,31 +157,36 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
     plotted = [(item, _finite(item.value)) for item in values]
     if not any(value is not None for _, value in plotted):
         return ""
-    maximum = max((abs(value) for _, value in plotted if value is not None), default=0.0) or 1.0
-    x_positions = _x_positions(len(plotted))
+    maximum_value = max((abs(value) for _, value in plotted if value is not None), default=0.0)
+    ticks = _symmetric_ticks(maximum_value)
+    maximum = max(abs(ticks[0]), abs(ticks[-1]))
+    x_positions = _x_positions(len(plotted), 32.0, 288.0)
+    top, bottom = 34.0, 186.0
+    center = (top + bottom) / 2
     bars = []
     for index, ((item, value), x) in enumerate(zip(plotted, x_positions, strict=True)):
         if value is None:
             continue
-        height = abs(value) / maximum * 46
-        y = 76 - height if value >= 0 else 76
+        height = abs(value) / maximum * (bottom - top) / 2
+        y = center - height if value >= 0 else center
         bars.append(
             '<rect class="viewer-chart-diverging-bar '
             f'viewer-chart-diverging-bar--{"positive" if value >= 0 else "negative"}" '
             f'x="{x - 6:.2f}" y="{y:.2f}" width="12" height="{height:.2f}">'
             f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title></rect>"
         )
-    labels = _x_labels([item.label for item, _ in plotted], x_positions)
+    labels = _x_labels([item.label for item, _ in plotted], x_positions, y=232.0)
+    grid = _horizontal_axis(ticks, -maximum, maximum, top, bottom, 32.0, 288.0)
     description = f"{title}; zero baseline separates deficit and surplus."
     return _figure(
         title,
         "diverging-bar",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 300 136">'
+        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 320 244">'
         f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        '<line class="viewer-chart-zero-line" x1="32" y1="76" x2="268" y2="76"></line>'
-        f'<text class="viewer-chart-axis-label" x="2" y="18">{escape(unit)}</text>'
-        f'<text class="viewer-chart-axis-label" x="4" y="72">0</text>{"".join(bars)}{labels}</svg>',
+        f'<text class="viewer-chart-unit-label" x="32" y="20">{escape(unit)}</text>'
+        f'{grid}<line class="viewer-chart-zero-line" x1="32" y1="{center:.2f}" '
+        f'x2="288" y2="{center:.2f}"></line>{"".join(bars)}{labels}</svg>',
     )
 
 
@@ -242,12 +208,18 @@ def _line_figure(
     axis_label: str,
     axis_formatter: Callable[[float], str],
     value_formatter: Callable[[float], str],
+    *,
+    time_axis: bool,
 ) -> str:
-    x_positions = _x_positions(len(points))
-    path = _line_path([value for _, value in points], x_positions, lower, upper)
+    x_left, x_right = 48.0, 288.0
+    top, bottom = 34.0, 134.0
+    x_positions = _x_positions(len(points), x_left, x_right)
+    ticks = _axis_ticks(lower, upper, step_override=60.0 if time_axis else None)
+    lower, upper = ticks[0], ticks[-1]
+    path = _line_path([value for _, value in points], x_positions, lower, upper, top, bottom)
     dots = "".join(
         '<circle class="viewer-chart-point" '
-        f'cx="{x:.2f}" cy="{_y(value, lower, upper):.2f}" r="2.5">'
+        f'cx="{x:.2f}" cy="{_y(value, lower, upper, top, bottom):.2f}" r="3">'
         f"<title>{escape(label)}: {escape(value_formatter(value))}{_unit_suffix(unit)}</title>"
         "</circle>"
         for (label, value), x in zip(points, x_positions, strict=True)
@@ -255,19 +227,17 @@ def _line_figure(
     )
     labels = _x_labels([label for label, _ in points], x_positions)
     description = f"{title}; values are shown only for days with persisted data."
+    grid = _horizontal_axis(ticks, lower, upper, top, bottom, x_left, x_right, axis_formatter)
     return _figure(
         title,
         "line",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 300 154">'
+        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 320 184">'
         f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        '<line class="viewer-chart-axis" x1="32" y1="112" x2="268" y2="112"></line>'
-        f'<text class="viewer-chart-axis-label" x="2" y="18">{escape(axis_label)}</text>'
-        '<text class="viewer-chart-axis-label" x="4" y="108">'
-        f"{escape(axis_formatter(lower))}</text>"
-        '<text class="viewer-chart-axis-label" x="4" y="32">'
-        f"{escape(axis_formatter(upper))}</text>"
-        f'<path class="viewer-chart-line" d="{path}"></path>{dots}{labels}</svg>',
+        f'<text class="viewer-chart-unit-label" x="{x_left}" y="20">{escape(axis_label)}</text>'
+        f'{grid}<line class="viewer-chart-axis" x1="{x_left}" y1="{bottom}" '
+        f'x2="{x_right}" y2="{bottom}"></line>'
+        f'<path class="viewer-chart-line" fill="none" d="{path}"></path>{dots}{labels}</svg>',
     )
 
 
@@ -292,18 +262,23 @@ def _format(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
-def _x_positions(length: int) -> list[float]:
+def _x_positions(length: int, start: float = 32.0, end: float = 268.0) -> list[float]:
     if length <= 1:
-        return [150.0] * length
-    return [32 + index * 236 / (length - 1) for index in range(length)]
+        return [(start + end) / 2] * length
+    return [start + index * (end - start) / (length - 1) for index in range(length)]
 
 
-def _y(value: float, lower: float, upper: float) -> float:
-    return 112 - (value - lower) / (upper - lower) * 84
+def _y(value: float, lower: float, upper: float, top: float, bottom: float) -> float:
+    return bottom - (value - lower) / (upper - lower) * (bottom - top)
 
 
 def _line_path(
-    values: Sequence[float | None], x_positions: Sequence[float], lower: float, upper: float
+    values: Sequence[float | None],
+    x_positions: Sequence[float],
+    lower: float,
+    upper: float,
+    top: float,
+    bottom: float,
 ) -> str:
     commands: list[str] = []
     needs_move = True
@@ -312,16 +287,16 @@ def _line_path(
             needs_move = True
             continue
         command = "M" if needs_move else "L"
-        commands.append(f"{command}{x:.2f},{_y(value, lower, upper):.2f}")
+        commands.append(f"{command}{x:.2f},{_y(value, lower, upper, top, bottom):.2f}")
         needs_move = False
     return " ".join(commands)
 
 
-def _x_labels(labels: Iterable[str], x_positions: Sequence[float]) -> str:
+def _x_labels(labels: Iterable[str], x_positions: Sequence[float], *, y: float = 178.0) -> str:
     tick_indexes = _x_tick_indexes(len(x_positions))
     return "".join(
         '<text class="viewer-chart-axis-label viewer-chart-x-axis-label" '
-        f'x="{x_positions[index]:.2f}" y="132">{escape(label)}</text>'
+        f'x="{x_positions[index]:.2f}" y="{y:.2f}">{escape(label)}</text>'
         for index, label in enumerate(labels)
         if index in tick_indexes
     )
@@ -334,22 +309,83 @@ def _x_tick_indexes(length: int, maximum_ticks: int = 7) -> set[int]:
     return {round(index * (length - 1) / (maximum_ticks - 1)) for index in range(maximum_ticks)}
 
 
-def _dual_axis_points(
-    values: Sequence[float | None],
-    labels: Sequence[str],
-    x_positions: Sequence[float],
+def _axis_ticks(
     lower: float,
     upper: float,
-    series_label: str,
-    side: str,
+    target_count: int = 5,
+    *,
+    step_override: float | None = None,
+) -> list[float]:
+    if upper <= lower:
+        padding = abs(lower) * 0.05 or 1.0
+        lower -= padding
+        upper += padding
+    step = step_override or _nice_step((upper - lower) / (target_count - 1))
+    first = math.floor(lower / step) * step
+    last = math.ceil(upper / step) * step
+    count = max(1, min(20, round((last - first) / step)))
+    return [first + index * step for index in range(count + 1)]
+
+
+def _numeric_axis_bounds(lower: float, upper: float) -> tuple[float, float, list[float]]:
+    ticks = _axis_ticks(lower, upper)
+    return ticks[0], ticks[-1], ticks
+
+
+def _fixed_scale_ticks(maximum: float) -> list[float]:
+    if maximum == 100:
+        return [0.0, 25.0, 50.0, 75.0, 100.0]
+    return _axis_ticks(0.0, maximum)
+
+
+def _symmetric_ticks(maximum: float) -> list[float]:
+    step = _nice_step(maximum / 2) if maximum > 0 else 1.0
+    count = max(1, min(10, math.ceil(maximum / step)))
+    return [index * step for index in range(-count, count + 1)]
+
+
+def _horizontal_axis(
+    ticks: Sequence[float],
+    lower: float,
+    upper: float,
+    top: float,
+    bottom: float,
+    x_left: float,
+    x_right: float,
+    formatter: Callable[[float], str] | None = None,
 ) -> str:
-    return "".join(
-        '<circle class="viewer-chart-point '
-        f'viewer-chart-point--{side}" cx="{x:.2f}" cy="{_y(value, lower, upper):.2f}" r="2.5">'
-        f"<title>{escape(label)}: {escape(series_label)} {_format(value)}</title></circle>"
-        for value, label, x in zip(values, labels, x_positions, strict=True)
-        if value is not None
+    label_formatter = formatter or _format
+    elements: list[str] = []
+    for tick in ticks:
+        y = _y(tick, lower, upper, top, bottom)
+        elements.append(
+            '<line class="viewer-chart-gridline" '
+            f'x1="{x_left:.2f}" y1="{y:.2f}" x2="{x_right:.2f}" y2="{y:.2f}"></line>'
+        )
+        elements.append(
+            '<text class="viewer-chart-axis-label viewer-chart-y-axis-label" '
+            f'x="{x_left - 7:.2f}" y="{y + 3:.2f}">{escape(label_formatter(tick))}</text>'
+        )
+    return "".join(elements)
+
+
+def _nice_step(raw_step: float) -> float:
+    if not math.isfinite(raw_step) or raw_step <= 0:
+        return 1.0
+    magnitude = 10 ** math.floor(math.log10(raw_step))
+    fraction = raw_step / magnitude
+    nice_fraction = next(
+        (candidate for candidate in (1.0, 2.0, 2.5, 5.0, 10.0) if fraction <= candidate),
+        10.0,
     )
+    return nice_fraction * magnitude
+
+
+def _nice_ceiling(value: float) -> float:
+    if value <= 0:
+        return 1.0
+    step = _nice_step(value / 5)
+    return math.ceil(value / step) * step
 
 
 def _unit_suffix(unit: str) -> str:

@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 
 from connected_health.enums import WorkoutType
 from connected_health.models import NutritionData
@@ -281,9 +281,9 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "70" in html
     assert 'class="viewer-chart viewer-chart--pie"' in html
     assert 'class="viewer-chart viewer-chart--donut"' not in html
-    assert 'class="viewer-chart-line" d="' in html
+    assert 'class="viewer-chart-line" fill="none"' in html
     assert 'class="viewer-chart-area"' not in html
-    assert 'class="viewer-chart-grid viewer-chart-grid--prominent"' in html
+    assert 'class="viewer-chart viewer-chart--line"' in html
     assert 'class="viewer-chart-grid viewer-chart-grid--daily"' in html
     assert "1,900" in html
     assert "150" in html
@@ -300,14 +300,20 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "Average Sleep Score components" in html
     assert "Bedtime by day" in html
     assert "Wake-up time by day" in html
-    assert "Daily steps and distance" in html
+    assert "Daily steps" in html
+    assert "Daily distance" in html
+    assert "Daily steps and distance" not in html
     assert "Body weight by day" in html
     assert "Daily calorie balance" in html
     assert "Protein by day" in html
     assert "Carbohydrates by day" in html
     assert "Fat by day" in html
     assert "Calories by day" in html
-    assert "Daily macros" in html
+    assert "Daily macros" not in html
+    assert "viewer-chart--dual-line" not in html
+    assert html.count('class="viewer-chart viewer-chart--line"') >= 8
+    assert html.count('class="viewer-chart-line" fill="none"') >= 7
+    assert "<polygon" not in html
     assert "Sleep Score components" in html
     monthly_score_chart = html.split("<figcaption>Average Sleep Score components</figcaption>", 1)[
         1
@@ -318,6 +324,24 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "Monthly score" not in monthly_score_chart
     assert "Average bonus" not in monthly_score_chart
     assert "Total score" not in daily_score_chart
+
+
+def test_full_activity_renders_separate_steps_and_distance_series() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_multi_day_full_summary()))
+
+    html = HtmlRenderer().render(report)
+    steps_chart = html.split("<figcaption>Daily steps</figcaption>", 1)[1].split("</figure>", 1)[0]
+    distance_chart = html.split("<figcaption>Daily distance</figcaption>", 1)[1].split(
+        "</figure>", 1
+    )[0]
+
+    assert 'class="viewer-chart viewer-chart--dual-line"' not in html
+    assert 'class="viewer-chart-line" fill="none"' in steps_chart
+    assert 'class="viewer-chart-line" fill="none"' in distance_chart
+    assert steps_chart.count('class="viewer-chart-point"') == 2
+    assert distance_chart.count('class="viewer-chart-point"') == 2
+    assert "1,234 steps" in steps_chart
+    assert "1.5 km" in distance_chart
 
 
 def test_html_renderer_orders_daily_articles_and_selects_the_latest_day() -> None:
@@ -357,6 +381,23 @@ def test_html_renderer_normalizes_bedtime_chart_geometry_but_keeps_clock_labels(
     assert "<title>Aug 2: 01:00</title>" in bedtime_chart
     assert "1500" not in bedtime_chart
     assert "<title>Aug 2: 08:00</title>" in wake_up_chart
+
+
+def test_html_renderer_daily_sleep_session_uses_local_clock_without_timezone_suffix() -> None:
+    summary = _rich_summary()
+    offset = timezone(timedelta(hours=2))
+    summary.days[0].sleep_session = replace(
+        summary.days[0].sleep_session,
+        bedtime=datetime(2026, 8, 1, 1, 16, tzinfo=offset),
+        wake_up=datetime(2026, 8, 1, 8, 37, tzinfo=offset),
+    )
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+
+    assert "August 1, 2026 at 1:16" in html
+    assert "August 1, 2026 at 8:37" in html
+    assert "+0200" not in html
 
 
 def test_html_renderer_notes_partial_workout_energy_without_zero_filling() -> None:

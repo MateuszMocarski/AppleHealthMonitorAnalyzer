@@ -2,7 +2,6 @@ from connected_health.viewer.charts import (
     ChartDatum,
     bar_chart,
     diverging_bar_chart,
-    dual_axis_line_chart,
     line_chart,
     pie_chart,
 )
@@ -23,11 +22,22 @@ def test_pie_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
     assert '<figure class="viewer-chart viewer-chart--pie">' in html
     assert '<svg class="viewer-chart-svg viewer-chart-svg--pie" role="img"' in html
     assert html.count('class="viewer-chart-slice') == 2
-    assert " A94.00,94.00 " in html
+    assert html.count("M110.00,110.00 L") == 2
+    assert html.count('Z"></path>') == 2
+    assert html.count("M110.00,110.00 L") == html.count('Z"></path>')
     assert "viewer-chart-donut-track" not in html
     assert "Core &lt;sleep&gt;" in html
     assert "NaN" not in html
     assert "Infinity" not in html
+
+
+def test_one_slice_pie_is_a_filled_circle_without_a_hole() -> None:
+    html = pie_chart("Sleep stages", (ChartDatum("Core", 90),), "minutes")
+
+    assert '<circle cx="110.00" cy="110.00" r="94.00"></circle>' in html
+    assert 'class="viewer-chart-slice' in html
+    assert 'stroke="none"' in html
+    assert "stroke-dasharray" not in html
 
 
 def test_zero_total_pie_is_a_controlled_empty_state() -> None:
@@ -50,7 +60,10 @@ def test_bar_chart_supports_a_fixed_scale() -> None:
         maximum=100,
     )
 
-    assert "0–100 points" in html
+    assert "0–100 points" not in html
+    for tick in ("0", "25", "50", "75", "100"):
+        assert f">{tick}</text>" in html
+    assert html.count('class="viewer-chart-gridline"') == 5
     assert "Bedtime" in html
     assert "Duration" in html
 
@@ -82,22 +95,20 @@ def test_line_chart_uses_an_optional_user_facing_value_formatter_for_point_title
     assert "<title>Aug 2: 1500</title>" not in html
 
 
-def test_dual_axis_chart_keeps_distinct_zero_based_axis_labels() -> None:
-    html = dual_axis_line_chart(
-        "Steps and distance",
-        ("Aug 1", "Aug 2"),
-        (1000, None),
-        (1.5, 2.0),
-        left_label="Steps",
-        right_label="Distance (km)",
+def test_line_chart_emits_numeric_intermediate_ticks_gridlines_and_unfilled_path() -> None:
+    html = line_chart(
+        "Daily steps",
+        tuple(ChartDatum(f"Aug {day}", day * 1000) for day in range(1, 5)),
+        "steps",
+        start_at_zero=True,
     )
 
-    assert "Steps" in html
-    assert "Distance (km)" in html
-    assert 'class="viewer-chart-line viewer-chart-line--left"' in html
-    assert 'class="viewer-chart-line viewer-chart-line--right"' in html
-    assert "<title>Aug 1: Steps 1,000</title>" in html
-    assert "<title>Aug 1: Distance (km) 1.5</title>" in html
+    for tick in ("0", "1,000", "2,000", "3,000", "4,000"):
+        assert f">{tick}</text>" in html
+    assert html.count('class="viewer-chart-gridline"') == 5
+    assert '<path class="viewer-chart-line" fill="none"' in html
+    assert "<polygon" not in html
+    assert "<path" in html
 
 
 def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
@@ -110,6 +121,9 @@ def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
     assert 'class="viewer-chart-zero-line"' in html
     assert "viewer-chart-diverging-bar--negative" in html
     assert "viewer-chart-diverging-bar--positive" in html
+    assert 'class="viewer-chart-zero-line"' in html
+    assert html.count('class="viewer-chart-gridline"') >= 3
+    assert ">0</text>" in html
     assert "NaN" not in html
     assert "Infinity" not in html
 
@@ -118,24 +132,31 @@ def test_long_daily_axes_thin_labels_without_dropping_plotted_values() -> None:
     values = tuple(ChartDatum(f"Aug {day}", float(day)) for day in range(1, 32))
 
     line = line_chart("Protein by day", values, "g")
-    dual = dual_axis_line_chart(
-        "Steps and distance",
-        tuple(item.label for item in values),
-        tuple(item.value for item in values),
-        tuple(item.value / 10 for item in values),
-        left_label="Steps",
-        right_label="Distance (km)",
-    )
+    distance = line_chart("Daily distance", values, "km", start_at_zero=True)
     diverging = diverging_bar_chart("Calorie balance", values, "kcal")
 
-    for chart in (line, dual, diverging):
+    for chart in (line, distance, diverging):
         assert chart.count("viewer-chart-x-axis-label") == 7
         assert ">Aug 1</text>" in chart
         assert ">Aug 31</text>" in chart
 
     assert line.count('class="viewer-chart-point"') == 31
-    assert dual.count('class="viewer-chart-point ') == 62
+    assert distance.count('class="viewer-chart-point"') == 31
     assert diverging.count('class="viewer-chart-diverging-bar ') == 31
+
+
+def test_time_axis_has_formatted_intermediate_clock_ticks() -> None:
+    html = line_chart(
+        "Bedtime by day",
+        (ChartDatum("Aug 1", 1380), ChartDatum("Aug 2", 1500)),
+        "",
+        axis_formatter=_clock_label,
+    )
+
+    assert ">23:00</text>" in html
+    assert any(f">{hour:02d}:" in html for hour in range(0, 24))
+    assert "1500" not in html
+    assert "25:00" not in html
 
 
 def test_short_daily_axes_keep_every_label() -> None:
@@ -146,3 +167,17 @@ def test_short_daily_axes_keep_every_label() -> None:
     )
 
     assert html.count("viewer-chart-x-axis-label") == 3
+
+
+def test_long_daily_steps_and_distance_charts_keep_independent_values_and_lines() -> None:
+    values = tuple(ChartDatum(f"Aug {day}", day * 1000) for day in range(1, 32))
+
+    steps = line_chart("Daily steps", values, "steps", start_at_zero=True)
+    distance = line_chart("Daily distance", values, "km", start_at_zero=True)
+
+    assert "Daily steps" in steps and "Daily distance" in distance
+    assert steps.count('class="viewer-chart-point"') == 31
+    assert distance.count('class="viewer-chart-point"') == 31
+    assert steps.count('class="viewer-chart-line" fill="none"') == 1
+    assert distance.count('class="viewer-chart-line" fill="none"') == 1
+    assert "<polygon" not in steps + distance

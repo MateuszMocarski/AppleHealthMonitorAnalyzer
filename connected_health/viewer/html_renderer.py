@@ -11,7 +11,6 @@ from connected_health.viewer.charts import (
     ChartDatum,
     bar_chart,
     diverging_bar_chart,
-    dual_axis_line_chart,
     line_chart,
     pie_chart,
 )
@@ -312,21 +311,36 @@ class HtmlRenderer:
             return ""
         days = self._ordered_days(report)
         return self._chart_grid(
-            dual_axis_line_chart(
-                "Daily steps and distance",
-                [self._day_label(day.date) for day in days],
+            line_chart(
+                "Daily steps",
                 [
-                    day.general_activity.steps if day.general_activity is not None else None
+                    ChartDatum(
+                        self._day_label(day.date),
+                        day.general_activity.steps if day.general_activity is not None else None,
+                    )
                     for day in days
                 ],
-                [
-                    day.general_activity.distance_km if day.general_activity is not None else None
-                    for day in days
-                ],
-                left_label="Steps",
-                right_label="Distance (km)",
+                "steps",
+                axis_label="Steps",
+                start_at_zero=True,
             ),
-            modifier="viewer-chart-grid--prominent",
+            line_chart(
+                "Daily distance",
+                [
+                    ChartDatum(
+                        self._day_label(day.date),
+                        (
+                            day.general_activity.distance_km
+                            if day.general_activity is not None
+                            else None
+                        ),
+                    )
+                    for day in days
+                ],
+                "km",
+                axis_label="Distance (km)",
+                start_at_zero=True,
+            ),
         )
 
     def _sleep_charts(self, sleep: Any) -> str:
@@ -466,6 +480,7 @@ class HtmlRenderer:
                 ],
                 "g",
                 axis_label="Protein (g)",
+                start_at_zero=True,
             ),
             line_chart(
                 "Carbohydrates by day",
@@ -478,6 +493,7 @@ class HtmlRenderer:
                 ],
                 "g",
                 axis_label="Carbohydrates (g)",
+                start_at_zero=True,
             ),
             line_chart(
                 "Fat by day",
@@ -490,6 +506,7 @@ class HtmlRenderer:
                 ],
                 "g",
                 axis_label="Fat (g)",
+                start_at_zero=True,
             ),
             line_chart(
                 "Calories by day",
@@ -502,6 +519,7 @@ class HtmlRenderer:
                 ],
                 "kcal",
                 axis_label="Calories (kcal)",
+                start_at_zero=True,
             ),
         )
         return self._chart_grid(*charts)
@@ -517,7 +535,8 @@ class HtmlRenderer:
                     for day in self._ordered_days(report)
                 ],
                 "kcal",
-            )
+            ),
+            modifier="viewer-chart-grid--wide",
         )
 
     def _sleep_configuration(self, configuration: Any) -> str:
@@ -863,21 +882,7 @@ class HtmlRenderer:
                 ("Calories", "calories_kcal", "kcal"),
             ),
         )
-        if nutrition is None:
-            return fields
-        chart = bar_chart(
-            "Daily macros",
-            (
-                ChartDatum("Protein", nutrition.protein_g),
-                ChartDatum("Carbohydrates", nutrition.carbohydrates_g),
-                ChartDatum("Fat", nutrition.fat_g),
-            ),
-            "g",
-        )
-        calories_kpi = self._chart_kpis((("Calories", nutrition.calories_kcal, "kcal"),))
-        return (
-            f'{fields}{self._chart_grid(chart, calories_kpi, modifier="viewer-chart-grid--daily")}'
-        )
+        return fields
 
     def _daily_workouts(self, day: DailyReport) -> str:
         if not day.workouts:
@@ -950,7 +955,8 @@ class HtmlRenderer:
 
     @staticmethod
     def _datetime_value(value: datetime) -> str:
-        return escape(value.strftime("%B %d, %Y at %H:%M %z").replace(" 0", " "))
+        date_label = value.strftime("%B %d, %Y").replace(" 0", " ")
+        return escape(f"{date_label} at {value.hour}:{value.minute:02d}")
 
     @staticmethod
     def _value(value: Any, unit: str | None = None) -> str:
