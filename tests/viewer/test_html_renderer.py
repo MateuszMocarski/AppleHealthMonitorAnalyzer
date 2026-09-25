@@ -196,6 +196,33 @@ def test_html_renderer_renders_validated_summary_without_daily_content() -> None
     assert "ActivityMetricsSummary(" not in html
 
 
+def test_html_renderer_uses_semantic_metric_lists_and_associates_activity_coverage() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month_summary(_rich_summary()))
+
+    html = HtmlRenderer().render(report)
+
+    assert '<div class="viewer-metric-grid">' not in html
+    assert html.count('<dl class="viewer-metric-grid">') >= 10
+    assert '<dl class="viewer-metric-grid"><div class="viewer-metric"><dt>Total steps</dt>' in html
+
+    total_steps = html.split("<dt>Total steps</dt>", 1)[1].split("</div>", 1)[0]
+    average_steps = html.split("<dt>Average daily steps</dt>", 1)[1].split("</div>", 1)[0]
+    total_distance = html.split("<dt>Total distance</dt>", 1)[1].split("</div>", 1)[0]
+    average_distance = html.split("<dt>Average daily distance</dt>", 1)[1].split("</div>", 1)[0]
+    average_step_length = html.split("<dt>Average step length</dt>", 1)[1].split("</div>", 1)[0]
+
+    assert "Coverage:" not in total_steps
+    assert "Coverage:" not in total_distance
+    assert (
+        '<dd>842.1<span class="viewer-metric-coverage">Coverage: 10 days</span></dd>'
+        in average_steps
+    )
+    assert '<span class="viewer-metric-coverage">Coverage: 10 days</span></dd>' in average_distance
+    assert (
+        '<span class="viewer-metric-coverage">Coverage: 10 days</span></dd>' in average_step_length
+    )
+
+
 def test_html_renderer_renders_validated_full_daily_content() -> None:
     report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
 

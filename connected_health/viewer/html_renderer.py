@@ -63,17 +63,13 @@ class HtmlRenderer:
             "General activity",
             "activity",
             (
-                self._metric(
-                    "Total steps", activity.total_steps, coverage=activity.steps_count_days
-                ),
+                self._metric("Total steps", activity.total_steps),
                 self._metric(
                     "Average daily steps",
                     activity.average_daily_steps,
                     coverage=activity.steps_count_days,
                 ),
-                self._metric(
-                    "Total distance", activity.total_distance_km, "km", activity.distance_count_days
-                ),
+                self._metric("Total distance", activity.total_distance_km, "km"),
                 self._metric(
                     "Average daily distance",
                     activity.average_daily_distance_km,
@@ -124,12 +120,12 @@ class HtmlRenderer:
             )
         )
         content = (
-            '<div class="viewer-metric-grid">'
-            f"{session_metrics}</div>"
+            '<dl class="viewer-metric-grid">'
+            f"{session_metrics}</dl>"
             '<section class="viewer-monthly-subsection"><h3>Sleep stages</h3>'
-            f'<div class="viewer-metric-grid">{stage_metrics}</div></section>'
+            f'<dl class="viewer-metric-grid">{stage_metrics}</dl></section>'
             '<section class="viewer-monthly-subsection"><h3>Sleep score</h3>'
-            f'<div class="viewer-metric-grid">{score_metrics}</div></section>'
+            f'<dl class="viewer-metric-grid">{score_metrics}</dl></section>'
         )
         return self._section("Sleep", "sleep", content, grid=False)
 
@@ -167,7 +163,7 @@ class HtmlRenderer:
         return (
             '<article class="viewer-workout-card">'
             f"<h3>{workout_type}</h3>"
-            f'<div class="viewer-metric-grid">{metrics}</div></article>'
+            f'<dl class="viewer-metric-grid">{metrics}</dl></article>'
         )
 
     def _body_weight_section(self, report: ViewerReport) -> str:
@@ -271,7 +267,7 @@ class HtmlRenderer:
         if isinstance(content, tuple):
             content = "".join(content)
         if grid:
-            content = f'<div class="viewer-metric-grid">{content}</div>'
+            content = f'<dl class="viewer-metric-grid">{content}</dl>'
         return (
             f'<section class="viewer-monthly-section viewer-monthly-section--{name}">'
             f"<h2>{escape(title)}</h2>{content}</section>"
@@ -291,12 +287,11 @@ class HtmlRenderer:
         if coverage is not None:
             day_label = "day" if coverage == 1 else "days"
             coverage_html = (
-                f'<p class="viewer-metric-coverage">Coverage: {coverage} {day_label}</p>'
+                f'<span class="viewer-metric-coverage">Coverage: {coverage} {day_label}</span>'
             )
         return (
             '<div class="viewer-metric">'
-            f"<dt>{escape(label)}</dt><dd>{self._value(value, unit)}</dd>"
-            f"{coverage_html}</div>"
+            f"<dt>{escape(label)}</dt><dd>{self._value(value, unit)}{coverage_html}</dd></div>"
         )
 
     def _daily_section(self, report: FullReport) -> str:
