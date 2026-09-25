@@ -191,6 +191,37 @@ def test_discover_viewer_report_index_excludes_archived_staging_orphan_and_old_a
     assert tuple(artifact.file_id for artifact in index) == ("current-full",)
 
 
+def test_discover_viewer_report_index_follows_replacement_current_generation_pointer() -> None:
+    old_month = _month("2026-08", "generation-old")
+    new_month = _month("2026-08", "generation-new")
+    old_full = _artifact(
+        "old-full",
+        name="full.json",
+        period="2026-08",
+        generation_id="generation-old",
+    )
+    new_full = _artifact(
+        "new-full",
+        name="full.json",
+        period="2026-08",
+        generation_id="generation-new",
+    )
+    children = {
+        old_month.file_id: (old_full, new_full),
+        new_month.file_id: (old_full, new_full),
+    }
+
+    before_replacement = discover_viewer_report_index(
+        _drive_client(months=(old_month,), children=children)
+    )
+    after_replacement = discover_viewer_report_index(
+        _drive_client(months=(new_month,), children=children)
+    )
+
+    assert tuple(artifact.file_id for artifact in before_replacement) == ("old-full",)
+    assert tuple(artifact.file_id for artifact in after_replacement) == ("new-full",)
+
+
 def test_discover_viewer_report_index_orders_newest_period_then_full_before_summary() -> None:
     august = _month("2026-08", "generation-august")
     september = _month("2026-09", "generation-september")

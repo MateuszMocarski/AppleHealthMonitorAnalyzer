@@ -340,6 +340,98 @@ def test_open_viewer_report_verifies_file_id_before_loading_body(
     assert load_calls == ["selected-file-id"]
 
 
+def test_viewer_replacement_lifecycle_exposes_only_new_current_artifacts(
+    monkeypatch,
+) -> None:
+    sessions, session_id = _connected_google_session()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    old_full = ViewerReportArtifact(
+        file_id="old-full-file-id",
+        period="2026-08",
+        kind="full",
+        generation_id="generation-old",
+        generated_at="2026-09-12T18:00:00Z",
+    )
+    new_full = ViewerReportArtifact(
+        file_id="new-full-file-id",
+        period="2026-08",
+        kind="full",
+        generation_id="generation-new",
+        generated_at="2026-09-13T18:00:00Z",
+    )
+    active_artifacts = [old_full]
+    load_calls: list[str] = []
+
+    class FakeDriveClient:
+        def __init__(self, access_token: str) -> None:
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(api_app_module, "HttpGoogleDriveClient", FakeDriveClient)
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_viewer_report_index_for_session",
+        lambda _session: tuple(active_artifacts),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_viewer_report_index",
+        lambda _client: tuple(active_artifacts),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "load_viewer_report",
+        lambda _client, *, artifact: load_calls.append(artifact.file_id) or "validated-report",
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+
+    assert auth_client.get("/viewer/reports").json()["artifacts"] == [
+        {
+            "file_id": "old-full-file-id",
+            "period": "2026-08",
+            "kind": "full",
+            "generation_id": "generation-old",
+            "generated_at": "2026-09-12T18:00:00Z",
+        }
+    ]
+
+    session = sessions.get(session_id)
+    assert session is not None
+    api_app_module.open_viewer_report_for_session(
+        session,
+        file_id="old-full-file-id",
+    )
+
+    # This models replacement committing a new current-generation pointer and
+    # archiving the former generation: discovery now exposes only the new one.
+    active_artifacts[:] = [new_full]
+
+    assert auth_client.get("/viewer/reports").json()["artifacts"] == [
+        {
+            "file_id": "new-full-file-id",
+            "period": "2026-08",
+            "kind": "full",
+            "generation_id": "generation-new",
+            "generated_at": "2026-09-13T18:00:00Z",
+        }
+    ]
+
+    with pytest.raises(api_app_module.ViewerReportArtifactUnavailableError):
+        api_app_module.open_viewer_report_for_session(
+            session,
+            file_id="old-full-file-id",
+        )
+
+    api_app_module.open_viewer_report_for_session(
+        session,
+        file_id="new-full-file-id",
+    )
+
+    assert load_calls == ["old-full-file-id", "new-full-file-id"]
+
+
 def test_open_viewer_report_endpoint_returns_validated_html_and_disables_caching(
     monkeypatch,
 ) -> None:
@@ -6498,7 +6590,8 @@ def test_web_interface_shows_empty_viewer_state_only_after_current_index_load() 
         "No saved JSON reports are available."
     )
     assert load_function.index("viewerState.indexLoaded = true;") < load_function.index(
-        "viewerState.indexLoading = false;", -200
+        "viewerState.indexLoading = false;",
+        load_function.index("viewerState.indexLoaded = true;"),
     )
 
 
@@ -6693,7 +6786,113 @@ def test_web_interface_invalidates_stale_viewer_report_body_loads() -> None:
     assert selection_function.index("!== viewerReportRequestGeneration") < selection_function.index(
         "showReconnectRecovery();"
     )
-    assert "resetViewerReportState(true);" in index_load_function
+    assert "viewerReportRequestGeneration += 1;" in index_load_function
+    assert "resetViewerReportState(true);" not in index_load_function
+
+
+# =====================================================================
+# Verifies that a connected-state refresh after report generation keeps a
+# still-current mounted report, but invalidates body work and clears a report
+# whose active artifact was replaced.
+# =====================================================================
+
+
+def test_web_interface_reconciles_viewer_selection_after_persisted_report_refresh() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    enable_function = html.split(
+        "function enableViewer()",
+        1,
+    )[1].split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[0]
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    generation_function = html.split(
+        "async function handleSuccessfulGeneration(",
+        1,
+    )[1].split(
+        "async function handleGenerationRecovery",
+        1,
+    )[0]
+
+    assert "if (viewerState.available)" in enable_function
+    assert "viewerReportRequestGeneration += 1;" in index_load_function
+    assert "viewerState.reportLoading = false;" in index_load_function
+    assert "activeSelectedArtifact" in index_load_function
+    assert "viewerState.artifacts.find" in index_load_function
+    assert "resetViewerReportState(false);" in index_load_function
+    assert "replaced or is no longer active" in index_load_function
+    assert "viewerState.selectedArtifact =" in index_load_function
+    assert "reportMountedFileId" in report_render_function
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in report_render_function
+    assert "initializeViewerDailyNavigation();" in report_render_function
+    assert "await loadGoogleConnectionState();" in generation_function
+
+
+# =====================================================================
+# Verifies that a selected saved report can hand its trusted reporting period
+# to Generate without treating persisted JSON as a source or changing the
+# explicit provider-selection contract.
+# =====================================================================
+
+
+def test_web_interface_exposes_regenerate_handoff_without_viewer_download() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    regenerate_handler = html.split(
+        "viewerRegenerateButton.addEventListener(",
+        1,
+    )[1].split(
+        "function openGoogleOAuthPopup",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    reports_function = html.split(
+        "function renderReports(reports)",
+        1,
+    )[1].split(
+        "function hideGoogleRecovery",
+        1,
+    )[0]
+
+    assert 'id="viewer-report-actions"' in html
+    assert 'id="viewer-regenerate-button"' in html
+    assert "viewerReportActions.hidden" in report_render_function
+    assert "selectedMonths.add(artifact.period);" in regenerate_handler
+    assert "renderMonthChips();" in regenerate_handler
+    assert 'setActiveModule("generate");' in regenerate_handler
+    assert "Choose Apple Health and a ZIP source" in regenerate_handler
+    assert "selectedProvider =" not in regenerate_handler
+    assert "/viewer/reports/${encodeURIComponent(artifact.file_id)}/download" not in html
+
+    for filename in ("full.txt", "full.json", "summary.txt", "summary.json"):
+        assert filename in reports_function
 
 
 # =====================================================================

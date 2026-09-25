@@ -459,6 +459,33 @@
             color: var(--error);
         }
 
+        .viewer-report-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin: 0 0 12px;
+        }
+
+        .viewer-report-actions button {
+            min-height: 34px;
+            padding: 7px 11px;
+
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .viewer-report-actions button:hover,
+        .viewer-report-actions button:focus-visible {
+            border-color: var(--accent);
+            outline: none;
+        }
+
         .viewer-report-content {
             min-width: 0;
         }
@@ -3322,6 +3349,19 @@
                     class="viewer-report-content"
                     aria-label="Selected saved report"
                 >
+                    <div
+                        class="viewer-report-actions"
+                        id="viewer-report-actions"
+                        hidden
+                    >
+                        <button
+                            id="viewer-regenerate-button"
+                            type="button"
+                        >
+                            Regenerate
+                        </button>
+                    </div>
+
                     <p
                         class="viewer-report-status"
                         id="viewer-report-status"
@@ -3397,6 +3437,12 @@
         const viewerReportContent =
             document.getElementById("viewer-report-content");
 
+        const viewerReportActions =
+            document.getElementById("viewer-report-actions");
+
+        const viewerRegenerateButton =
+            document.getElementById("viewer-regenerate-button");
+
         const viewerState = {
             activeModule: "generate",
             artifacts: [],
@@ -3408,6 +3454,7 @@
             reportError: null,
             reportHtml: null,
             reportLoading: false,
+            reportMountedFileId: null,
             reportNotice: null,
             selectedArtifact: null,
         };
@@ -3775,6 +3822,9 @@
         }
 
         function renderViewerReportState() {
+            viewerReportActions.hidden =
+                viewerState.selectedArtifact === null;
+
             viewerReportStatus.classList.toggle(
                 "error",
                 viewerState.reportError !== null,
@@ -3782,6 +3832,7 @@
 
             if (viewerState.reportLoading) {
                 viewerReportContent.replaceChildren();
+                viewerState.reportMountedFileId = null;
                 viewerReportStatus.hidden = false;
                 viewerReportStatus.textContent =
                     "Loading saved report…";
@@ -3790,6 +3841,7 @@
 
             if (viewerState.reportError !== null) {
                 viewerReportContent.replaceChildren();
+                viewerState.reportMountedFileId = null;
                 viewerReportStatus.hidden = false;
                 viewerReportStatus.textContent =
                     viewerState.reportError;
@@ -3798,13 +3850,23 @@
 
             if (viewerState.reportHtml !== null) {
                 viewerReportStatus.hidden = true;
-                viewerReportContent.innerHTML = viewerState.reportHtml;
-                initializeViewerDailyNavigation();
-                initializeViewerSleepConfiguration();
+
+                if (
+                    viewerState.reportMountedFileId
+                    !== viewerState.selectedArtifact?.file_id
+                ) {
+                    viewerReportContent.innerHTML = viewerState.reportHtml;
+                    viewerState.reportMountedFileId =
+                        viewerState.selectedArtifact?.file_id ?? null;
+                    initializeViewerDailyNavigation();
+                    initializeViewerSleepConfiguration();
+                }
+
                 return;
             }
 
             viewerReportContent.replaceChildren();
+            viewerState.reportMountedFileId = null;
             viewerReportStatus.hidden = false;
             viewerReportStatus.textContent =
                 viewerState.reportNotice
@@ -3924,6 +3986,7 @@
             viewerState.reportError = null;
             viewerState.reportHtml = null;
             viewerState.reportLoading = false;
+            viewerState.reportMountedFileId = null;
             viewerState.reportNotice = null;
             viewerState.selectedArtifact = null;
 
@@ -3984,6 +4047,7 @@
             viewerState.reportError = null;
             viewerState.reportHtml = null;
             viewerState.reportLoading = true;
+            viewerState.reportMountedFileId = null;
             viewerState.reportNotice = null;
             closeViewerSelector();
             renderViewerSelector();
@@ -4070,6 +4134,7 @@
             viewerState.selectedArtifact = payload.artifact;
             viewerState.reportHtml = payload.html;
             viewerState.reportLoading = false;
+            viewerState.reportMountedFileId = null;
             renderViewerSelector();
             renderViewerReportState();
         }
@@ -4120,6 +4185,11 @@
         }
 
         function enableViewer() {
+            if (viewerState.available) {
+                moduleSwitch.hidden = false;
+                return;
+            }
+
             resetViewerReportState(true);
             viewerState.artifacts = [];
             viewerState.available = true;
@@ -4136,7 +4206,8 @@
                 viewerIndexRequestGeneration + 1;
 
             viewerIndexRequestGeneration = requestGeneration;
-            resetViewerReportState(true);
+            viewerReportRequestGeneration += 1;
+            viewerState.reportLoading = false;
             viewerState.artifacts = [];
             viewerState.indexLoading = true;
             viewerState.indexError = null;
@@ -4215,6 +4286,27 @@
             viewerState.artifacts = payload.artifacts;
             viewerState.indexLoaded = true;
             viewerState.indexLoading = false;
+
+            const activeSelectedArtifact =
+                viewerState.selectedArtifact === null
+                    ? undefined
+                    : viewerState.artifacts.find(
+                        (artifact) =>
+                            artifact.file_id
+                            === viewerState.selectedArtifact.file_id,
+                    );
+
+            if (viewerState.selectedArtifact !== null) {
+                if (activeSelectedArtifact === undefined) {
+                    resetViewerReportState(false);
+                    viewerState.reportNotice =
+                        "The selected saved report was replaced or is no longer active. Choose another report.";
+                } else {
+                    viewerState.selectedArtifact =
+                        activeSelectedArtifact;
+                }
+            }
+
             renderViewerIndexState();
             applyViewerDefaultSelection();
         }
@@ -4240,6 +4332,25 @@
                 viewerSelectorToggle.setAttribute(
                     "aria-expanded",
                     String(!isExpanded),
+                );
+            },
+        );
+
+        viewerRegenerateButton.addEventListener(
+            "click",
+            () => {
+                const artifact = viewerState.selectedArtifact;
+
+                if (artifact === null) {
+                    return;
+                }
+
+                selectedMonths.add(artifact.period);
+                renderMonthChips();
+                setActiveModule("generate");
+                showStatus(
+                    `Added ${formatViewerPeriod(artifact.period)} to Generate. Choose Apple Health and a ZIP source to regenerate it.`,
+                    "info",
                 );
             },
         );
