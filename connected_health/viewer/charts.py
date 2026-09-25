@@ -14,6 +14,18 @@ class ChartDatum:
 
     label: str
     value: float | None
+    position: float | None = None
+
+
+@dataclass(frozen=True)
+class ChartTrend:
+    """A secondary server-calculated presentation line over a numeric series."""
+
+    start_position: float
+    start_value: float
+    end_position: float
+    end_value: float
+    label: str
 
 
 def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
@@ -134,12 +146,19 @@ def line_chart(
     axis_label: str | None = None,
     axis_formatter: Callable[[float], str] | None = None,
     value_formatter: Callable[[float], str] | None = None,
+    trend: ChartTrend | None = None,
 ) -> str:
     """Render a single series, retaining missing values as breaks in the path."""
-    points = [(item.label, _finite(item.value)) for item in values]
-    present = [value for _, value in points if value is not None]
+    points = [(item.label, _finite(item.value), item.position) for item in values]
+    present = [value for _, value, _ in points if value is not None]
     if not present:
         return ""
+    if trend is not None:
+        trend_values = (_finite(trend.start_value), _finite(trend.end_value))
+        if all(value is not None for value in trend_values):
+            present.extend(value for value in trend_values if value is not None)
+        else:
+            trend = None
     if start_at_zero:
         lower = 0.0
         upper = max(_nice_ceiling(max(present)), 1.0)
@@ -155,6 +174,7 @@ def line_chart(
         axis_formatter or _format,
         value_formatter or _format,
         time_axis=axis_formatter is not None,
+        trend=trend,
     )
 
 
@@ -212,7 +232,7 @@ def empty_chart(title: str, message: str) -> str:
 
 def _line_figure(
     title: str,
-    points: Sequence[tuple[str, float | None]],
+    points: Sequence[tuple[str, float | None, float | None]],
     unit: str,
     lower: float,
     upper: float,
@@ -221,22 +241,31 @@ def _line_figure(
     value_formatter: Callable[[float], str],
     *,
     time_axis: bool,
+    trend: ChartTrend | None,
 ) -> str:
     x_left, x_right = 48.0, 288.0
     top, bottom = 34.0, 134.0
-    x_positions = _x_positions(len(points), x_left, x_right)
+    x_positions = _line_x_positions(points, x_left, x_right)
     ticks = _axis_ticks(lower, upper, step_override=60.0 if time_axis else None)
     lower, upper = ticks[0], ticks[-1]
-    path = _line_path([value for _, value in points], x_positions, lower, upper, top, bottom)
+    path = _line_path([value for _, value, _ in points], x_positions, lower, upper, top, bottom)
     dots = "".join(
         '<circle class="viewer-chart-point viewer-chart-target" '
         f'{_chart_target_attributes(f"{label} · {value_formatter(value)}{_unit_suffix(unit)}")} '
         f'cx="{x:.2f}" cy="{_y(value, lower, upper, top, bottom):.2f}" r="3"></circle>'
-        for (label, value), x in zip(points, x_positions, strict=True)
+        for (label, value, _), x in zip(points, x_positions, strict=True)
         if value is not None
     )
-    labels = _x_labels([label for label, _ in points], x_positions)
+    labels = _x_labels([label for label, _, _ in points], x_positions)
     description = f"{title}; values are shown only for days with persisted data."
+    if trend is not None:
+        description += f" Trend: {trend.label}."
+    trend_path = _trend_path(trend, points, lower, upper, top, bottom, x_left, x_right)
+    trend_label = (
+        f'<p class="viewer-chart-trend">Trend: {escape(trend.label)}</p>'
+        if trend is not None
+        else ""
+    )
     grid = _horizontal_axis(ticks, lower, upper, top, bottom, x_left, x_right, axis_formatter)
     return _figure(
         title,
@@ -248,7 +277,8 @@ def _line_figure(
         f'<text class="viewer-chart-unit-label" x="{x_left}" y="20">{escape(axis_label)}</text>'
         f'{grid}<line class="viewer-chart-axis" x1="{x_left}" y1="{bottom}" '
         f'x2="{x_right}" y2="{bottom}"></line>'
-        f'<path class="viewer-chart-line" fill="none" d="{path}"></path>{dots}{labels}</svg>',
+        f'<path class="viewer-chart-line" fill="none" d="{path}"></path>{trend_path}'
+        f"{dots}{labels}</svg>{trend_label}",
     )
 
 
@@ -256,6 +286,67 @@ def _figure(title: str, modifier: str, description: str, content: str) -> str:
     return (
         f'<figure class="viewer-chart viewer-chart--{escape(modifier)}">'
         f"<figcaption>{escape(title)}</figcaption>{content}</figure>"
+    )
+
+
+def _line_x_positions(
+    points: Sequence[tuple[str, float | None, float | None]],
+    left: float,
+    right: float,
+) -> list[float]:
+    start, end = _line_position_range(points)
+    return [
+        _position_to_x(position, start, end, left, right) for position in _line_positions(points)
+    ]
+
+
+def _line_positions(points: Sequence[tuple[str, float | None, float | None]]) -> list[float]:
+    positions: list[float] = []
+    for index, (_, _, position) in enumerate(points):
+        numeric = _finite(position)
+        positions.append(numeric if numeric is not None else float(index))
+    return positions
+
+
+def _line_position_range(
+    points: Sequence[tuple[str, float | None, float | None]],
+) -> tuple[float, float]:
+    positions = _line_positions(points)
+    if not positions:
+        return 0.0, 1.0
+    start, end = min(positions), max(positions)
+    return (start, end) if start != end else (start - 0.5, end + 0.5)
+
+
+def _position_to_x(position: float, start: float, end: float, left: float, right: float) -> float:
+    return left + (position - start) / (end - start) * (right - left)
+
+
+def _trend_path(
+    trend: ChartTrend | None,
+    points: Sequence[tuple[str, float | None, float | None]],
+    lower: float,
+    upper: float,
+    top: float,
+    bottom: float,
+    left: float,
+    right: float,
+) -> str:
+    if trend is None:
+        return ""
+    start_position = _finite(trend.start_position)
+    start_value = _finite(trend.start_value)
+    end_position = _finite(trend.end_position)
+    end_value = _finite(trend.end_value)
+    if None in (start_position, start_value, end_position, end_value):
+        return ""
+    position_start, position_end = _line_position_range(points)
+    return (
+        '<path class="viewer-chart-trend-line" fill="none" '
+        f'd="M{_position_to_x(start_position, position_start, position_end, left, right):.2f},'
+        f"{_y(start_value, lower, upper, top, bottom):.2f} "
+        f"L{_position_to_x(end_position, position_start, position_end, left, right):.2f},"
+        f'{_y(end_value, lower, upper, top, bottom):.2f}"></path>'
     )
 
 

@@ -284,12 +284,13 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert 'class="viewer-chart-line" fill="none"' in html
     assert 'class="viewer-chart-area"' not in html
     assert 'class="viewer-chart viewer-chart--line"' in html
-    assert 'class="viewer-chart-grid viewer-chart-grid--daily viewer-daily-sleep-charts"' in html
+    assert 'class="viewer-daily-section viewer-daily-section--sleep-stages"' in html
+    assert 'class="viewer-daily-section viewer-daily-section--sleep-score"' in html
     assert "1,900" in html
     assert "150" in html
     assert "2,000" in html
     assert "Walking" in html
-    assert "<h4>Calorie balance</h4>" in html
+    assert "<h4>Energy &amp; calorie balance</h4>" in html
     assert "Sleep session" in html
     assert "Sleep stages" in html
     assert "Sleep score" in html
@@ -378,7 +379,7 @@ def test_html_renderer_rounds_minutes_for_presentation_without_mutating_viewer_v
     assert HtmlRenderer._value(0, "minutes") == '0 <span class="viewer-metric-unit">minutes</span>'
 
 
-def test_html_renderer_uses_wide_weight_chart_and_compact_daily_secondary_grid() -> None:
+def test_html_renderer_uses_wide_weight_chart_and_hierarchical_daily_sections() -> None:
     report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
 
     html = HtmlRenderer().render(report)
@@ -386,17 +387,95 @@ def test_html_renderer_uses_wide_weight_chart_and_compact_daily_secondary_grid()
     weight_section = html.split('viewer-monthly-section--body-weight">', 1)[1].split(
         "</section>", 1
     )[0]
-    secondary_summary = html.split('<div class="viewer-daily-secondary-summary">', 1)[1].split(
-        "</div></div></article>", 1
-    )[0]
 
     assert 'class="viewer-chart-grid viewer-chart-grid--wide"' in weight_section
     assert "Body weight by day" in weight_section
     assert 'class="viewer-metric-grid viewer-metric-grid--three"' in html
-    assert secondary_summary.count("viewer-daily-section--secondary") == 4
-    for heading in ("Body weight", "Energy expenditure", "Nutrition", "Calorie balance"):
-        assert f"<h4>{heading}</h4>" in secondary_summary
-    assert "Daily macros" not in secondary_summary
+    assert "viewer-daily-secondary-summary" not in html
+    assert 'class="viewer-daily-body-weight-row">' in html
+    assert "viewer-daily-section--body-weight" in html
+    assert "viewer-daily-section--nutrition-band" in html
+    assert "viewer-daily-section--energy-balance" in html
+    assert "Energy &amp; calorie balance" in html
+    assert html.index("viewer-daily-body-weight-row") < html.index(
+        "viewer-daily-section--sleep-stages"
+    )
+    assert "Daily macros" not in html
+
+
+def test_html_renderer_renders_a_report_locked_calendar_from_actual_daily_dates() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
+
+    html = HtmlRenderer().render(report)
+
+    assert 'data-viewer-calendar-toggle aria-expanded="false"' in html
+    assert "data-viewer-daily-calendar hidden" in html
+    assert "August 2026" in html
+    assert 'data-viewer-calendar-day="2026-08-01" aria-current="date">1</button>' in html
+    assert (
+        '<button type="button" class="viewer-daily-calendar-day" '
+        'disabled aria-disabled="true">2</button>' in html
+    )
+    assert "data-viewer-calendar-previous" not in html
+    assert "data-viewer-calendar-next" not in html
+
+
+def test_html_renderer_defaults_sparse_daily_navigation_to_the_latest_available_day() -> None:
+    summary = _detailed_full_summary()
+    summary.reporting_days = 7
+    summary.days = [
+        replace(summary.days[0], date=date(2026, 8, 3)),
+        replace(summary.days[0], date=date(2026, 8, 4)),
+        replace(summary.days[0], date=date(2026, 8, 7)),
+    ]
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+
+    assert 'data-viewer-day="2026-08-07" data-viewer-day-label="August 7, 2026">' in html
+    assert 'data-viewer-day="2026-08-03" data-viewer-day-label="August 3, 2026" hidden>' in html
+    assert 'data-viewer-calendar-day="2026-08-03">3</button>' in html
+    assert 'data-viewer-calendar-day="2026-08-04">4</button>' in html
+    assert 'data-viewer-calendar-day="2026-08-07" aria-current="date">7</button>' in html
+    assert (
+        '<button type="button" class="viewer-daily-calendar-day" '
+        'disabled aria-disabled="true">5</button>' in html
+    )
+
+
+def test_html_renderer_renders_weight_trend_from_all_measurements_with_real_day_positions() -> None:
+    summary = _detailed_full_summary()
+    summary.reporting_days = 10
+    summary.days = [
+        replace(summary.days[0], date=date(2026, 8, 1), weight=70),
+        replace(summary.days[0], date=date(2026, 8, 3), weight=69),
+        replace(summary.days[0], date=date(2026, 8, 10), weight=68),
+    ]
+    report = parse_persisted_report(JsonRenderer().render_month(summary))
+
+    html = HtmlRenderer().render(report)
+    weight_chart = html.split("<figcaption>Body weight by day</figcaption>", 1)[1].split(
+        "</figure>", 1
+    )[0]
+
+    assert "Trend: -1.41 kg/week" in weight_chart
+    assert 'class="viewer-chart-trend-line" fill="none"' in weight_chart
+    assert weight_chart.count('class="viewer-chart-point viewer-chart-target"') == 3
+    assert 'cx="48.00"' in weight_chart
+    assert 'cx="101.33"' in weight_chart
+    assert 'cx="288.00"' in weight_chart
+
+
+def test_html_renderer_omits_weight_trend_when_fewer_than_two_measurements_exist() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
+
+    html = HtmlRenderer().render(report)
+    weight_chart = html.split("<figcaption>Body weight by day</figcaption>", 1)[1].split(
+        "</figure>", 1
+    )[0]
+
+    assert "viewer-chart-trend-line" not in weight_chart
+    assert "Trend:" not in weight_chart
 
 
 def test_full_activity_renders_separate_steps_and_distance_series() -> None:

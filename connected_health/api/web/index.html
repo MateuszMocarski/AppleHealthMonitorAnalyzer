@@ -760,12 +760,98 @@
         }
 
         .viewer-daily-current-day {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
             min-width: 138px;
             margin: 0;
             color: var(--text-secondary);
             font-size: 12px;
             font-weight: 650;
             text-align: center;
+        }
+
+        .viewer-daily-calendar-control {
+            position: relative;
+        }
+
+        .viewer-daily-calendar {
+            position: absolute;
+            z-index: 12;
+            top: calc(100% + 8px);
+            left: 50%;
+            width: min(276px, calc(100vw - 32px));
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: #162033;
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.34);
+
+            transform: translateX(-50%);
+        }
+
+        .viewer-daily-calendar[hidden] {
+            display: none;
+        }
+
+        .viewer-daily-calendar h3 {
+            margin: 0 0 10px;
+            color: var(--text);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .viewer-daily-calendar-weekdays,
+        .viewer-daily-calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        .viewer-daily-calendar-weekdays {
+            margin-bottom: 5px;
+        }
+
+        .viewer-daily-calendar-weekday {
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 650;
+            text-align: center;
+        }
+
+        .viewer-daily-calendar-day,
+        .viewer-daily-calendar-blank {
+            min-height: 30px;
+        }
+
+        .viewer-daily-calendar-day {
+            padding: 0;
+
+            border: 1px solid transparent;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text);
+
+            font: inherit;
+            font-size: 11px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .viewer-daily-calendar-day:hover:not(:disabled),
+        .viewer-daily-calendar-day:focus-visible,
+        .viewer-daily-calendar-day[aria-current="date"] {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            outline: none;
+        }
+
+        .viewer-daily-calendar-day:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.35;
         }
 
         .viewer-day {
@@ -805,17 +891,24 @@
             grid-column: 1 / -1;
         }
 
-        .viewer-daily-secondary-summary {
-            display: grid;
+        .viewer-daily-body-weight-row {
+            display: flex;
             grid-column: 1 / -1;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
-            align-items: start;
         }
 
-        .viewer-daily-secondary-summary .viewer-daily-section--secondary {
-            grid-column: auto;
-            padding: 12px;
+        .viewer-daily-body-weight-row .viewer-daily-section--body-weight {
+            width: min(100%, 320px);
+        }
+
+        .viewer-daily-section--nutrition-band,
+        .viewer-daily-section--energy-balance {
+            grid-column: 1 / -1;
+            padding: 12px 14px;
+        }
+
+        .viewer-daily-section--nutrition-band .viewer-daily-metric-grid,
+        .viewer-daily-section--energy-balance .viewer-daily-metric-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
         }
 
         .viewer-daily-section--unavailable {
@@ -935,6 +1028,19 @@
         .viewer-chart--line .viewer-chart-svg,
         .viewer-chart--diverging-bar .viewer-chart-svg {
             min-height: 350px;
+        }
+
+        .viewer-chart-trend-line {
+            stroke: #c4b5fd;
+            stroke-dasharray: 5 4;
+            stroke-width: 1.5;
+        }
+
+        .viewer-chart-trend {
+            margin: 10px 0 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
         }
 
         .viewer-chart--bar .viewer-chart-axis-label {
@@ -2601,10 +2707,14 @@
                 grid-template-columns: minmax(0, 1fr);
             }
 
-            .viewer-daily-secondary-summary,
             .viewer-metric-grid--three,
             .viewer-sleep-chart-layout {
                 grid-template-columns: minmax(0, 1fr);
+            }
+
+            .viewer-daily-section--nutrition-band .viewer-daily-metric-grid,
+            .viewer-daily-section--energy-balance .viewer-daily-metric-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
             .viewer-daily-section {
@@ -4085,12 +4195,15 @@
                 ?? "Select a saved report to view it.";
         }
 
+        let activeViewerDailyCalendar = null;
+
         function initializeViewerDailyNavigation() {
             const dailyView = viewerReportContent.querySelector(
                 "[data-viewer-daily='true']",
             );
 
             if (dailyView === null) {
+                activeViewerDailyCalendar = null;
                 return;
             }
 
@@ -4111,13 +4224,26 @@
             const currentDay = dailyView.querySelector(
                 "[data-viewer-current-day]",
             );
+            const calendarToggle = dailyView.querySelector(
+                "[data-viewer-calendar-toggle]",
+            );
+            const calendar = dailyView.querySelector(
+                "[data-viewer-daily-calendar]",
+            );
 
             if (
                 previousButton === null
                 || nextButton === null
                 || currentDay === null
+                || calendarToggle === null
+                || calendar === null
             ) {
                 return;
+            }
+
+            function closeCalendar() {
+                calendar.hidden = true;
+                calendarToggle.setAttribute("aria-expanded", "false");
             }
 
             let currentIndex = days.findIndex(
@@ -4140,6 +4266,13 @@
                     selectedDay.dataset.viewerDayLabel;
                 previousButton.disabled = index === 0;
                 nextButton.disabled = index === days.length - 1;
+                calendar.querySelectorAll("[data-viewer-calendar-day]").forEach((button) => {
+                    if (button.dataset.viewerCalendarDay === selectedDay.dataset.viewerDay) {
+                        button.setAttribute("aria-current", "date");
+                    } else {
+                        button.removeAttribute("aria-current");
+                    }
+                });
                 currentIndex = index;
             }
 
@@ -4153,8 +4286,52 @@
                     showDay(currentIndex + 1);
                 }
             });
+            calendarToggle.addEventListener("click", () => {
+                const isOpen = !calendar.hidden;
+                calendar.hidden = isOpen;
+                calendarToggle.setAttribute("aria-expanded", String(!isOpen));
+            });
+            calendar.addEventListener("click", (event) => {
+                const button = event.target.closest?.("[data-viewer-calendar-day]");
+                if (button === undefined || button === null || button.disabled) {
+                    return;
+                }
+                const index = days.findIndex(
+                    (day) => day.dataset.viewerDay === button.dataset.viewerCalendarDay,
+                );
+                if (index !== -1) {
+                    showDay(index);
+                    closeCalendar();
+                }
+            });
+            activeViewerDailyCalendar = {
+                dailyView,
+                closeCalendar,
+                calendarToggle,
+                calendar,
+            };
             showDay(currentIndex);
         }
+
+        document.addEventListener("click", (event) => {
+            if (
+                activeViewerDailyCalendar !== null
+                && !activeViewerDailyCalendar.dailyView.contains(event.target)
+            ) {
+                activeViewerDailyCalendar.closeCalendar();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (
+                event.key === "Escape"
+                && activeViewerDailyCalendar !== null
+                && !activeViewerDailyCalendar.calendar.hidden
+            ) {
+                activeViewerDailyCalendar.closeCalendar();
+                activeViewerDailyCalendar.calendarToggle.focus();
+            }
+        });
 
         function initializeViewerSleepConfiguration() {
             const dialog = viewerReportContent.querySelector(

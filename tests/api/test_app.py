@@ -7106,7 +7106,9 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
         ".viewer-chart-legend-value",
         ".viewer-sleep-chart-layout",
         ".viewer-sleep-stages-chart",
-        ".viewer-daily-secondary-summary",
+        ".viewer-daily-body-weight-row",
+        ".viewer-daily-section--nutrition-band",
+        ".viewer-daily-section--energy-balance",
         ".viewer-metric-grid--three",
         ".viewer-monthly-section--energy",
         ".viewer-metric--score-primary",
@@ -7252,6 +7254,11 @@ def test_web_interface_initializes_server_rendered_daily_navigation_without_fetc
     assert 'querySelectorAll("[data-viewer-day]")' in navigation_function
     assert "days.findIndex" in navigation_function
     assert "days.length - 1" in navigation_function
+    assert "data-viewer-calendar-toggle" in navigation_function
+    assert "data-viewer-calendar-day" in navigation_function
+    assert "calendar.hidden" in navigation_function
+    assert "calendarToggle" in navigation_function
+    assert 'event.key === "Escape"' in html
     assert "day.hidden = dayIndex !== index;" in navigation_function
     assert "previousButton.disabled = index === 0;" in navigation_function
     assert "nextButton.disabled = index === days.length - 1;" in navigation_function

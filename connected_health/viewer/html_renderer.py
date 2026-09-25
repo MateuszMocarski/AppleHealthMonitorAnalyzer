@@ -10,6 +10,7 @@ from typing import Any
 
 from connected_health.viewer.charts import (
     ChartDatum,
+    ChartTrend,
     bar_chart,
     diverging_bar_chart,
     line_chart,
@@ -451,6 +452,12 @@ class HtmlRenderer:
     def _weight_chart(self, report: ViewerReport) -> str:
         if not isinstance(report, FullReport):
             return ""
+        days = self._ordered_days(report)
+        measurements = [
+            (float(day.date.toordinal()), day.body_weight.weight_kg)
+            for day in days
+            if day.body_weight is not None
+        ]
         return self._chart_grid(
             line_chart(
                 "Body weight by day",
@@ -458,13 +465,39 @@ class HtmlRenderer:
                     ChartDatum(
                         self._day_label(day.date),
                         day.body_weight.weight_kg if day.body_weight is not None else None,
+                        float(day.date.toordinal()),
                     )
-                    for day in self._ordered_days(report)
+                    for day in days
                 ],
                 "kg",
                 axis_label="Weight (kg)",
+                trend=self._weight_trend(measurements),
             ),
             modifier="viewer-chart-grid--wide",
+        )
+
+    @staticmethod
+    def _weight_trend(measurements: list[tuple[float, float]]) -> ChartTrend | None:
+        if len(measurements) < 2:
+            return None
+        mean_x = sum(position for position, _ in measurements) / len(measurements)
+        mean_y = sum(value for _, value in measurements) / len(measurements)
+        denominator = sum((position - mean_x) ** 2 for position, _ in measurements)
+        if denominator == 0:
+            return None
+        slope = (
+            sum((position - mean_x) * (value - mean_y) for position, value in measurements)
+            / denominator
+        )
+        intercept = mean_y - slope * mean_x
+        start_position = measurements[0][0]
+        end_position = measurements[-1][0]
+        return ChartTrend(
+            start_position=start_position,
+            start_value=slope * start_position + intercept,
+            end_position=end_position,
+            end_value=slope * end_position + intercept,
+            label=f"{slope * 7:+.2f} kg/week",
         )
 
     def _nutrition_charts(self, report: ViewerReport) -> str:
@@ -760,6 +793,7 @@ class HtmlRenderer:
         days = "".join(
             self._daily_report(day, hidden=day.date != latest_day.date) for day in ordered_days
         )
+        calendar_picker = self._daily_calendar(report, ordered_days, latest_day.date)
         return "".join(
             (
                 '<section class="viewer-daily-view" data-viewer-daily="true">',
@@ -767,14 +801,62 @@ class HtmlRenderer:
                 '<div class="viewer-daily-navigation" data-viewer-daily-navigation>',
                 '<button type="button" data-viewer-day-previous'
                 f"{previous_disabled}>Previous day</button>",
-                '<p class="viewer-daily-current-day" aria-live="polite">',
+                '<div class="viewer-daily-calendar-control">',
+                '<button type="button" class="viewer-daily-current-day" '
+                'data-viewer-calendar-toggle aria-expanded="false" '
+                'aria-controls="viewer-daily-calendar">',
                 f'<time data-viewer-current-day datetime="{latest_day.date.isoformat()}">',
-                f"{self._date_value(latest_day.date)}</time></p>",
+                f"{self._date_value(latest_day.date)}</time>",
+                '<span aria-hidden="true">▾</span></button>',
+                calendar_picker,
+                "</div>",
                 '<button type="button" data-viewer-day-next disabled>Next day</button>',
                 "</div></header>",
                 days,
                 "</section>",
             )
+        )
+
+    def _daily_calendar(
+        self,
+        report: FullReport,
+        days: list[DailyReport],
+        selected_date: date,
+    ) -> str:
+        available_dates = {day.date for day in days}
+        month_name = calendar.month_name[report.report.month]
+        weekday_labels = "".join(
+            f'<span class="viewer-daily-calendar-weekday">{weekday}</span>'
+            for weekday in ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+        )
+        date_buttons: list[str] = []
+        for week in calendar.monthcalendar(report.report.year, report.report.month):
+            for day_number in week:
+                if day_number == 0:
+                    date_buttons.append(
+                        '<span class="viewer-daily-calendar-blank" aria-hidden="true"></span>'
+                    )
+                    continue
+                calendar_date = date(report.report.year, report.report.month, day_number)
+                identifier = calendar_date.isoformat()
+                if calendar_date in available_dates:
+                    selected = ' aria-current="date"' if calendar_date == selected_date else ""
+                    date_buttons.append(
+                        '<button type="button" class="viewer-daily-calendar-day" '
+                        f'data-viewer-calendar-day="{identifier}"{selected}>{day_number}</button>'
+                    )
+                else:
+                    date_buttons.append(
+                        '<button type="button" class="viewer-daily-calendar-day" '
+                        f'disabled aria-disabled="true">{day_number}</button>'
+                    )
+        return (
+            '<section class="viewer-daily-calendar" id="viewer-daily-calendar" '
+            "data-viewer-daily-calendar hidden>"
+            f'<h3>{escape(f"{month_name} {report.report.year}")}</h3>'
+            f'<div class="viewer-daily-calendar-weekdays">{weekday_labels}</div>'
+            f'<div class="viewer-daily-calendar-days">{"".join(date_buttons)}</div>'
+            "</section>"
         )
 
     def _summary_daily_notice(self) -> str:
@@ -807,40 +889,42 @@ class HtmlRenderer:
                         ("Step length", "step_length_cm", "cm"),
                     ),
                 ),
-                self._daily_sleep(day.sleep),
-                self._daily_workouts(day),
-                '<div class="viewer-daily-secondary-summary">',
+                self._daily_sleep_session(day.sleep),
+                '<div class="viewer-daily-body-weight-row">',
                 self._daily_fields(
                     "Body weight",
                     day.body_weight,
                     (("Weight", "weight_kg", "kg"),),
-                    modifier="viewer-daily-section--secondary",
-                ),
-                self._daily_fields(
-                    "Energy expenditure",
-                    day.energy_expenditure,
-                    (
-                        ("Basal energy", "basal_kcal", "kcal"),
-                        ("Active energy", "active_kcal", "kcal"),
-                        ("TDEE", "tdee_kcal", "kcal"),
-                    ),
-                    modifier="viewer-daily-section--secondary",
-                ),
-                self._daily_nutrition(day, modifier="viewer-daily-section--secondary"),
-                self._daily_value(
-                    "Calorie balance",
-                    day.calories_balance_kcal,
-                    "kcal",
-                    modifier="viewer-daily-section--secondary",
+                    modifier="viewer-daily-section--body-weight",
                 ),
                 "</div>",
+                self._daily_sleep_details(day.sleep),
+                self._daily_workouts(day),
+                self._daily_nutrition(day, modifier="viewer-daily-section--nutrition-band"),
+                self._daily_energy_and_balance(day),
                 "</div></article>",
             )
         )
 
-    def _daily_sleep(self, sleep: DailySleep | None) -> str:
+    def _daily_sleep_session(self, sleep: DailySleep | None) -> str:
         if sleep is None:
-            return self._daily_unavailable("Sleep")
+            return self._daily_unavailable("Sleep session")
+        return self._daily_fields(
+            "Sleep session",
+            sleep.session,
+            (
+                ("Bedtime", "bedtime", None),
+                ("Wake-up", "wake_up", None),
+                ("Time in bed", "time_in_bed_minutes", "minutes"),
+                ("Time asleep", "time_asleep_minutes", "minutes"),
+                ("Awake duration", "awake_minutes", "minutes"),
+                ("Efficiency", "efficiency_percent", "%"),
+            ),
+        )
+
+    def _daily_sleep_details(self, sleep: DailySleep | None) -> str:
+        if sleep is None:
+            return self._daily_unavailable("Sleep stages") + self._daily_unavailable("Sleep score")
         stage_fields: list[tuple[str, str, str | None]] = [
             ("Core sleep", "core_minutes", "minutes"),
             ("Deep sleep", "deep_minutes", "minutes"),
@@ -848,35 +932,9 @@ class HtmlRenderer:
         ]
         if sleep.session.stages.unspecified_minutes > 0:
             stage_fields.append(("Unspecified sleep", "unspecified_minutes", "minutes"))
-        fields = "".join(
-            (
-                self._daily_fields(
-                    "Sleep session",
-                    sleep.session,
-                    (
-                        ("Bedtime", "bedtime", None),
-                        ("Wake-up", "wake_up", None),
-                        ("Time in bed", "time_in_bed_minutes", "minutes"),
-                        ("Time asleep", "time_asleep_minutes", "minutes"),
-                        ("Awake duration", "awake_minutes", "minutes"),
-                        ("Efficiency", "efficiency_percent", "%"),
-                    ),
-                ),
-                self._daily_fields(
-                    "Sleep stages",
-                    sleep.session.stages,
-                    tuple(stage_fields),
-                ),
-                self._daily_fields(
-                    "Sleep score",
-                    sleep.score,
-                    (
-                        ("Bedtime score", "bedtime", None),
-                        ("Duration score", "duration", None),
-                        ("Wake-up score", "wake_up", None),
-                    ),
-                ),
-            )
+        stage_metrics = "".join(
+            self._daily_metric(label, getattr(sleep.session.stages, field), unit)
+            for label, field, unit in stage_fields
         )
         stages_chart = pie_chart(
             "Sleep stages",
@@ -887,6 +945,11 @@ class HtmlRenderer:
                 ChartDatum("Unspecified", sleep.session.stages.unspecified_minutes),
             ),
             "minutes",
+        )
+        stages_content = (
+            '<section class="viewer-daily-section viewer-daily-section--sleep-stages">'
+            '<h4>Sleep stages</h4><dl class="viewer-metric-grid viewer-daily-metric-grid">'
+            f"{stage_metrics}</dl>{stages_chart}</section>"
         )
         if sleep.score is not None:
             score_chart = bar_chart(
@@ -903,17 +966,18 @@ class HtmlRenderer:
                 (("Total score", sleep.score.total, None),), emphasized_last=True
             )
             score_content = (
+                '<section class="viewer-daily-section viewer-daily-section--sleep-score">'
+                '<h4>Sleep score</h4><dl class="viewer-metric-grid viewer-daily-metric-grid">'
+                f"{self._daily_metric('Bedtime score', sleep.score.bedtime)}"
+                f"{self._daily_metric('Duration score', sleep.score.duration)}"
+                f"{self._daily_metric('Wake-up score', sleep.score.wake_up)}</dl>"
                 '<section class="viewer-daily-sleep-score-chart">'
-                f"{score_chart}{total_score}"
+                f"{score_chart}{total_score}</section>"
                 "</section>"
             )
         else:
-            score_content = ""
-        charts = (
-            '<div class="viewer-chart-grid viewer-chart-grid--daily viewer-daily-sleep-charts">'
-            f"{stages_chart}{score_content}</div>"
-        )
-        return f"{fields}{charts}"
+            score_content = self._daily_unavailable("Sleep score")
+        return f"{stages_content}{score_content}"
 
     def _daily_nutrition(self, day: DailyReport, *, modifier: str = "") -> str:
         nutrition = day.nutrition
@@ -929,6 +993,24 @@ class HtmlRenderer:
             modifier=modifier,
         )
         return fields
+
+    def _daily_energy_and_balance(self, day: DailyReport) -> str:
+        energy = day.energy_expenditure
+        values = (
+            self._daily_metric(
+                "Basal energy", energy.basal_kcal if energy is not None else None, "kcal"
+            )
+            + self._daily_metric(
+                "Active energy", energy.active_kcal if energy is not None else None, "kcal"
+            )
+            + self._daily_metric("TDEE", energy.tdee_kcal if energy is not None else None, "kcal")
+            + self._daily_metric("Daily balance", day.calories_balance_kcal, "kcal")
+        )
+        return (
+            '<section class="viewer-daily-section viewer-daily-section--energy-balance">'
+            "<h4>Energy &amp; calorie balance</h4>"
+            f'<dl class="viewer-metric-grid viewer-daily-metric-grid">{values}</dl></section>'
+        )
 
     def _daily_workouts(self, day: DailyReport) -> str:
         if not day.workouts:

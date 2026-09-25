@@ -2,6 +2,7 @@ import re
 
 from connected_health.viewer.charts import (
     ChartDatum,
+    ChartTrend,
     bar_chart,
     diverging_bar_chart,
     line_chart,
@@ -139,6 +140,26 @@ def test_line_chart_emits_numeric_intermediate_ticks_gridlines_and_unfilled_path
     assert '<path class="viewer-chart-line" fill="none"' in html
     assert "<polygon" not in html
     assert "<path" in html
+
+
+def test_line_chart_renders_a_secondary_unfilled_server_trend_without_fake_targets() -> None:
+    html = line_chart(
+        "Body weight by day",
+        (
+            ChartDatum("Aug 1", 70, 1),
+            ChartDatum("Aug 3", 69, 3),
+            ChartDatum("Aug 10", 68, 10),
+        ),
+        "kg",
+        trend=ChartTrend(1, 70.1, 10, 67.9, "-1.56 kg/week"),
+    )
+
+    assert 'class="viewer-chart-trend-line" fill="none"' in html
+    assert "Trend: -1.56 kg/week" in html
+    assert html.count('class="viewer-chart-point viewer-chart-target"') == 3
+    assert 'cx="48.00"' in html
+    assert 'cx="101.33"' in html
+    assert 'cx="288.00"' in html
 
 
 def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
