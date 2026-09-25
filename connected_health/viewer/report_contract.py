@@ -40,7 +40,10 @@ class ReportKind(StrEnum):
 def _strict_number(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("must be a JSON number")
-    result = float(value)
+    try:
+        result = float(value)
+    except OverflowError as error:
+        raise ValueError("must be finite") from error
     if not math.isfinite(result):
         raise ValueError("must be finite")
     return result
@@ -55,7 +58,7 @@ def _strict_date(value: Any) -> date:
 def _strict_datetime(value: Any) -> datetime:
     if not isinstance(value, str) or not re.fullmatch(
         r"\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d"
-        r"(?:\.\d{1,6})?(?:[+-](?:[01]\d|2[0-3]):[0-5]\d)?",
+        r"(?:\.\d{1,6})?[+-](?:[01]\d|2[0-3]):[0-5]\d",
         value,
     ):
         raise ValueError("must be an ISO datetime")
@@ -369,7 +372,9 @@ def parse_persisted_report(
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_nonfinite_constant,
         )
-    except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as error:
+    except PersistedReportValidationError:
+        raise
+    except (TypeError, UnicodeDecodeError, ValueError, RecursionError) as error:
         raise PersistedReportValidationError("malformed JSON report") from error
 
     if not isinstance(payload, dict):
@@ -438,5 +443,5 @@ def _validate_coverage_pairs(section: Any, reporting_days: int) -> None:
         value = getattr(section, value_name)
         if (value is None) != (count is None):
             raise ValueError(f"{name} and {value_name} must both be present or null")
-        if count is not None and not 0 <= count <= reporting_days:
+        if count is not None and not 1 <= count <= reporting_days:
             raise ValueError(f"{name} must be within reporting_days")
