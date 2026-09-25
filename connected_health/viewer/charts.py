@@ -67,8 +67,9 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
         title,
         "pie",
         description,
-        '<svg class="viewer-chart-svg viewer-chart-svg--pie" role="img" viewBox="0 0 220 220">'
-        f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
+        '<svg class="viewer-chart-svg viewer-chart-svg--pie" role="img" '
+        f'aria-label="{escape(f"{title}. {description}", quote=True)}" viewBox="0 0 220 220">'
+        f"<desc>{escape(description)}</desc>"
         f"{''.join(slices)}</svg>"
         f'<ul class="viewer-chart-legend">{legend}</ul>',
     )
@@ -114,8 +115,9 @@ def bar_chart(
         title,
         "bar",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 420 250">'
-        f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
+        '<svg class="viewer-chart-svg" role="img" '
+        f'aria-label="{escape(f"{title}. {description}", quote=True)}" viewBox="0 0 420 250">'
+        f"<desc>{escape(description)}</desc>"
         '<text class="viewer-chart-unit-label viewer-chart-unit-label--y" '
         f'x="{left - 7:.2f}" y="20">{escape(unit)}</text>'
         f'{grid}<line class="viewer-chart-axis" x1="{left}" y1="{bottom}" '
@@ -190,8 +192,9 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
         title,
         "diverging-bar",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 320 244">'
-        f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
+        '<svg class="viewer-chart-svg" role="img" '
+        f'aria-label="{escape(f"{title}. {description}", quote=True)}" viewBox="0 0 320 244">'
+        f"<desc>{escape(description)}</desc>"
         f'<text class="viewer-chart-unit-label" x="{left}" y="20">{escape(unit)}</text>'
         f'{grid}<line class="viewer-chart-zero-line" x1="{left}" y1="{center:.2f}" '
         f'x2="{right}" y2="{center:.2f}"></line>{"".join(bars)}{labels}</svg>',
@@ -239,8 +242,9 @@ def _line_figure(
         title,
         "line",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 320 184">'
-        f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
+        '<svg class="viewer-chart-svg" role="img" '
+        f'aria-label="{escape(f"{title}. {description}", quote=True)}" viewBox="0 0 320 184">'
+        f"<desc>{escape(description)}</desc>"
         f'<text class="viewer-chart-unit-label" x="{x_left}" y="20">{escape(axis_label)}</text>'
         f'{grid}<line class="viewer-chart-axis" x1="{x_left}" y1="{bottom}" '
         f'x2="{x_right}" y2="{bottom}"></line>'

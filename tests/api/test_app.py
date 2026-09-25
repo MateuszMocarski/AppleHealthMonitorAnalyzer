@@ -7141,16 +7141,24 @@ def test_web_interface_uses_one_generic_presentation_only_chart_tooltip() -> Non
 
     assert 'id="viewer-chart-tooltip"' in html
     assert 'role="tooltip"' in html
+    assert html.count('id="viewer-chart-tooltip"') == 1
+    assert html.index('id="viewer-chart-tooltip"') > html.index("</main>")
     assert ".viewer-chart-target--active" in html
     assert ".viewer-chart-tooltip" in html
     assert "prefers-reduced-motion: no-preference" in html
     assert "[data-viewer-chart-tooltip]" in chart_interactions
     assert "pointerenter" in chart_interactions
+    assert "pointermove" in chart_interactions
     assert "pointerleave" in chart_interactions
     assert 'addEventListener("focus"' in chart_interactions
     assert 'addEventListener("blur"' in chart_interactions
     assert 'addEventListener("pointerdown"' in chart_interactions
     assert "getBoundingClientRect" in chart_interactions
+    assert "clientX" in chart_interactions
+    assert "clientY" in chart_interactions
+    assert "window.innerWidth" in chart_interactions
+    assert "window.innerHeight" in chart_interactions
+    assert "positionViewerChartTooltipForTarget" in chart_interactions
     assert "fetch(" not in chart_interactions
     assert "JSON.parse" not in chart_interactions
     assert "average_daily_steps" not in chart_interactions

@@ -1019,7 +1019,6 @@
             font-weight: 650;
             line-height: 1.35;
             pointer-events: none;
-            transform: translateX(-50%);
         }
 
         @media (prefers-reduced-motion: no-preference) {
@@ -3569,16 +3568,16 @@
                     </p>
 
                     <div id="viewer-report-content"></div>
-                    <div
-                        class="viewer-chart-tooltip"
-                        id="viewer-chart-tooltip"
-                        role="tooltip"
-                        hidden
-                    ></div>
                 </section>
             </div>
         </section>
     </main>
+    <div
+        class="viewer-chart-tooltip"
+        id="viewer-chart-tooltip"
+        role="tooltip"
+        hidden
+    ></div>
     <script src="https://apis.google.com/js/api.js"></script>
     <script>
         const archiveInput =
@@ -4197,42 +4196,67 @@
             viewerChartTooltip.textContent = "";
         }
 
-        function positionViewerChartTooltip(target) {
-            const targetRect = target.getBoundingClientRect();
+        function positionViewerChartTooltip(clientX, clientY) {
             const tooltipRect = viewerChartTooltip.getBoundingClientRect();
-            const horizontalPadding = 12;
-            const tooltipHalfWidth = tooltipRect.width / 2;
-            const left = Math.min(
-                Math.max(
-                    targetRect.left + targetRect.width / 2,
-                    horizontalPadding + tooltipHalfWidth,
-                ),
-                window.innerWidth - horizontalPadding - tooltipHalfWidth,
+            const viewportMargin = 12;
+            const offset = 14;
+            let left = clientX + offset;
+            let top = clientY + offset;
+
+            if (left + tooltipRect.width + viewportMargin > window.innerWidth) {
+                left = clientX - tooltipRect.width - offset;
+            }
+            if (top + tooltipRect.height + viewportMargin > window.innerHeight) {
+                top = clientY - tooltipRect.height - offset;
+            }
+
+            left = Math.min(
+                Math.max(left, viewportMargin),
+                window.innerWidth - tooltipRect.width - viewportMargin,
             );
-            const above = targetRect.top - tooltipRect.height - 10;
-            const top = above >= horizontalPadding
-                ? above
-                : targetRect.bottom + 10;
+            top = Math.min(
+                Math.max(top, viewportMargin),
+                window.innerHeight - tooltipRect.height - viewportMargin,
+            );
 
             viewerChartTooltip.style.left = `${left}px`;
             viewerChartTooltip.style.top = `${top}px`;
         }
 
-        function showViewerChartTooltip(target) {
+        function positionViewerChartTooltipForTarget(target) {
+            const targetRect = target.getBoundingClientRect();
+            positionViewerChartTooltip(
+                targetRect.left + targetRect.width / 2,
+                targetRect.top + targetRect.height / 2,
+            );
+        }
+
+        function showViewerChartTooltip(target, pointerEvent) {
             const tooltip = target.dataset.viewerChartTooltip;
             if (!tooltip) {
                 return;
             }
 
             if (activeViewerChartTarget !== target) {
-                dismissViewerChartTooltip();
+                if (activeViewerChartTarget !== null) {
+                    activeViewerChartTarget.classList.remove(
+                        "viewer-chart-target--active",
+                    );
+                }
                 activeViewerChartTarget = target;
                 target.classList.add("viewer-chart-target--active");
             }
 
             viewerChartTooltip.textContent = tooltip;
             viewerChartTooltip.hidden = false;
-            positionViewerChartTooltip(target);
+            if (pointerEvent !== undefined) {
+                positionViewerChartTooltip(
+                    pointerEvent.clientX,
+                    pointerEvent.clientY,
+                );
+            } else {
+                positionViewerChartTooltipForTarget(target);
+            }
         }
 
         function initializeViewerChartInteractions() {
@@ -4241,11 +4265,22 @@
             );
 
             targets.forEach((target) => {
-                target.addEventListener("pointerenter", () => {
-                    showViewerChartTooltip(target);
+                target.addEventListener("pointerenter", (event) => {
+                    showViewerChartTooltip(target, event);
                 });
-                target.addEventListener("pointerleave", () => {
+                target.addEventListener("pointermove", (event) => {
                     if (activeViewerChartTarget === target) {
+                        showViewerChartTooltip(target, event);
+                    }
+                });
+                target.addEventListener("pointerleave", (event) => {
+                    const nextTarget = event.relatedTarget?.closest?.(
+                        "[data-viewer-chart-tooltip]",
+                    );
+                    if (
+                        activeViewerChartTarget === target
+                        && (nextTarget === undefined || nextTarget === null)
+                    ) {
                         dismissViewerChartTooltip();
                     }
                 });
@@ -4262,7 +4297,7 @@
             viewerReportContent.addEventListener("pointerdown", (event) => {
                 const target = event.target.closest?.("[data-viewer-chart-tooltip]");
                 if (target !== undefined && target !== null) {
-                    showViewerChartTooltip(target);
+                    showViewerChartTooltip(target, event);
                 } else {
                     dismissViewerChartTooltip();
                 }

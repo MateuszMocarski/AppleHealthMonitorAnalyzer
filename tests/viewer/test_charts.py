@@ -30,6 +30,9 @@ def test_pie_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
     assert 'class="viewer-chart-slice viewer-chart-slice--0 viewer-chart-target"' in html
     assert 'data-viewer-chart-tooltip="Core &lt;sleep&gt; · 300 minutes"' in html
     assert 'tabindex="0"' in html
+    assert 'aria-label="Sleep stages. Sleep stages. Total plotted value: 390 minutes."' in html
+    assert "<desc>Sleep stages. Total plotted value: 390 minutes.</desc>" in html
+    assert "<title>" not in html
     assert "viewer-chart-donut-track" not in html
     assert "Core &lt;sleep&gt;" in html
     assert "NaN" not in html
