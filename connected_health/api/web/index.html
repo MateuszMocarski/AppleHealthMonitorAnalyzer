@@ -463,6 +463,189 @@
             min-width: 0;
         }
 
+        .viewer-report {
+            display: block;
+        }
+
+        .viewer-report-header {
+            margin-bottom: 20px;
+            padding: 22px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: linear-gradient(
+                135deg,
+                rgba(255, 55, 95, 0.13),
+                rgba(88, 86, 214, 0.08)
+            );
+        }
+
+        .viewer-report-eyebrow {
+            margin: 0 0 6px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .viewer-report-header h1 {
+            margin: 0;
+
+            font-size: clamp(28px, 4vw, 40px);
+            letter-spacing: -0.035em;
+        }
+
+        .viewer-report-meta {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .viewer-report-kind {
+            padding: 6px 9px;
+
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .viewer-report-details {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 14px;
+            margin: 0;
+        }
+
+        .viewer-report-details div {
+            display: grid;
+            gap: 2px;
+        }
+
+        .viewer-report-details dt,
+        .viewer-metric dt {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 650;
+            letter-spacing: 0.03em;
+        }
+
+        .viewer-report-details dd,
+        .viewer-metric dd {
+            margin: 0;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 650;
+        }
+
+        .viewer-monthly-dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .viewer-monthly-section {
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .viewer-monthly-section--sleep,
+        .viewer-monthly-section--workouts {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-monthly-section h2,
+        .viewer-monthly-subsection h3,
+        .viewer-workout-card h3 {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .viewer-monthly-section h2 {
+            margin-bottom: 14px;
+            font-size: 16px;
+        }
+
+        .viewer-monthly-subsection {
+            margin-top: 18px;
+            padding-top: 16px;
+
+            border-top: 1px solid var(--border);
+        }
+
+        .viewer-monthly-subsection h3,
+        .viewer-workout-card h3 {
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .viewer-metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .viewer-metric {
+            min-width: 0;
+            padding: 11px;
+
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .viewer-metric dd {
+            margin-top: 4px;
+            overflow-wrap: anywhere;
+        }
+
+        .viewer-metric-unit,
+        .viewer-metric-coverage {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .viewer-metric-coverage {
+            margin: 6px 0 0;
+        }
+
+        .viewer-workout-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .viewer-workout-card {
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .viewer-empty-state,
+        .viewer-unavailable {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .viewer-monthly-section--unavailable {
+            border-style: dashed;
+        }
+
+        [data-viewer-daily="true"] {
+            margin-top: 20px;
+        }
+
         .viewer-index-status {
             margin: 0;
             color: var(--text-secondary);
@@ -1766,6 +1949,24 @@
 
             .viewer-selector-menu {
                 position: static;
+            }
+
+            .viewer-report-meta {
+                align-items: start;
+                flex-direction: column;
+            }
+
+            .viewer-report-details {
+                justify-content: flex-start;
+            }
+
+            .viewer-monthly-dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .viewer-monthly-section--sleep,
+            .viewer-monthly-section--workouts {
+                grid-column: auto;
             }
         }
     </style>

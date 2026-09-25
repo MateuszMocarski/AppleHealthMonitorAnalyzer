@@ -372,7 +372,7 @@ def test_open_viewer_report_endpoint_returns_validated_html_and_disables_caching
 
     assert response.status_code == 200
     assert response.json()["artifact"]["file_id"] == "selected-file-id"
-    assert "Monthly report: 2026-08" in response.json()["html"]
+    assert "August 2026" in response.json()["html"]
     assert response.headers["cache-control"] == "no-store"
 
 
@@ -6730,6 +6730,50 @@ def test_web_interface_exposes_controlled_viewer_report_open_errors() -> None:
     assert "showReconnectRecovery();" in selection_function
     assert "viewerReportErrorMessage(response.status)" in selection_function
     assert "response.json" not in selection_function.split("if (!response.ok)", 1)[0]
+
+
+# =====================================================================
+# Verifies that the monthly dashboard styles target explicit server-rendered
+# Viewer hooks without adding report calculations to the selector state code.
+# =====================================================================
+
+
+def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    viewer_styles = html.split(
+        ".viewer-report {",
+        1,
+    )[1].split(
+        ".google-recovery {",
+        1,
+    )[0]
+    viewer_state_code = html.split(
+        "const viewerState = {",
+        1,
+    )[1].split(
+        "function updateGenerationSummary()",
+        1,
+    )[0]
+
+    for css_hook in (
+        ".viewer-report-header",
+        ".viewer-monthly-dashboard",
+        ".viewer-monthly-section",
+        ".viewer-metric-grid",
+        ".viewer-metric-coverage",
+        ".viewer-workout-card",
+    ):
+        assert css_hook in viewer_styles
+
+    assert ".viewer-report-header h1" in viewer_styles
+    assert "data-viewer-daily" in viewer_styles
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
+    assert "average_daily_steps" not in viewer_state_code
+    assert "calories_balance" not in viewer_state_code
 
 
 # =====================================================================
