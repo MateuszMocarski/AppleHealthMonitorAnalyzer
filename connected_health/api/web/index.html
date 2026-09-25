@@ -2559,6 +2559,7 @@
             artifacts: [],
             available: false,
             indexError: null,
+            indexLoaded: false,
             indexLoading: false,
         };
 
@@ -2768,6 +2769,7 @@
 
         let lastGoogleRetryAction = null;
         let googleOAuthPopup = null;
+        let viewerIndexRequestGeneration = 0;
 
         function renderViewerIndexState() {
             viewerIndexStatus.classList.toggle(
@@ -2787,14 +2789,23 @@
                 return;
             }
 
-            if (viewerState.artifacts.length === 0) {
+            if (
+                viewerState.indexLoaded
+                && viewerState.artifacts.length === 0
+            ) {
                 viewerIndexStatus.textContent =
                     "No saved JSON reports are available.";
                 return;
             }
 
+            if (viewerState.indexLoaded) {
+                viewerIndexStatus.textContent =
+                    `Saved report index loaded (${viewerState.artifacts.length} artifact(s)).`;
+                return;
+            }
+
             viewerIndexStatus.textContent =
-                `Saved report index loaded (${viewerState.artifacts.length} artifact(s)).`;
+                "Saved report discovery is unavailable until Google is connected.";
         }
 
         function setActiveModule(moduleName) {
@@ -2826,9 +2837,11 @@
         }
 
         function clearViewerState() {
+            viewerIndexRequestGeneration += 1;
             viewerState.artifacts = [];
             viewerState.available = false;
             viewerState.indexError = null;
+            viewerState.indexLoaded = false;
             viewerState.indexLoading = false;
             moduleSwitch.hidden = true;
             setActiveModule("generate");
@@ -2836,15 +2849,25 @@
         }
 
         function enableViewer() {
+            viewerState.artifacts = [];
             viewerState.available = true;
+            viewerState.indexError = null;
+            viewerState.indexLoaded = false;
+            viewerState.indexLoading = true;
             moduleSwitch.hidden = false;
             setActiveModule("generate");
             renderViewerIndexState();
         }
 
         async function loadViewerReportIndex() {
+            const requestGeneration =
+                viewerIndexRequestGeneration + 1;
+
+            viewerIndexRequestGeneration = requestGeneration;
+            viewerState.artifacts = [];
             viewerState.indexLoading = true;
             viewerState.indexError = null;
+            viewerState.indexLoaded = false;
             renderViewerIndexState();
 
             let response;
@@ -2852,11 +2875,25 @@
             try {
                 response = await fetch("/viewer/reports");
             } catch {
+                if (
+                    requestGeneration
+                    !== viewerIndexRequestGeneration
+                ) {
+                    return;
+                }
+
                 viewerState.indexLoading = false;
                 viewerState.indexError =
                     "Saved report discovery is temporarily unavailable.";
                 renderViewerIndexState();
                 showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerIndexRequestGeneration
+            ) {
                 return;
             }
 
@@ -2875,9 +2912,35 @@
                 return;
             }
 
-            const payload = await response.json();
+            let payload;
+
+            try {
+                payload = await response.json();
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerIndexRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.indexLoading = false;
+                viewerState.indexError =
+                    "Saved report discovery is temporarily unavailable.";
+                renderViewerIndexState();
+                showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerIndexRequestGeneration
+            ) {
+                return;
+            }
 
             viewerState.artifacts = payload.artifacts;
+            viewerState.indexLoaded = true;
             viewerState.indexLoading = false;
             renderViewerIndexState();
         }
@@ -3610,9 +3673,11 @@
                 configAutosaveControl.hidden = false;
 
                 enableViewer();
+                const viewerIndexLoad =
+                    loadViewerReportIndex();
                 await loadConfigProfileState();
                 await loadReportAutosaveState();
-                await loadViewerReportIndex();
+                await viewerIndexLoad;
                 updateGenerationSummary();
 
                 return;

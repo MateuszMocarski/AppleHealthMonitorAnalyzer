@@ -6348,9 +6348,14 @@ def test_web_interface_enables_and_loads_viewer_index_after_google_connection() 
     assert 'aria-controls="viewer-module"' in html
     assert 'googleStatus.status === "connected"' in google_state_function
     assert "enableViewer();" in google_state_function
+    assert "const viewerIndexLoad =" in google_state_function
+    assert "loadViewerReportIndex();" in google_state_function
     assert "await loadConfigProfileState();" in google_state_function
     assert "await loadReportAutosaveState();" in google_state_function
-    assert "await loadViewerReportIndex();" in google_state_function
+    assert "await viewerIndexLoad;" in google_state_function
+    assert google_state_function.index("loadViewerReportIndex();") < google_state_function.index(
+        "await loadConfigProfileState();"
+    )
     assert 'fetch("/viewer/reports")' in html
     assert 'fetch("/viewer/reports/' not in html
     assert 'activeModule: "generate"' in html
@@ -6406,6 +6411,96 @@ def test_web_interface_keeps_viewer_index_metadata_only_and_failure_local() -> N
     assert 'id="viewer-index-status"' in html
     assert 'id="output-viewer' not in html
     assert 'id="viewer-report-picker"' not in html
+
+
+# =====================================================================
+# Verifies that Viewer index requests use a monotonic generation so stale
+# fetches cannot restore data or surface recovery after clear/newer loads.
+# =====================================================================
+
+
+def test_web_interface_invalidates_stale_viewer_index_requests() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    clear_function = html.split(
+        "function clearViewerState()",
+        1,
+    )[1].split(
+        "function enableViewer()",
+        1,
+    )[0]
+    load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "let viewerIndexRequestGeneration = 0;" in html
+    assert "viewerIndexRequestGeneration += 1;" in clear_function
+    assert "const requestGeneration =" in load_function
+    assert "viewerIndexRequestGeneration = requestGeneration;" in load_function
+    assert load_function.count("!== viewerIndexRequestGeneration") == 4
+    assert load_function.rindex("!== viewerIndexRequestGeneration") < load_function.index(
+        "viewerState.artifacts = payload.artifacts;"
+    )
+    assert load_function.index("!== viewerIndexRequestGeneration") < load_function.index(
+        "showTransientDriveRecovery(loadViewerReportIndex);"
+    )
+    assert load_function.index("!== viewerIndexRequestGeneration") < load_function.index(
+        "showReconnectRecovery();"
+    )
+
+
+# =====================================================================
+# Verifies that connected Viewer state is loading before discovery resolves,
+# and that the empty message requires a successful current index response.
+# =====================================================================
+
+
+def test_web_interface_shows_empty_viewer_state_only_after_current_index_load() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    render_function = html.split(
+        "function renderViewerIndexState()",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+    enable_function = html.split(
+        "function enableViewer()",
+        1,
+    )[1].split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[0]
+    load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "viewerState.indexLoading = true;" in enable_function
+    assert "renderViewerIndexState();" in enable_function
+    assert "if (viewerState.indexLoading)" in render_function
+    assert "viewerState.indexLoaded" in render_function
+    assert "viewerState.indexLoaded = true;" in load_function
+    assert render_function.index("viewerState.indexLoaded") < render_function.index(
+        "No saved JSON reports are available."
+    )
+    assert load_function.index("viewerState.indexLoaded = true;") < load_function.index(
+        "viewerState.indexLoading = false;", -200
+    )
 
 
 # =====================================================================
