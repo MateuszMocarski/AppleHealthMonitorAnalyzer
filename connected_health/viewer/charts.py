@@ -164,8 +164,7 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
     if not any(value is not None for _, value in plotted):
         return ""
     present = [value for _, value in plotted if value is not None]
-    ticks = _zero_including_ticks(present)
-    lower, upper = ticks[0], ticks[-1]
+    lower, upper, ticks = _zero_including_scale(present)
     left, right = 32.0, 288.0
     x_positions = _x_positions(len(plotted), left, right)
     bar_width = min(12.0, max(3.0, (right - left) / max(len(plotted), 1) * 0.58))
@@ -388,19 +387,27 @@ def _fixed_scale_ticks(maximum: float) -> list[float]:
     return _axis_ticks(0.0, maximum)
 
 
-def _zero_including_ticks(values: Sequence[float]) -> list[float]:
-    """Return a padded useful range while keeping the semantic zero baseline."""
+def _zero_including_scale(values: Sequence[float]) -> tuple[float, float, list[float]]:
+    """Return a padded, asymmetric zero-inclusive domain and ticks within it."""
     lowest = min(min(values), 0.0)
     highest = max(max(values), 0.0)
-    span = highest - lowest
-    padding = span * 0.1 if span else max(abs(lowest), abs(highest), 1.0) * 0.1
-    lower = lowest - padding if lowest < 0 else -padding
-    upper = highest + padding if highest > 0 else padding
-    ticks = _axis_ticks(lower, upper)
+    if lowest < 0:
+        lower = -_nice_ceiling(abs(lowest) * 1.1)
+        upper = _nice_ceiling(abs(lowest) * 0.1) if highest == 0 else _nice_ceiling(highest * 1.1)
+    elif highest > 0:
+        lower = -_nice_ceiling(highest * 0.1)
+        upper = _nice_ceiling(highest * 1.1)
+    else:
+        lower, upper = -0.1, 0.1
+
+    step = _nice_step((upper - lower) / 5)
+    first_index = math.ceil(lower / step)
+    last_index = math.floor(upper / step)
+    ticks = [index * step for index in range(first_index, last_index + 1)]
     if 0.0 not in ticks:
         ticks.append(0.0)
         ticks.sort()
-    return ticks
+    return lower, upper, ticks
 
 
 def _horizontal_axis(

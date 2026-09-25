@@ -2,6 +2,7 @@ import re
 
 from connected_health.viewer.charts import (
     ChartDatum,
+    _zero_including_scale,
     bar_chart,
     diverging_bar_chart,
     line_chart,
@@ -175,15 +176,50 @@ def test_line_chart_uses_a_dynamic_non_zero_forced_numeric_scale() -> None:
 
 
 def test_diverging_bar_chart_uses_a_padded_dynamic_scale_with_zero_visible() -> None:
+    values = (-900.0, -750.0, -500.0, -300.0)
+    lower, upper, ticks = _zero_including_scale(values)
     html = diverging_bar_chart(
         "Daily calorie balance",
-        (ChartDatum("Aug 1", -900), ChartDatum("Aug 2", -300)),
+        tuple(ChartDatum(f"Aug {index + 1}", value) for index, value in enumerate(values)),
         "kcal",
     )
 
+    assert (lower, upper) == (-1000.0, 100.0)
+    assert ticks == [-1000.0, -750.0, -500.0, -250.0, 0.0]
     assert 'class="viewer-chart-zero-line"' in html
     assert ">0</text>" in html
-    assert ">1,000</text>" not in html
+    assert ">500</text>" not in html
+    assert ">-1,000</text>" in html
+
+
+def test_positive_only_calorie_balance_uses_small_negative_headroom() -> None:
+    lower, upper, ticks = _zero_including_scale((300.0, 500.0, 750.0, 900.0))
+
+    assert (lower, upper) == (-100.0, 1000.0)
+    assert 0.0 in ticks
+    assert lower > -300.0
+    assert -500.0 not in ticks
+
+
+def test_mixed_calorie_balance_scale_is_padded_but_not_symmetric() -> None:
+    lower, upper, ticks = _zero_including_scale((-700.0, -300.0, 100.0, 250.0))
+
+    assert (lower, upper) == (-800.0, 300.0)
+    assert lower <= -700.0 and upper >= 250.0
+    assert 0.0 in ticks
+    assert abs(lower) != upper
+
+
+def test_zero_calorie_balance_values_remain_plotted_zero_bars() -> None:
+    html = diverging_bar_chart(
+        "Daily calorie balance",
+        (ChartDatum("Aug 1", 0), ChartDatum("Aug 2", -100), ChartDatum("Aug 3", 0)),
+        "kcal",
+    )
+
+    assert html.count('class="viewer-chart-diverging-bar ') == 3
+    assert 'height="0.00"' in html
+    assert 'class="viewer-chart-zero-line"' in html
 
 
 def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
