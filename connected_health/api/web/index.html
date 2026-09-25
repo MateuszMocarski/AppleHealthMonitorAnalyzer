@@ -3454,7 +3454,7 @@
             reportError: null,
             reportHtml: null,
             reportLoading: false,
-            reportMountedFileId: null,
+            mountedReportArtifact: null,
             reportNotice: null,
             selectedArtifact: null,
         };
@@ -3810,8 +3810,10 @@
                         : "Summary report";
                 option.classList.toggle(
                     "selected",
-                    viewerState.selectedArtifact?.file_id
-                        === artifact.file_id,
+                    sameViewerArtifact(
+                        viewerState.selectedArtifact,
+                        artifact,
+                    ),
                 );
                 option.addEventListener(
                     "click",
@@ -3832,7 +3834,7 @@
 
             if (viewerState.reportLoading) {
                 viewerReportContent.replaceChildren();
-                viewerState.reportMountedFileId = null;
+                viewerState.mountedReportArtifact = null;
                 viewerReportStatus.hidden = false;
                 viewerReportStatus.textContent =
                     "Loading saved report…";
@@ -3841,7 +3843,7 @@
 
             if (viewerState.reportError !== null) {
                 viewerReportContent.replaceChildren();
-                viewerState.reportMountedFileId = null;
+                viewerState.mountedReportArtifact = null;
                 viewerReportStatus.hidden = false;
                 viewerReportStatus.textContent =
                     viewerState.reportError;
@@ -3852,12 +3854,14 @@
                 viewerReportStatus.hidden = true;
 
                 if (
-                    viewerState.reportMountedFileId
-                    !== viewerState.selectedArtifact?.file_id
+                    !sameViewerArtifact(
+                        viewerState.mountedReportArtifact,
+                        viewerState.selectedArtifact,
+                    )
                 ) {
                     viewerReportContent.innerHTML = viewerState.reportHtml;
-                    viewerState.reportMountedFileId =
-                        viewerState.selectedArtifact?.file_id ?? null;
+                    viewerState.mountedReportArtifact =
+                        viewerState.selectedArtifact;
                     initializeViewerDailyNavigation();
                     initializeViewerSleepConfiguration();
                 }
@@ -3866,7 +3870,7 @@
             }
 
             viewerReportContent.replaceChildren();
-            viewerState.reportMountedFileId = null;
+            viewerState.mountedReportArtifact = null;
             viewerReportStatus.hidden = false;
             viewerReportStatus.textContent =
                 viewerState.reportNotice
@@ -3979,6 +3983,31 @@
             );
         }
 
+        function sameViewerArtifact(
+            firstArtifact,
+            secondArtifact,
+        ) {
+            if (
+                firstArtifact === null
+                || firstArtifact === undefined
+                || secondArtifact === null
+                || secondArtifact === undefined
+            ) {
+                return false;
+            }
+
+            return (
+                firstArtifact.file_id
+                    === secondArtifact.file_id
+                && firstArtifact.generation_id
+                    === secondArtifact.generation_id
+                && firstArtifact.period
+                    === secondArtifact.period
+                && firstArtifact.kind
+                    === secondArtifact.kind
+            );
+        }
+
         function resetViewerReportState(
             resetDefaultSelection = false,
         ) {
@@ -3986,7 +4015,7 @@
             viewerState.reportError = null;
             viewerState.reportHtml = null;
             viewerState.reportLoading = false;
-            viewerState.reportMountedFileId = null;
+            viewerState.mountedReportArtifact = null;
             viewerState.reportNotice = null;
             viewerState.selectedArtifact = null;
 
@@ -4047,7 +4076,7 @@
             viewerState.reportError = null;
             viewerState.reportHtml = null;
             viewerState.reportLoading = true;
-            viewerState.reportMountedFileId = null;
+            viewerState.mountedReportArtifact = null;
             viewerState.reportNotice = null;
             closeViewerSelector();
             renderViewerSelector();
@@ -4121,7 +4150,10 @@
             }
 
             if (
-                payload.artifact?.file_id !== artifact.file_id
+                !sameViewerArtifact(
+                    payload.artifact,
+                    artifact,
+                )
                 || typeof payload.html !== "string"
             ) {
                 viewerState.reportLoading = false;
@@ -4134,7 +4166,7 @@
             viewerState.selectedArtifact = payload.artifact;
             viewerState.reportHtml = payload.html;
             viewerState.reportLoading = false;
-            viewerState.reportMountedFileId = null;
+            viewerState.mountedReportArtifact = null;
             renderViewerSelector();
             renderViewerReportState();
         }
@@ -4204,6 +4236,10 @@
         async function loadViewerReportIndex() {
             const requestGeneration =
                 viewerIndexRequestGeneration + 1;
+            const selectedArtifactBeforeRefresh =
+                viewerState.selectedArtifact;
+            const reportWasLoading =
+                viewerState.reportLoading;
 
             viewerIndexRequestGeneration = requestGeneration;
             viewerReportRequestGeneration += 1;
@@ -4288,15 +4324,19 @@
             viewerState.indexLoading = false;
 
             const activeSelectedArtifact =
-                viewerState.selectedArtifact === null
+                selectedArtifactBeforeRefresh === null
                     ? undefined
                     : viewerState.artifacts.find(
                         (artifact) =>
-                            artifact.file_id
-                            === viewerState.selectedArtifact.file_id,
+                            sameViewerArtifact(
+                                artifact,
+                                selectedArtifactBeforeRefresh,
+                            ),
                     );
 
-            if (viewerState.selectedArtifact !== null) {
+            let restartSelectedArtifact = null;
+
+            if (selectedArtifactBeforeRefresh !== null) {
                 if (activeSelectedArtifact === undefined) {
                     resetViewerReportState(false);
                     viewerState.reportNotice =
@@ -4304,10 +4344,21 @@
                 } else {
                     viewerState.selectedArtifact =
                         activeSelectedArtifact;
+
+                    if (reportWasLoading) {
+                        restartSelectedArtifact =
+                            activeSelectedArtifact;
+                    }
                 }
             }
 
             renderViewerIndexState();
+
+            if (restartSelectedArtifact !== null) {
+                selectViewerArtifact(restartSelectedArtifact);
+                return;
+            }
+
             applyViewerDefaultSelection();
         }
 

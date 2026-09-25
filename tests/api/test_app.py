@@ -6733,7 +6733,7 @@ def test_web_interface_opens_selected_viewer_report_at_the_server_rendering_boun
     assert "viewerState.selectedArtifact = artifact;" in selection_function
     assert "viewerState.reportLoading = true;" in selection_function
     assert "encodeURIComponent(artifact.file_id)" in selection_function
-    assert "payload.artifact?.file_id !== artifact.file_id" in selection_function
+    assert "sameViewerArtifact(" in selection_function
     assert "viewerState.selectedArtifact = payload.artifact;" in selection_function
     assert "viewerState.reportHtml = payload.html;" in selection_function
     assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in report_render_function
@@ -6833,17 +6833,117 @@ def test_web_interface_reconciles_viewer_selection_after_persisted_report_refres
     )[0]
 
     assert "if (viewerState.available)" in enable_function
+    identity_function = html.split(
+        "function sameViewerArtifact(",
+        1,
+    )[1].split(
+        "function resetViewerReportState",
+        1,
+    )[0]
+
     assert "viewerReportRequestGeneration += 1;" in index_load_function
+    assert index_load_function.index("selectedArtifactBeforeRefresh") < index_load_function.index(
+        "viewerState.reportLoading = false;"
+    )
+    assert index_load_function.index("reportWasLoading") < index_load_function.index(
+        "viewerState.reportLoading = false;"
+    )
     assert "viewerState.reportLoading = false;" in index_load_function
     assert "activeSelectedArtifact" in index_load_function
     assert "viewerState.artifacts.find" in index_load_function
     assert "resetViewerReportState(false);" in index_load_function
     assert "replaced or is no longer active" in index_load_function
     assert "viewerState.selectedArtifact =" in index_load_function
-    assert "reportMountedFileId" in report_render_function
+    assert "restartSelectedArtifact" in index_load_function
+    assert "selectViewerArtifact(restartSelectedArtifact);" in index_load_function
+    assert (
+        "return;"
+        in index_load_function.split(
+            "selectViewerArtifact(restartSelectedArtifact);",
+            1,
+        )[1]
+    )
+    assert "mountedReportArtifact" in report_render_function
+    assert "sameViewerArtifact(" in report_render_function
     assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in report_render_function
     assert "initializeViewerDailyNavigation();" in report_render_function
+    assert "firstArtifact.generation_id" in identity_function
+    assert "firstArtifact.period" in identity_function
+    assert "firstArtifact.kind" in identity_function
     assert "await loadGoogleConnectionState();" in generation_function
+
+
+# =====================================================================
+# Verifies that only an index-invalidated in-flight selected report is loaded
+# again after the refreshed index confirms the complete artifact identity.
+# =====================================================================
+
+
+def test_web_interface_restarts_only_still_current_inflight_viewer_report_load() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "const reportWasLoading =" in index_load_function
+    assert "if (activeSelectedArtifact === undefined)" in index_load_function
+    assert "if (reportWasLoading)" in index_load_function
+    assert "restartSelectedArtifact =" in index_load_function
+    assert index_load_function.index("renderViewerIndexState();") < index_load_function.index(
+        "selectViewerArtifact(restartSelectedArtifact);"
+    )
+    assert index_load_function.count("selectViewerArtifact(") == 1
+
+
+# =====================================================================
+# Verifies that matching file identifiers alone cannot preserve mounted Viewer
+# HTML or accept a report-open response from a different generation.
+# =====================================================================
+
+
+def test_web_interface_uses_complete_viewer_artifact_identity() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    identity_function = html.split(
+        "function sameViewerArtifact(",
+        1,
+    )[1].split(
+        "function resetViewerReportState",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+
+    for identity_field in ("file_id", "generation_id", "period", "kind"):
+        assert f"firstArtifact.{identity_field}" in identity_function
+        assert f"secondArtifact.{identity_field}" in identity_function
+
+    assert "sameViewerArtifact(" in report_render_function
+    assert "sameViewerArtifact(" in selection_function
+    assert "payload.artifact?.file_id" not in selection_function
 
 
 # =====================================================================
