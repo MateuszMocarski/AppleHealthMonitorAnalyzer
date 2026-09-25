@@ -38,6 +38,7 @@ from connected_health.google.drive import (
     DriveFileMetadata,
     DriveTransientError,
 )
+from connected_health.google.drive_structure import ViewerReportArtifact
 from connected_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
@@ -160,6 +161,7 @@ def test_browser_security_headers_are_applied() -> None:
         "/auth/google/status",
         "/config/profiles",
         "/reports/autosave",
+        "/viewer/reports",
     ],
 )
 def test_private_google_state_endpoints_are_not_cached(
@@ -168,6 +170,113 @@ def test_private_google_state_endpoints_are_not_cached(
     response = client.get(path)
 
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_viewer_report_index_returns_active_artifact_metadata_for_google_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    def discover_index(session):
+        assert session.google_access_token == "access-token"
+        return (
+            ViewerReportArtifact(
+                file_id="full-file-id",
+                period="2026-08",
+                kind="full",
+                generation_id="generation-123",
+                generated_at="2026-09-12T18:00:00Z",
+            ),
+        )
+
+    monkeypatch.setattr(api_app_module, "discover_viewer_report_index_for_session", discover_index)
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+
+    response = auth_client.get("/viewer/reports")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "artifacts": [
+            {
+                "file_id": "full-file-id",
+                "period": "2026-08",
+                "kind": "full",
+                "generation_id": "generation-123",
+                "generated_at": "2026-09-12T18:00:00Z",
+            }
+        ]
+    }
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_viewer_report_index_requires_connected_google_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+
+    response = auth_client.get("/viewer/reports")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Google reconnect is required."}
+
+
+def test_viewer_report_index_rejects_missing_google_session() -> None:
+    response = TestClient(app).get("/viewer/reports")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Google session is unavailable."}
+
+
+def test_viewer_report_index_uses_google_reconnect_recovery_for_drive_access_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    def fail_discovery(_session):
+        raise DriveAccessError("access denied")
+
+    monkeypatch.setattr(api_app_module, "discover_viewer_report_index_for_session", fail_discovery)
+
+    recovery_client = TestClient(app, raise_server_exceptions=False)
+    recovery_client.cookies.set("ahm_session", session_id)
+
+    response = recovery_client.get("/viewer/reports")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Google reconnect is required."}
 
 
 # =====================================================================

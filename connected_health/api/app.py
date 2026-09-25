@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from connected_health.api.models import (
     MonthlyReportResponse,
     MultiMonthReportResponse,
+    ViewerReportIndexResponse,
 )
 from connected_health.application.application import AppleHealthApplication
 from connected_health.application.multi_month_run_options import MultiMonthRunOptions
@@ -44,6 +45,7 @@ from connected_health.google.drive import (
     HttpGoogleDriveClient,
 )
 from connected_health.google.drive_structure import (
+    discover_viewer_report_index,
     ensure_ahm_root,
     ensure_config_container,
 )
@@ -90,6 +92,7 @@ _NO_STORE_PATHS = {
     "/config/profiles",
     "/config/autosave",
     "/reports/autosave",
+    "/viewer/reports",
 }
 
 
@@ -234,6 +237,20 @@ def discover_config_profiles_for_session(
     )
 
     return discover_drive_config_profiles(
+        drive_client,
+    )
+
+
+def discover_viewer_report_index_for_session(
+    session,
+):
+    assert session.google_access_token is not None
+
+    drive_client = HttpGoogleDriveClient(
+        session.google_access_token,
+    )
+
+    return discover_viewer_report_index(
         drive_client,
     )
 
@@ -598,6 +615,47 @@ def get_report_autosave(
     return {
         "autosave_enabled": session.report_autosave_enabled,
     }
+
+
+@app.get("/viewer/reports")
+def get_viewer_report_index(
+    ahm_session: str | None = Cookie(default=None),
+) -> ViewerReportIndexResponse:
+    if ahm_session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    session = session_store.get(ahm_session)
+
+    if session is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Google session is unavailable.",
+        )
+
+    if not session_store.is_google_mode_ready(
+        ahm_session,
+        frozenset(GoogleOAuthService.SCOPES),
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Google reconnect is required.",
+        )
+
+    return ViewerReportIndexResponse(
+        artifacts=[
+            {
+                "file_id": artifact.file_id,
+                "period": artifact.period,
+                "kind": artifact.kind,
+                "generation_id": artifact.generation_id,
+                "generated_at": artifact.generated_at,
+            }
+            for artifact in discover_viewer_report_index_for_session(session)
+        ]
+    )
 
 
 @app.get(
