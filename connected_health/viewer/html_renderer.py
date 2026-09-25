@@ -326,14 +326,24 @@ class HtmlRenderer:
         )
 
     def _sleep_charts(self, sleep: Any) -> str:
+        stage_chart_values = [
+            ("Core", sleep.stages.core_minutes),
+            ("Deep", sleep.stages.deep_minutes),
+            ("REM", sleep.stages.rem_minutes),
+        ]
+        stage_metric_values = [
+            ("Core sleep", sleep.stages.core_minutes, "minutes"),
+            ("Deep sleep", sleep.stages.deep_minutes, "minutes"),
+            ("REM sleep", sleep.stages.rem_minutes, "minutes"),
+        ]
+        if sleep.stages.unspecified_minutes > 0:
+            stage_chart_values.append(("Unspecified", sleep.stages.unspecified_minutes))
+            stage_metric_values.append(
+                ("Unspecified sleep", sleep.stages.unspecified_minutes, "minutes")
+            )
         stages = pie_chart(
             "Average sleep stages",
-            (
-                ChartDatum("Core", sleep.stages.core_minutes),
-                ChartDatum("Deep", sleep.stages.deep_minutes),
-                ChartDatum("REM", sleep.stages.rem_minutes),
-                ChartDatum("Unspecified", sleep.stages.unspecified_minutes),
-            ),
+            tuple(ChartDatum(label, value) for label, value in stage_chart_values),
             "minutes",
         )
         score = bar_chart(
@@ -346,14 +356,7 @@ class HtmlRenderer:
             "points",
             maximum=100,
         )
-        stage_metrics = self._chart_kpis(
-            (
-                ("Core sleep", sleep.stages.core_minutes, "minutes"),
-                ("Deep sleep", sleep.stages.deep_minutes, "minutes"),
-                ("REM sleep", sleep.stages.rem_minutes, "minutes"),
-                ("Unspecified sleep", sleep.stages.unspecified_minutes, "minutes"),
-            )
-        )
+        stage_metrics = self._chart_kpis(tuple(stage_metric_values))
         score_metrics = self._chart_kpis(
             (
                 ("Average bedtime score", sleep.score.average_bedtime, None),

@@ -7125,6 +7125,38 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
     assert "calories_balance" not in viewer_state_code
 
 
+def test_web_interface_uses_one_generic_presentation_only_chart_tooltip() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    chart_interactions = html.split(
+        "function dismissViewerChartTooltip()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+
+    assert 'id="viewer-chart-tooltip"' in html
+    assert 'role="tooltip"' in html
+    assert ".viewer-chart-target--active" in html
+    assert ".viewer-chart-tooltip" in html
+    assert "prefers-reduced-motion: no-preference" in html
+    assert "[data-viewer-chart-tooltip]" in chart_interactions
+    assert "pointerenter" in chart_interactions
+    assert "pointerleave" in chart_interactions
+    assert 'addEventListener("focus"' in chart_interactions
+    assert 'addEventListener("blur"' in chart_interactions
+    assert 'addEventListener("pointerdown"' in chart_interactions
+    assert "getBoundingClientRect" in chart_interactions
+    assert "fetch(" not in chart_interactions
+    assert "JSON.parse" not in chart_interactions
+    assert "average_daily_steps" not in chart_interactions
+    assert "calories_balance" not in chart_interactions
+
+
 def test_web_interface_places_selector_and_regenerate_above_full_width_content() -> None:
     response = client.get("/")
 

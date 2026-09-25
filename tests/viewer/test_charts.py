@@ -27,6 +27,9 @@ def test_pie_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
     assert html.count("M110.00,110.00 L") == 2
     assert html.count('Z"></path>') == 2
     assert html.count("M110.00,110.00 L") == html.count('Z"></path>')
+    assert 'class="viewer-chart-slice viewer-chart-slice--0 viewer-chart-target"' in html
+    assert 'data-viewer-chart-tooltip="Core &lt;sleep&gt; · 300 minutes"' in html
+    assert 'tabindex="0"' in html
     assert "viewer-chart-donut-track" not in html
     assert "Core &lt;sleep&gt;" in html
     assert "NaN" not in html
@@ -86,6 +89,8 @@ def test_bar_chart_supports_a_fixed_scale() -> None:
         assert f">{tick}</text>" in html
     assert html.count('class="viewer-chart-gridline"') == 5
     assert 'class="viewer-chart-unit-label viewer-chart-unit-label--y" x="39.00" y="20"' in html
+    assert 'class="viewer-chart-bar viewer-chart-bar--0 viewer-chart-target"' in html
+    assert 'data-viewer-chart-tooltip="Bedtime · 80 points"' in html
     assert "Bedtime" in html
     assert "Duration" in html
 
@@ -99,7 +104,7 @@ def test_line_chart_leaves_missing_points_absent() -> None:
 
     assert "Aug 2" in html
     assert "<title>Aug 2:" not in html
-    assert html.count('class="viewer-chart-point"') == 2
+    assert html.count('class="viewer-chart-point viewer-chart-target"') == 2
     assert "NaN" not in html
     assert "Infinity" not in html
 
@@ -113,8 +118,8 @@ def test_line_chart_uses_an_optional_user_facing_value_formatter_for_point_title
         value_formatter=_clock_label,
     )
 
-    assert "<title>Aug 2: 01:00</title>" in html
-    assert "<title>Aug 2: 1500</title>" not in html
+    assert 'data-viewer-chart-tooltip="Aug 2 · 01:00"' in html
+    assert "1500" not in html
 
 
 def test_line_chart_emits_numeric_intermediate_ticks_gridlines_and_unfilled_path() -> None:
@@ -143,6 +148,7 @@ def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
     assert 'class="viewer-chart-zero-line"' in html
     assert "viewer-chart-diverging-bar--negative" in html
     assert "viewer-chart-diverging-bar--positive" in html
+    assert 'data-viewer-chart-tooltip="Aug 1 · -500 kcal"' in html
     assert 'class="viewer-chart-zero-line"' in html
     assert html.count('class="viewer-chart-gridline"') >= 3
     assert ">0</text>" in html
@@ -176,8 +182,8 @@ def test_long_daily_axes_thin_labels_without_dropping_plotted_values() -> None:
         assert ">Aug 1</text>" in chart
         assert ">Aug 31</text>" in chart
 
-    assert line.count('class="viewer-chart-point"') == 31
-    assert distance.count('class="viewer-chart-point"') == 31
+    assert line.count('class="viewer-chart-point viewer-chart-target"') == 31
+    assert distance.count('class="viewer-chart-point viewer-chart-target"') == 31
     assert diverging.count('class="viewer-chart-diverging-bar ') == 31
 
 
@@ -212,8 +218,8 @@ def test_long_daily_steps_and_distance_charts_keep_independent_values_and_lines(
     distance = line_chart("Daily distance", values, "km", start_at_zero=True)
 
     assert "Daily steps" in steps and "Daily distance" in distance
-    assert steps.count('class="viewer-chart-point"') == 31
-    assert distance.count('class="viewer-chart-point"') == 31
+    assert steps.count('class="viewer-chart-point viewer-chart-target"') == 31
+    assert distance.count('class="viewer-chart-point viewer-chart-target"') == 31
     assert steps.count('class="viewer-chart-line" fill="none"') == 1
     assert distance.count('class="viewer-chart-line" fill="none"') == 1
     assert "<polygon" not in steps + distance

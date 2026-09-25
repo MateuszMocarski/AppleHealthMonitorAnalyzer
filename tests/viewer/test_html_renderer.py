@@ -411,8 +411,8 @@ def test_full_activity_renders_separate_steps_and_distance_series() -> None:
     assert 'class="viewer-chart viewer-chart--dual-line"' not in html
     assert 'class="viewer-chart-line" fill="none"' in steps_chart
     assert 'class="viewer-chart-line" fill="none"' in distance_chart
-    assert steps_chart.count('class="viewer-chart-point"') == 2
-    assert distance_chart.count('class="viewer-chart-point"') == 2
+    assert steps_chart.count('class="viewer-chart-point viewer-chart-target"') == 2
+    assert distance_chart.count('class="viewer-chart-point viewer-chart-target"') == 2
     assert "1,234 steps" in steps_chart
     assert "1.5 km" in distance_chart
 
@@ -451,9 +451,9 @@ def test_html_renderer_normalizes_bedtime_chart_geometry_but_keeps_clock_labels(
 
     assert "01:00" in bedtime_chart
     assert "25:00" not in bedtime_chart
-    assert "<title>Aug 2: 01:00</title>" in bedtime_chart
+    assert 'data-viewer-chart-tooltip="Aug 2 · 01:00"' in bedtime_chart
     assert "1500" not in bedtime_chart
-    assert "<title>Aug 2: 08:00</title>" in wake_up_chart
+    assert 'data-viewer-chart-tooltip="Aug 2 · 08:00"' in wake_up_chart
 
 
 def test_html_renderer_daily_sleep_session_uses_local_clock_without_timezone_suffix() -> None:
@@ -499,6 +499,28 @@ def test_html_renderer_shows_positive_unspecified_daily_sleep_stage() -> None:
         '<dt>Unspecified sleep</dt><dd>13 <span class="viewer-metric-unit">minutes</span>'
         in daily_html
     )
+
+
+def test_html_renderer_hides_zero_unspecified_monthly_sleep_stage_but_keeps_positive_value() -> (
+    None
+):
+    zero_summary = _rich_summary()
+    zero_report = parse_persisted_report(JsonRenderer().render_month_summary(zero_summary))
+
+    zero_html = HtmlRenderer().render(zero_report)
+
+    assert zero_report.sleep.stages.unspecified_minutes == 0
+    assert "Unspecified" not in zero_html
+
+    positive_summary = _rich_summary()
+    positive_summary.sleep_summary.average_unspecified_minutes = 13
+    positive_report = parse_persisted_report(JsonRenderer().render_month_summary(positive_summary))
+
+    positive_html = HtmlRenderer().render(positive_report)
+
+    assert positive_report.sleep.stages.unspecified_minutes == 13
+    assert "Unspecified sleep" in positive_html
+    assert 'data-viewer-chart-tooltip="Unspecified · 13 minutes"' in positive_html
 
 
 def test_html_renderer_notes_partial_workout_energy_without_zero_filling() -> None:

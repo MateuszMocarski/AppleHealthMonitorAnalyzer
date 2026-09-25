@@ -30,6 +30,7 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
     angle = first_angle
     slices: list[str] = []
     for index, (item, value) in enumerate(drawable):
+        tooltip = f"{item.label} · {_format_for_unit(value, unit)} {unit}"
         sweep = 2 * math.pi * value / total
         end_angle = first_angle + 2 * math.pi if index == len(drawable) - 1 else angle + sweep
         start_x = center + radius * math.cos(angle)
@@ -47,9 +48,8 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
                 f'{end_x:.2f},{end_y:.2f} Z"></path>'
             )
         slices.append(
-            f'<g class="viewer-chart-slice viewer-chart-slice--{index % 6}" stroke="none">'
-            f"<title>{escape(item.label)}: {escape(_format_for_unit(value, unit))} "
-            f"{escape(unit)}</title>"
+            f'<g class="viewer-chart-slice viewer-chart-slice--{index % 6} '
+            f'viewer-chart-target" stroke="none"{_chart_target_attributes(tooltip)}>'
             f"{shape}</g>"
         )
         angle = end_angle
@@ -96,14 +96,15 @@ def bar_chart(
     width = (right - left) / max(len(plotted), 1)
     bars = []
     for index, (item, value) in enumerate(plotted):
+        tooltip = f"{item.label} · {_format(value)} {unit}"
         height = max(0.0, min(value, chart_maximum)) / chart_maximum * (bottom - top)
         x = left + index * width + width * 0.18
         bar_width = width * 0.64
         y = bottom - height
         bars.append(
-            f'<rect class="viewer-chart-bar viewer-chart-bar--{index % 6}" x="{x:.2f}" '
-            f'y="{y:.2f}" width="{bar_width:.2f}" height="{height:.2f}">'
-            f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title></rect>"
+            f'<rect class="viewer-chart-bar viewer-chart-bar--{index % 6} viewer-chart-target" '
+            f'{_chart_target_attributes(tooltip)} x="{x:.2f}" y="{y:.2f}" '
+            f'width="{bar_width:.2f}" height="{height:.2f}"></rect>'
             '<text class="viewer-chart-axis-label" '
             f'x="{x + bar_width / 2:.2f}" y="230">{escape(item.label)}</text>'
         )
@@ -174,12 +175,13 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
             continue
         height = abs(value) / maximum * (bottom - top) / 2
         y = center - height if value >= 0 else center
+        tooltip = f"{item.label} · {_format(value)} {unit}"
         bars.append(
             '<rect class="viewer-chart-diverging-bar '
-            f'viewer-chart-diverging-bar--{"positive" if value >= 0 else "negative"}" '
+            f'viewer-chart-diverging-bar--{"positive" if value >= 0 else "negative"} '
+            f'viewer-chart-target"{_chart_target_attributes(tooltip)} '
             f'x="{x - bar_width / 2:.2f}" y="{y:.2f}" width="{bar_width:.2f}" '
-            f'height="{height:.2f}">'
-            f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title></rect>"
+            f'height="{height:.2f}"></rect>'
         )
     labels = _x_labels([item.label for item, _ in plotted], x_positions, y=232.0)
     grid = _horizontal_axis(ticks, -maximum, maximum, top, bottom, left, right)
@@ -224,10 +226,9 @@ def _line_figure(
     lower, upper = ticks[0], ticks[-1]
     path = _line_path([value for _, value in points], x_positions, lower, upper, top, bottom)
     dots = "".join(
-        '<circle class="viewer-chart-point" '
-        f'cx="{x:.2f}" cy="{_y(value, lower, upper, top, bottom):.2f}" r="3">'
-        f"<title>{escape(label)}: {escape(value_formatter(value))}{_unit_suffix(unit)}</title>"
-        "</circle>"
+        '<circle class="viewer-chart-point viewer-chart-target" '
+        f'{_chart_target_attributes(f"{label} · {value_formatter(value)}{_unit_suffix(unit)}")} '
+        f'cx="{x:.2f}" cy="{_y(value, lower, upper, top, bottom):.2f}" r="3"></circle>'
         for (label, value), x in zip(points, x_positions, strict=True)
         if value is not None
     )
@@ -277,6 +278,14 @@ def _format_for_unit(value: float, unit: str) -> str:
     if value > 0 and rounded == 0:
         return "<1"
     return f"{rounded:,}"
+
+
+def _chart_target_attributes(tooltip: str) -> str:
+    escaped = escape(tooltip, quote=True)
+    return (
+        f' tabindex="0" data-viewer-chart-tooltip="{escaped}" '
+        f'aria-label="{escaped}" aria-describedby="viewer-chart-tooltip"'
+    )
 
 
 def _x_positions(length: int, start: float = 32.0, end: float = 268.0) -> list[float]:

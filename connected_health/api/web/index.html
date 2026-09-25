@@ -976,6 +976,62 @@
             stroke: none;
         }
 
+        .viewer-chart-target {
+            cursor: pointer;
+            outline: none;
+        }
+
+        .viewer-chart-slice.viewer-chart-target--active {
+            filter: brightness(1.18) drop-shadow(0 0 4px rgba(255, 255, 255, 0.24));
+        }
+
+        .viewer-chart-bar.viewer-chart-target--active,
+        .viewer-chart-diverging-bar.viewer-chart-target--active {
+            filter: brightness(1.2);
+            stroke: rgba(255, 255, 255, 0.72);
+            stroke-width: 1.4;
+        }
+
+        .viewer-chart-point.viewer-chart-target--active {
+            fill: #ffffff;
+            stroke: #7dd3fc;
+            stroke-width: 2.5;
+            r: 5px;
+        }
+
+        .viewer-chart-target:focus-visible {
+            filter: brightness(1.18) drop-shadow(0 0 4px rgba(255, 255, 255, 0.32));
+        }
+
+        .viewer-chart-tooltip {
+            position: fixed;
+            z-index: 20;
+            max-width: min(300px, calc(100vw - 24px));
+            padding: 7px 10px;
+
+            border: 1px solid rgba(255, 255, 255, 0.20);
+            border-radius: 8px;
+            background: #111827;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+            color: var(--text);
+
+            font-size: 12px;
+            font-weight: 650;
+            line-height: 1.35;
+            pointer-events: none;
+            transform: translateX(-50%);
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+            .viewer-chart-target {
+                transition: filter 120ms ease, fill 120ms ease, stroke 120ms ease, r 120ms ease;
+            }
+
+            .viewer-chart-tooltip {
+                transition: opacity 100ms ease;
+            }
+        }
+
         .viewer-chart-slice--0,
         .viewer-chart-bar--0 {
             fill: #7dd3fc;
@@ -3513,6 +3569,12 @@
                     </p>
 
                     <div id="viewer-report-content"></div>
+                    <div
+                        class="viewer-chart-tooltip"
+                        id="viewer-chart-tooltip"
+                        role="tooltip"
+                        hidden
+                    ></div>
                 </section>
             </div>
         </section>
@@ -3578,6 +3640,9 @@
 
         const viewerReportContent =
             document.getElementById("viewer-report-content");
+
+        const viewerChartTooltip =
+            document.getElementById("viewer-chart-tooltip");
 
         const viewerReportActions =
             document.getElementById("viewer-report-actions");
@@ -3966,6 +4031,7 @@
         }
 
         function renderViewerReportState() {
+            dismissViewerChartTooltip();
             viewerReportActions.hidden =
                 viewerState.selectedArtifact === null;
 
@@ -4006,6 +4072,7 @@
                         viewerState.selectedArtifact;
                     initializeViewerDailyNavigation();
                     initializeViewerSleepConfiguration();
+                    initializeViewerChartInteractions();
                 }
 
                 return;
@@ -4116,6 +4183,102 @@
                 dialog.close();
             });
         }
+
+        let activeViewerChartTarget = null;
+
+        function dismissViewerChartTooltip() {
+            if (activeViewerChartTarget !== null) {
+                activeViewerChartTarget.classList.remove(
+                    "viewer-chart-target--active",
+                );
+                activeViewerChartTarget = null;
+            }
+            viewerChartTooltip.hidden = true;
+            viewerChartTooltip.textContent = "";
+        }
+
+        function positionViewerChartTooltip(target) {
+            const targetRect = target.getBoundingClientRect();
+            const tooltipRect = viewerChartTooltip.getBoundingClientRect();
+            const horizontalPadding = 12;
+            const tooltipHalfWidth = tooltipRect.width / 2;
+            const left = Math.min(
+                Math.max(
+                    targetRect.left + targetRect.width / 2,
+                    horizontalPadding + tooltipHalfWidth,
+                ),
+                window.innerWidth - horizontalPadding - tooltipHalfWidth,
+            );
+            const above = targetRect.top - tooltipRect.height - 10;
+            const top = above >= horizontalPadding
+                ? above
+                : targetRect.bottom + 10;
+
+            viewerChartTooltip.style.left = `${left}px`;
+            viewerChartTooltip.style.top = `${top}px`;
+        }
+
+        function showViewerChartTooltip(target) {
+            const tooltip = target.dataset.viewerChartTooltip;
+            if (!tooltip) {
+                return;
+            }
+
+            if (activeViewerChartTarget !== target) {
+                dismissViewerChartTooltip();
+                activeViewerChartTarget = target;
+                target.classList.add("viewer-chart-target--active");
+            }
+
+            viewerChartTooltip.textContent = tooltip;
+            viewerChartTooltip.hidden = false;
+            positionViewerChartTooltip(target);
+        }
+
+        function initializeViewerChartInteractions() {
+            const targets = viewerReportContent.querySelectorAll(
+                "[data-viewer-chart-tooltip]",
+            );
+
+            targets.forEach((target) => {
+                target.addEventListener("pointerenter", () => {
+                    showViewerChartTooltip(target);
+                });
+                target.addEventListener("pointerleave", () => {
+                    if (activeViewerChartTarget === target) {
+                        dismissViewerChartTooltip();
+                    }
+                });
+                target.addEventListener("focus", () => {
+                    showViewerChartTooltip(target);
+                });
+                target.addEventListener("blur", () => {
+                    if (activeViewerChartTarget === target) {
+                        dismissViewerChartTooltip();
+                    }
+                });
+            });
+
+            viewerReportContent.addEventListener("pointerdown", (event) => {
+                const target = event.target.closest?.("[data-viewer-chart-tooltip]");
+                if (target !== undefined && target !== null) {
+                    showViewerChartTooltip(target);
+                } else {
+                    dismissViewerChartTooltip();
+                }
+            });
+        }
+
+        document.addEventListener("pointerdown", (event) => {
+            const target = event.target.closest?.("[data-viewer-chart-tooltip]");
+            if (
+                target === undefined
+                || target === null
+                || !viewerReportContent.contains(target)
+            ) {
+                dismissViewerChartTooltip();
+            }
+        });
 
         function closeViewerSelector() {
             viewerSelectorMenu.hidden = true;
