@@ -276,7 +276,7 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "2026-08-01" in html
     assert "1,234" in html
     assert "1.5" in html
-    assert "450" in html
+    assert "7 hours 30 minutes" in html
     assert "60" in html
     assert "70" in html
     assert 'class="viewer-chart viewer-chart--pie"' in html
@@ -333,6 +333,9 @@ def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -
     html = HtmlRenderer().render(report)
 
     assert '<div class="viewer-sleep-chart-layout">' in html
+    monthly_stages_group = html.split('<section class="viewer-sleep-stages-chart">', 1)[1].split(
+        "</section>", 1
+    )[0]
     monthly_score_group = html.split('<section class="viewer-sleep-score-chart">', 1)[1].split(
         "</section>", 1
     )[0]
@@ -340,11 +343,12 @@ def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -
         "</section>", 1
     )[0]
 
+    assert 'class="viewer-chart-legend"' in monthly_stages_group
+    assert "Core sleep" not in monthly_stages_group
+    assert "Deep sleep" not in monthly_stages_group
+    assert "REM sleep" not in monthly_stages_group
     assert "Average Sleep Score components" in monthly_score_group
     ordered_monthly_labels = (
-        "Average bedtime score",
-        "Average duration score",
-        "Average wake-up score",
         "Average sleep score",
         "Average bonus",
         "Consistency bonus",
@@ -354,6 +358,12 @@ def test_html_renderer_groups_monthly_and_daily_score_kpis_with_their_charts() -
     assert [monthly_score_group.index(label) for label in ordered_monthly_labels] == sorted(
         monthly_score_group.index(label) for label in ordered_monthly_labels
     )
+    for redundant_label in (
+        "Average bedtime score",
+        "Average duration score",
+        "Average wake-up score",
+    ):
+        assert redundant_label not in monthly_score_group
     assert 'class="viewer-metric viewer-metric--score-primary"' in monthly_score_group
     assert "Sleep Score components" in daily_score_group
     assert "Total score" in daily_score_group
@@ -373,9 +383,10 @@ def test_html_renderer_rounds_minutes_for_presentation_without_mutating_viewer_v
     assert report.sleep.stages.deep_minutes == 39.5
     assert report.sleep.stages.rem_minutes == 0.49
     assert "280.61" not in html
-    assert '281 <span class="viewer-metric-unit">minutes</span>' in html
-    assert '40 <span class="viewer-metric-unit">minutes</span>' in html
-    assert '&lt;1 <span class="viewer-metric-unit">minute</span>' in html
+    assert "4 hours 41 minutes" in html
+    assert "40 minutes" in html
+    assert "&lt;1 minute" in html
+    assert HtmlRenderer._value(97, "minutes") == "1 hour 37 minutes"
     assert HtmlRenderer._value(0, "minutes") == '0 <span class="viewer-metric-unit">minutes</span>'
 
 
@@ -392,12 +403,12 @@ def test_html_renderer_uses_wide_weight_chart_and_hierarchical_daily_sections() 
     assert "Body weight by day" in weight_section
     assert 'class="viewer-metric-grid viewer-metric-grid--three"' in html
     assert "viewer-daily-secondary-summary" not in html
-    assert 'class="viewer-daily-body-weight-row">' in html
+    assert 'class="viewer-daily-top-activity">' in html
     assert "viewer-daily-section--body-weight" in html
     assert "viewer-daily-section--nutrition-band" in html
     assert "viewer-daily-section--energy-balance" in html
     assert "Energy &amp; calorie balance" in html
-    assert html.index("viewer-daily-body-weight-row") < html.index(
+    assert html.index("viewer-daily-top-activity") < html.index(
         "viewer-daily-section--sleep-stages"
     )
     assert "Daily macros" not in html
@@ -443,7 +454,7 @@ def test_html_renderer_defaults_sparse_daily_navigation_to_the_latest_available_
     )
 
 
-def test_html_renderer_renders_weight_trend_from_all_measurements_with_real_day_positions() -> None:
+def test_html_renderer_keeps_body_weight_measurements_without_an_artificial_trend() -> None:
     summary = _detailed_full_summary()
     summary.reporting_days = 10
     summary.days = [
@@ -458,24 +469,12 @@ def test_html_renderer_renders_weight_trend_from_all_measurements_with_real_day_
         "</figure>", 1
     )[0]
 
-    assert "Trend: -1.41 kg/week" in weight_chart
-    assert 'class="viewer-chart-trend-line" fill="none"' in weight_chart
+    assert "Trend:" not in weight_chart
+    assert "viewer-chart-trend-line" not in weight_chart
     assert weight_chart.count('class="viewer-chart-point viewer-chart-target"') == 3
     assert 'cx="48.00"' in weight_chart
-    assert 'cx="101.33"' in weight_chart
+    assert 'cx="168.00"' in weight_chart
     assert 'cx="288.00"' in weight_chart
-
-
-def test_html_renderer_omits_weight_trend_when_fewer_than_two_measurements_exist() -> None:
-    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
-
-    html = HtmlRenderer().render(report)
-    weight_chart = html.split("<figcaption>Body weight by day</figcaption>", 1)[1].split(
-        "</figure>", 1
-    )[0]
-
-    assert "viewer-chart-trend-line" not in weight_chart
-    assert "Trend:" not in weight_chart
 
 
 def test_full_activity_renders_separate_steps_and_distance_series() -> None:
@@ -494,6 +493,22 @@ def test_full_activity_renders_separate_steps_and_distance_series() -> None:
     assert distance_chart.count('class="viewer-chart-point viewer-chart-target"') == 2
     assert "1,234 steps" in steps_chart
     assert "1.5 km" in distance_chart
+
+
+def test_html_renderer_uses_dynamic_monthly_nutrition_and_zero_including_balance_scales() -> None:
+    report = parse_persisted_report(JsonRenderer().render_month(_rich_summary()))
+
+    html = HtmlRenderer().render(report)
+    protein_chart = html.split("<figcaption>Protein by day</figcaption>", 1)[1].split(
+        "</figure>", 1
+    )[0]
+    balance_chart = html.split("<figcaption>Daily calorie balance</figcaption>", 1)[1].split(
+        "</figure>", 1
+    )[0]
+
+    assert ">0</text>" not in protein_chart
+    assert 'class="viewer-chart-zero-line"' in balance_chart
+    assert ">0</text>" in balance_chart
 
 
 def test_html_renderer_orders_daily_articles_and_selects_the_latest_day() -> None:
@@ -598,7 +613,8 @@ def test_html_renderer_hides_zero_unspecified_monthly_sleep_stage_but_keeps_posi
     positive_html = HtmlRenderer().render(positive_report)
 
     assert positive_report.sleep.stages.unspecified_minutes == 13
-    assert "Unspecified sleep" in positive_html
+    assert "Unspecified" in positive_html
+    assert "Unspecified sleep" not in positive_html
     assert 'data-viewer-chart-tooltip="Unspecified · 13 minutes"' in positive_html
 
 

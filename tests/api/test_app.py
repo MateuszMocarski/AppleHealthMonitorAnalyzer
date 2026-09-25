@@ -7106,7 +7106,7 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
         ".viewer-chart-legend-value",
         ".viewer-sleep-chart-layout",
         ".viewer-sleep-stages-chart",
-        ".viewer-daily-body-weight-row",
+        ".viewer-daily-top-activity",
         ".viewer-daily-section--nutrition-band",
         ".viewer-daily-section--energy-balance",
         ".viewer-metric-grid--three",

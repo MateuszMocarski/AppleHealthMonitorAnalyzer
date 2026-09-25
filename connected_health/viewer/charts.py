@@ -14,18 +14,6 @@ class ChartDatum:
 
     label: str
     value: float | None
-    position: float | None = None
-
-
-@dataclass(frozen=True)
-class ChartTrend:
-    """A secondary server-calculated presentation line over a numeric series."""
-
-    start_position: float
-    start_value: float
-    end_position: float
-    end_value: float
-    label: str
 
 
 def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
@@ -42,7 +30,7 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
     angle = first_angle
     slices: list[str] = []
     for index, (item, value) in enumerate(drawable):
-        tooltip = f"{item.label} · {_format_for_unit(value, unit)} {unit}"
+        tooltip = f"{item.label} · {_format_with_unit(value, unit)}"
         sweep = 2 * math.pi * value / total
         end_angle = first_angle + 2 * math.pi if index == len(drawable) - 1 else angle + sweep
         start_x = center + radius * math.cos(angle)
@@ -70,11 +58,11 @@ def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
         '<li><span class="viewer-chart-swatch '
         f'viewer-chart-swatch--{index % 6}"></span>'
         f'<span class="viewer-chart-legend-label">{escape(item.label)}</span>'
-        f'<span class="viewer-chart-legend-value">{escape(_format_for_unit(value, unit))} '
-        f"{escape(unit)}</span></li>"
+        f'<span class="viewer-chart-legend-value">{escape(_format_with_unit(value, unit))}'
+        "</span></li>"
         for index, (item, value) in enumerate(drawable)
     )
-    description = f"{title}. Total plotted value: {_format_for_unit(total, unit)} {unit}."
+    description = f"{title}. Total plotted value: {_format_with_unit(total, unit)}."
     return _figure(
         title,
         "pie",
@@ -146,19 +134,12 @@ def line_chart(
     axis_label: str | None = None,
     axis_formatter: Callable[[float], str] | None = None,
     value_formatter: Callable[[float], str] | None = None,
-    trend: ChartTrend | None = None,
 ) -> str:
     """Render a single series, retaining missing values as breaks in the path."""
-    points = [(item.label, _finite(item.value), item.position) for item in values]
-    present = [value for _, value, _ in points if value is not None]
+    points = [(item.label, _finite(item.value)) for item in values]
+    present = [value for _, value in points if value is not None]
     if not present:
         return ""
-    if trend is not None:
-        trend_values = (_finite(trend.start_value), _finite(trend.end_value))
-        if all(value is not None for value in trend_values):
-            present.extend(value for value in trend_values if value is not None)
-        else:
-            trend = None
     if start_at_zero:
         lower = 0.0
         upper = max(_nice_ceiling(max(present)), 1.0)
@@ -174,7 +155,6 @@ def line_chart(
         axis_formatter or _format,
         value_formatter or _format,
         time_axis=axis_formatter is not None,
-        trend=trend,
     )
 
 
@@ -183,20 +163,21 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
     plotted = [(item, _finite(item.value)) for item in values]
     if not any(value is not None for _, value in plotted):
         return ""
-    maximum_value = max((abs(value) for _, value in plotted if value is not None), default=0.0)
-    ticks = _symmetric_ticks(maximum_value)
-    maximum = max(abs(ticks[0]), abs(ticks[-1]))
+    present = [value for _, value in plotted if value is not None]
+    ticks = _zero_including_ticks(present)
+    lower, upper = ticks[0], ticks[-1]
     left, right = 32.0, 288.0
     x_positions = _x_positions(len(plotted), left, right)
     bar_width = min(12.0, max(3.0, (right - left) / max(len(plotted), 1) * 0.58))
     top, bottom = 34.0, 186.0
-    center = (top + bottom) / 2
+    center = _y(0.0, lower, upper, top, bottom)
     bars = []
     for index, ((item, value), x) in enumerate(zip(plotted, x_positions, strict=True)):
         if value is None:
             continue
-        height = abs(value) / maximum * (bottom - top) / 2
-        y = center - height if value >= 0 else center
+        value_y = _y(value, lower, upper, top, bottom)
+        height = abs(value_y - center)
+        y = min(value_y, center)
         tooltip = f"{item.label} · {_format(value)} {unit}"
         bars.append(
             '<rect class="viewer-chart-diverging-bar '
@@ -206,7 +187,7 @@ def diverging_bar_chart(title: str, values: Sequence[ChartDatum], unit: str) -> 
             f'height="{height:.2f}"></rect>'
         )
     labels = _x_labels([item.label for item, _ in plotted], x_positions, y=232.0)
-    grid = _horizontal_axis(ticks, -maximum, maximum, top, bottom, left, right)
+    grid = _horizontal_axis(ticks, lower, upper, top, bottom, left, right)
     description = f"{title}; zero baseline separates deficit and surplus."
     return _figure(
         title,
@@ -232,7 +213,7 @@ def empty_chart(title: str, message: str) -> str:
 
 def _line_figure(
     title: str,
-    points: Sequence[tuple[str, float | None, float | None]],
+    points: Sequence[tuple[str, float | None]],
     unit: str,
     lower: float,
     upper: float,
@@ -241,31 +222,22 @@ def _line_figure(
     value_formatter: Callable[[float], str],
     *,
     time_axis: bool,
-    trend: ChartTrend | None,
 ) -> str:
     x_left, x_right = 48.0, 288.0
     top, bottom = 34.0, 134.0
-    x_positions = _line_x_positions(points, x_left, x_right)
+    x_positions = _x_positions(len(points), x_left, x_right)
     ticks = _axis_ticks(lower, upper, step_override=60.0 if time_axis else None)
     lower, upper = ticks[0], ticks[-1]
-    path = _line_path([value for _, value, _ in points], x_positions, lower, upper, top, bottom)
+    path = _line_path([value for _, value in points], x_positions, lower, upper, top, bottom)
     dots = "".join(
         '<circle class="viewer-chart-point viewer-chart-target" '
         f'{_chart_target_attributes(f"{label} · {value_formatter(value)}{_unit_suffix(unit)}")} '
         f'cx="{x:.2f}" cy="{_y(value, lower, upper, top, bottom):.2f}" r="3"></circle>'
-        for (label, value, _), x in zip(points, x_positions, strict=True)
+        for (label, value), x in zip(points, x_positions, strict=True)
         if value is not None
     )
-    labels = _x_labels([label for label, _, _ in points], x_positions)
+    labels = _x_labels([label for label, _ in points], x_positions)
     description = f"{title}; values are shown only for days with persisted data."
-    if trend is not None:
-        description += f" Trend: {trend.label}."
-    trend_path = _trend_path(trend, points, lower, upper, top, bottom, x_left, x_right)
-    trend_label = (
-        f'<p class="viewer-chart-trend">Trend: {escape(trend.label)}</p>'
-        if trend is not None
-        else ""
-    )
     grid = _horizontal_axis(ticks, lower, upper, top, bottom, x_left, x_right, axis_formatter)
     return _figure(
         title,
@@ -277,8 +249,7 @@ def _line_figure(
         f'<text class="viewer-chart-unit-label" x="{x_left}" y="20">{escape(axis_label)}</text>'
         f'{grid}<line class="viewer-chart-axis" x1="{x_left}" y1="{bottom}" '
         f'x2="{x_right}" y2="{bottom}"></line>'
-        f'<path class="viewer-chart-line" fill="none" d="{path}"></path>{trend_path}'
-        f"{dots}{labels}</svg>{trend_label}",
+        f'<path class="viewer-chart-line" fill="none" d="{path}"></path>{dots}{labels}</svg>',
     )
 
 
@@ -286,67 +257,6 @@ def _figure(title: str, modifier: str, description: str, content: str) -> str:
     return (
         f'<figure class="viewer-chart viewer-chart--{escape(modifier)}">'
         f"<figcaption>{escape(title)}</figcaption>{content}</figure>"
-    )
-
-
-def _line_x_positions(
-    points: Sequence[tuple[str, float | None, float | None]],
-    left: float,
-    right: float,
-) -> list[float]:
-    start, end = _line_position_range(points)
-    return [
-        _position_to_x(position, start, end, left, right) for position in _line_positions(points)
-    ]
-
-
-def _line_positions(points: Sequence[tuple[str, float | None, float | None]]) -> list[float]:
-    positions: list[float] = []
-    for index, (_, _, position) in enumerate(points):
-        numeric = _finite(position)
-        positions.append(numeric if numeric is not None else float(index))
-    return positions
-
-
-def _line_position_range(
-    points: Sequence[tuple[str, float | None, float | None]],
-) -> tuple[float, float]:
-    positions = _line_positions(points)
-    if not positions:
-        return 0.0, 1.0
-    start, end = min(positions), max(positions)
-    return (start, end) if start != end else (start - 0.5, end + 0.5)
-
-
-def _position_to_x(position: float, start: float, end: float, left: float, right: float) -> float:
-    return left + (position - start) / (end - start) * (right - left)
-
-
-def _trend_path(
-    trend: ChartTrend | None,
-    points: Sequence[tuple[str, float | None, float | None]],
-    lower: float,
-    upper: float,
-    top: float,
-    bottom: float,
-    left: float,
-    right: float,
-) -> str:
-    if trend is None:
-        return ""
-    start_position = _finite(trend.start_position)
-    start_value = _finite(trend.start_value)
-    end_position = _finite(trend.end_position)
-    end_value = _finite(trend.end_value)
-    if None in (start_position, start_value, end_position, end_value):
-        return ""
-    position_start, position_end = _line_position_range(points)
-    return (
-        '<path class="viewer-chart-trend-line" fill="none" '
-        f'd="M{_position_to_x(start_position, position_start, position_end, left, right):.2f},'
-        f"{_y(start_value, lower, upper, top, bottom):.2f} "
-        f"L{_position_to_x(end_position, position_start, position_end, left, right):.2f},"
-        f'{_y(end_value, lower, upper, top, bottom):.2f}"></path>'
     )
 
 
@@ -372,7 +282,26 @@ def _format_for_unit(value: float, unit: str) -> str:
     rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
     if value > 0 and rounded == 0:
         return "<1"
+    if abs(rounded) > 60:
+        sign = "-" if rounded < 0 else ""
+        hours, minutes = divmod(abs(rounded), 60)
+        hour_label = "hour" if hours == 1 else "hours"
+        if minutes == 0:
+            return f"{sign}{hours} {hour_label}"
+        minute_label = "minute" if minutes == 1 else "minutes"
+        return f"{sign}{hours} {hour_label} {minutes} {minute_label}"
     return f"{rounded:,}"
+
+
+def _format_with_unit(value: float, unit: str) -> str:
+    rendered = _format_for_unit(value, unit)
+    if unit != "minutes":
+        return f"{rendered} {unit}"
+    if "hour" in rendered:
+        return rendered
+    rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
+    minute_label = "minute" if rendered == "<1" or abs(rounded) == 1 else "minutes"
+    return f"{rendered} {minute_label}"
 
 
 def _chart_target_attributes(tooltip: str) -> str:
@@ -459,10 +388,19 @@ def _fixed_scale_ticks(maximum: float) -> list[float]:
     return _axis_ticks(0.0, maximum)
 
 
-def _symmetric_ticks(maximum: float) -> list[float]:
-    step = _nice_step(maximum / 2) if maximum > 0 else 1.0
-    count = max(1, min(10, math.ceil(maximum / step)))
-    return [index * step for index in range(-count, count + 1)]
+def _zero_including_ticks(values: Sequence[float]) -> list[float]:
+    """Return a padded useful range while keeping the semantic zero baseline."""
+    lowest = min(min(values), 0.0)
+    highest = max(max(values), 0.0)
+    span = highest - lowest
+    padding = span * 0.1 if span else max(abs(lowest), abs(highest), 1.0) * 0.1
+    lower = lowest - padding if lowest < 0 else -padding
+    upper = highest + padding if highest > 0 else padding
+    ticks = _axis_ticks(lower, upper)
+    if 0.0 not in ticks:
+        ticks.append(0.0)
+        ticks.sort()
+    return ticks
 
 
 def _horizontal_axis(

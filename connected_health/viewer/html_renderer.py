@@ -10,7 +10,6 @@ from typing import Any
 
 from connected_health.viewer.charts import (
     ChartDatum,
-    ChartTrend,
     bar_chart,
     diverging_bar_chart,
     line_chart,
@@ -332,16 +331,8 @@ class HtmlRenderer:
             ("Deep", sleep.stages.deep_minutes),
             ("REM", sleep.stages.rem_minutes),
         ]
-        stage_metric_values = [
-            ("Core sleep", sleep.stages.core_minutes, "minutes"),
-            ("Deep sleep", sleep.stages.deep_minutes, "minutes"),
-            ("REM sleep", sleep.stages.rem_minutes, "minutes"),
-        ]
         if sleep.stages.unspecified_minutes > 0:
             stage_chart_values.append(("Unspecified", sleep.stages.unspecified_minutes))
-            stage_metric_values.append(
-                ("Unspecified sleep", sleep.stages.unspecified_minutes, "minutes")
-            )
         stages = pie_chart(
             "Average sleep stages",
             tuple(ChartDatum(label, value) for label, value in stage_chart_values),
@@ -357,12 +348,8 @@ class HtmlRenderer:
             "points",
             maximum=100,
         )
-        stage_metrics = self._chart_kpis(tuple(stage_metric_values))
         score_metrics = self._chart_kpis(
             (
-                ("Average bedtime score", sleep.score.average_bedtime, None),
-                ("Average duration score", sleep.score.average_duration, None),
-                ("Average wake-up score", sleep.score.average_wake_up, None),
                 ("Average sleep score", sleep.score.average_total, None),
                 ("Average bonus", sleep.score.average_bonus, None),
                 ("Consistency bonus", sleep.score.consistency_bonus, None),
@@ -374,7 +361,7 @@ class HtmlRenderer:
         return (
             '<div class="viewer-sleep-chart-layout">'
             '<section class="viewer-sleep-stages-chart">'
-            f"{stages}{stage_metrics}</section>"
+            f"{stages}</section>"
             '<section class="viewer-sleep-score-chart">'
             f"{score}{score_metrics}</section></div>"
         )
@@ -453,11 +440,6 @@ class HtmlRenderer:
         if not isinstance(report, FullReport):
             return ""
         days = self._ordered_days(report)
-        measurements = [
-            (float(day.date.toordinal()), day.body_weight.weight_kg)
-            for day in days
-            if day.body_weight is not None
-        ]
         return self._chart_grid(
             line_chart(
                 "Body weight by day",
@@ -465,39 +447,13 @@ class HtmlRenderer:
                     ChartDatum(
                         self._day_label(day.date),
                         day.body_weight.weight_kg if day.body_weight is not None else None,
-                        float(day.date.toordinal()),
                     )
                     for day in days
                 ],
                 "kg",
                 axis_label="Weight (kg)",
-                trend=self._weight_trend(measurements),
             ),
             modifier="viewer-chart-grid--wide",
-        )
-
-    @staticmethod
-    def _weight_trend(measurements: list[tuple[float, float]]) -> ChartTrend | None:
-        if len(measurements) < 2:
-            return None
-        mean_x = sum(position for position, _ in measurements) / len(measurements)
-        mean_y = sum(value for _, value in measurements) / len(measurements)
-        denominator = sum((position - mean_x) ** 2 for position, _ in measurements)
-        if denominator == 0:
-            return None
-        slope = (
-            sum((position - mean_x) * (value - mean_y) for position, value in measurements)
-            / denominator
-        )
-        intercept = mean_y - slope * mean_x
-        start_position = measurements[0][0]
-        end_position = measurements[-1][0]
-        return ChartTrend(
-            start_position=start_position,
-            start_value=slope * start_position + intercept,
-            end_position=end_position,
-            end_value=slope * end_position + intercept,
-            label=f"{slope * 7:+.2f} kg/week",
         )
 
     def _nutrition_charts(self, report: ViewerReport) -> str:
@@ -516,7 +472,6 @@ class HtmlRenderer:
                 ],
                 "g",
                 axis_label="Protein (g)",
-                start_at_zero=True,
             ),
             line_chart(
                 "Carbohydrates by day",
@@ -529,7 +484,6 @@ class HtmlRenderer:
                 ],
                 "g",
                 axis_label="Carbohydrates (g)",
-                start_at_zero=True,
             ),
             line_chart(
                 "Fat by day",
@@ -542,7 +496,6 @@ class HtmlRenderer:
                 ],
                 "g",
                 axis_label="Fat (g)",
-                start_at_zero=True,
             ),
             line_chart(
                 "Calories by day",
@@ -555,7 +508,6 @@ class HtmlRenderer:
                 ],
                 "kcal",
                 axis_label="Calories (kcal)",
-                start_at_zero=True,
             ),
         )
         return self._chart_grid(*charts)
@@ -880,6 +832,7 @@ class HtmlRenderer:
                 f'<time data-viewer-day-label datetime="{day_identifier}">',
                 f"{day_label}</time></h3></header>",
                 '<div class="viewer-daily-dashboard">',
+                '<div class="viewer-daily-top-activity">',
                 self._daily_fields(
                     "General activity",
                     day.general_activity,
@@ -888,9 +841,8 @@ class HtmlRenderer:
                         ("Distance", "distance_km", "km"),
                         ("Step length", "step_length_cm", "cm"),
                     ),
+                    modifier="viewer-daily-section--activity",
                 ),
-                self._daily_sleep_session(day.sleep),
-                '<div class="viewer-daily-body-weight-row">',
                 self._daily_fields(
                     "Body weight",
                     day.body_weight,
@@ -898,6 +850,7 @@ class HtmlRenderer:
                     modifier="viewer-daily-section--body-weight",
                 ),
                 "</div>",
+                self._daily_sleep_session(day.sleep),
                 self._daily_sleep_details(day.sleep),
                 self._daily_workouts(day),
                 self._daily_nutrition(day, modifier="viewer-daily-section--nutrition-band"),
@@ -1100,6 +1053,8 @@ class HtmlRenderer:
             return '<span class="viewer-unavailable unavailable">Unavailable</span>'
         if unit == "minutes" and isinstance(value, int | float):
             rendered, minute_label = HtmlRenderer._duration_value(value)
+            if minute_label is None:
+                return escape(rendered)
             return f'{escape(rendered)} <span class="viewer-metric-unit">' f"{minute_label}</span>"
         if isinstance(value, float):
             rendered = f"{value:,.2f}".rstrip("0").rstrip(".")
@@ -1113,10 +1068,18 @@ class HtmlRenderer:
         return f"{escape(rendered)}{unit_html}"
 
     @staticmethod
-    def _duration_value(value: int | float) -> tuple[str, str]:
+    def _duration_value(value: int | float) -> tuple[str, str | None]:
         if value == 0:
             return "0", "minutes"
         rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
         if value > 0 and rounded == 0:
             return "<1", "minute"
+        if abs(rounded) > 60:
+            sign = "-" if rounded < 0 else ""
+            hours, minutes = divmod(abs(rounded), 60)
+            hour_label = "hour" if hours == 1 else "hours"
+            if minutes == 0:
+                return f"{sign}{hours} {hour_label}", None
+            minute_label = "minute" if minutes == 1 else "minutes"
+            return f"{sign}{hours} {hour_label} {minutes} {minute_label}", None
         return f"{rounded:,}", "minute" if abs(rounded) == 1 else "minutes"

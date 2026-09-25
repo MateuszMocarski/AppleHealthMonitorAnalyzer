@@ -891,13 +891,15 @@
             grid-column: 1 / -1;
         }
 
-        .viewer-daily-body-weight-row {
-            display: flex;
-            grid-column: 1 / -1;
+        .viewer-daily-top-activity {
+            display: grid;
+            grid-column: span 6;
+            gap: 12px;
         }
 
-        .viewer-daily-body-weight-row .viewer-daily-section--body-weight {
-            width: min(100%, 320px);
+        .viewer-daily-top-activity .viewer-daily-section {
+            grid-column: auto;
+            padding: 12px;
         }
 
         .viewer-daily-section--nutrition-band,
@@ -1028,19 +1030,6 @@
         .viewer-chart--line .viewer-chart-svg,
         .viewer-chart--diverging-bar .viewer-chart-svg {
             min-height: 350px;
-        }
-
-        .viewer-chart-trend-line {
-            stroke: #c4b5fd;
-            stroke-dasharray: 5 4;
-            stroke-width: 1.5;
-        }
-
-        .viewer-chart-trend {
-            margin: 10px 0 0;
-            color: var(--text-secondary);
-            font-size: 12px;
-            font-weight: 650;
         }
 
         .viewer-chart--bar .viewer-chart-axis-label {
@@ -2718,6 +2707,10 @@
             }
 
             .viewer-daily-section {
+                grid-column: 1;
+            }
+
+            .viewer-daily-top-activity {
                 grid-column: 1;
             }
 

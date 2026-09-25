@@ -2,7 +2,6 @@ import re
 
 from connected_health.viewer.charts import (
     ChartDatum,
-    ChartTrend,
     bar_chart,
     diverging_bar_chart,
     line_chart,
@@ -29,10 +28,12 @@ def test_pie_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
     assert html.count('Z"></path>') == 2
     assert html.count("M110.00,110.00 L") == html.count('Z"></path>')
     assert 'class="viewer-chart-slice viewer-chart-slice--0 viewer-chart-target"' in html
-    assert 'data-viewer-chart-tooltip="Core &lt;sleep&gt; · 300 minutes"' in html
+    assert 'data-viewer-chart-tooltip="Core &lt;sleep&gt; · 5 hours"' in html
     assert 'tabindex="0"' in html
-    assert 'aria-label="Sleep stages. Sleep stages. Total plotted value: 390 minutes."' in html
-    assert "<desc>Sleep stages. Total plotted value: 390 minutes.</desc>" in html
+    assert (
+        'aria-label="Sleep stages. Sleep stages. Total plotted value: 6 hours 30 minutes."' in html
+    )
+    assert "<desc>Sleep stages. Total plotted value: 6 hours 30 minutes.</desc>" in html
     assert "<title>" not in html
     assert "viewer-chart-donut-track" not in html
     assert "Core &lt;sleep&gt;" in html
@@ -52,7 +53,7 @@ def test_pie_chart_rounds_minute_legend_values_without_changing_zero_semantics()
     )
 
     assert "280.61 minutes" not in html
-    assert "281 minutes" in html
+    assert "4 hours 41 minutes" in html
     assert "40 minutes" in html
     assert "&lt;1 minute" in html
     assert 'class="viewer-chart-legend-label"' in html
@@ -142,24 +143,47 @@ def test_line_chart_emits_numeric_intermediate_ticks_gridlines_and_unfilled_path
     assert "<path" in html
 
 
-def test_line_chart_renders_a_secondary_unfilled_server_trend_without_fake_targets() -> None:
+def test_line_chart_keeps_measurement_series_without_an_artificial_trend() -> None:
     html = line_chart(
         "Body weight by day",
         (
-            ChartDatum("Aug 1", 70, 1),
-            ChartDatum("Aug 3", 69, 3),
-            ChartDatum("Aug 10", 68, 10),
+            ChartDatum("Aug 1", 70),
+            ChartDatum("Aug 3", 69),
+            ChartDatum("Aug 10", 68),
         ),
         "kg",
-        trend=ChartTrend(1, 70.1, 10, 67.9, "-1.56 kg/week"),
     )
 
-    assert 'class="viewer-chart-trend-line" fill="none"' in html
-    assert "Trend: -1.56 kg/week" in html
+    assert "viewer-chart-trend-line" not in html
+    assert "Trend:" not in html
     assert html.count('class="viewer-chart-point viewer-chart-target"') == 3
     assert 'cx="48.00"' in html
-    assert 'cx="101.33"' in html
+    assert 'cx="168.00"' in html
     assert 'cx="288.00"' in html
+
+
+def test_line_chart_uses_a_dynamic_non_zero_forced_numeric_scale() -> None:
+    html = line_chart(
+        "Protein by day",
+        (ChartDatum("Aug 1", 100), ChartDatum("Aug 2", 120)),
+        "g",
+    )
+
+    assert ">100</text>" in html
+    assert ">120</text>" in html
+    assert ">0</text>" not in html
+
+
+def test_diverging_bar_chart_uses_a_padded_dynamic_scale_with_zero_visible() -> None:
+    html = diverging_bar_chart(
+        "Daily calorie balance",
+        (ChartDatum("Aug 1", -900), ChartDatum("Aug 2", -300)),
+        "kcal",
+    )
+
+    assert 'class="viewer-chart-zero-line"' in html
+    assert ">0</text>" in html
+    assert ">1,000</text>" not in html
 
 
 def test_diverging_bar_chart_has_a_zero_baseline_and_both_directions() -> None:
