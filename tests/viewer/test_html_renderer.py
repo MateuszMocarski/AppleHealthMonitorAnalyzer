@@ -208,6 +208,8 @@ def test_html_renderer_renders_validated_summary_without_daily_content() -> None
     assert "ActivityMetricsSummary(" not in html
     assert "Average sleep stages" in html
     assert "Average Sleep Score components" in html
+    assert 'class="viewer-chart viewer-chart--pie"' in html
+    assert 'class="viewer-chart viewer-chart--donut"' not in html
     assert "Total workout duration by type" in html
     assert "Total active energy by type" in html
     assert "viewer-sleep-config-dialog" in html
@@ -277,6 +279,12 @@ def test_html_renderer_renders_validated_full_daily_content() -> None:
     assert "450" in html
     assert "60" in html
     assert "70" in html
+    assert 'class="viewer-chart viewer-chart--pie"' in html
+    assert 'class="viewer-chart viewer-chart--donut"' not in html
+    assert 'class="viewer-chart-line" d="' in html
+    assert 'class="viewer-chart-area"' not in html
+    assert 'class="viewer-chart-grid viewer-chart-grid--prominent"' in html
+    assert 'class="viewer-chart-grid viewer-chart-grid--daily"' in html
     assert "1,900" in html
     assert "150" in html
     assert "2,000" in html

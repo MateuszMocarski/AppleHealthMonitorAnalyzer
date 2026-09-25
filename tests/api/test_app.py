@@ -7095,10 +7095,46 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
         assert css_hook in viewer_styles
 
     assert ".viewer-report-header h1" in viewer_styles
+    for css_hook in (
+        ".viewer-controls",
+        ".viewer-chart-grid--prominent",
+        ".viewer-chart-grid--daily",
+        ".viewer-monthly-section--activity",
+        ".viewer-chart--line .viewer-chart-svg",
+        ".viewer-chart-grid--prominent .viewer-chart-svg",
+    ):
+        assert css_hook in html
     assert "data-viewer-daily" in viewer_styles
     assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
     assert "average_daily_steps" not in viewer_state_code
     assert "calories_balance" not in viewer_state_code
+
+
+def test_web_interface_places_selector_and_regenerate_above_full_width_content() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    layout = (
+        html.split('id="viewer-layout"', 1)[1].split(
+            'id="viewer-index-status"',
+            1,
+        )[0]
+        + html.split('id="viewer-selector"', 1)[1].split(
+            'id="viewer-report-content"',
+            1,
+        )[0]
+        + html.split('id="viewer-report-content"', 1)[1].split(
+            'id="viewer-module"',
+            1,
+        )[0]
+    )
+
+    assert layout.index('class="viewer-controls"') < layout.index('class="viewer-report-content"')
+    assert layout.index('id="viewer-selector"') < layout.index('id="viewer-regenerate-button"')
+    assert ".viewer-layout {\n            display: block;" in html
+    assert ".viewer-report-content {\n            min-width: 0;\n            width: 100%;" in html
 
 
 # =====================================================================

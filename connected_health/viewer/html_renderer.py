@@ -11,9 +11,9 @@ from connected_health.viewer.charts import (
     ChartDatum,
     bar_chart,
     diverging_bar_chart,
-    donut_chart,
     dual_axis_line_chart,
     line_chart,
+    pie_chart,
 )
 from connected_health.viewer.report_contract import (
     DailyReport,
@@ -325,12 +325,13 @@ class HtmlRenderer:
                 ],
                 left_label="Steps",
                 right_label="Distance (km)",
-            )
+            ),
+            modifier="viewer-chart-grid--prominent",
         )
 
     def _sleep_charts(self, sleep: Any) -> str:
         charts = [
-            donut_chart(
+            pie_chart(
                 "Average sleep stages",
                 (
                     ChartDatum("Core", sleep.stages.core_minutes),
@@ -405,7 +406,7 @@ class HtmlRenderer:
         )
 
     def _workout_charts(self, workouts: list[MonthlyWorkout]) -> str:
-        duration = donut_chart(
+        duration = pie_chart(
             "Total workout duration by type",
             tuple(
                 ChartDatum(self._workout_label(workout.type), workout.duration_minutes)
@@ -414,7 +415,7 @@ class HtmlRenderer:
             "minutes",
         )
         with_energy = [workout for workout in workouts if workout.active_energy_kcal is not None]
-        energy = donut_chart(
+        energy = pie_chart(
             "Total active energy by type",
             tuple(
                 ChartDatum(self._workout_label(workout.type), workout.active_energy_kcal)
@@ -620,9 +621,12 @@ class HtmlRenderer:
         )
 
     @staticmethod
-    def _chart_grid(*charts: str) -> str:
+    def _chart_grid(*charts: str, modifier: str = "") -> str:
         rendered = "".join(chart for chart in charts if chart)
-        return f'<div class="viewer-chart-grid">{rendered}</div>' if rendered else ""
+        classes = "viewer-chart-grid"
+        if modifier:
+            classes += f" {modifier}"
+        return f'<div class="{classes}">{rendered}</div>' if rendered else ""
 
     def _chart_kpis(self, values: tuple[tuple[str, Any, str | None], ...]) -> str:
         metrics = "".join(self._metric(label, value, unit) for label, value, unit in values)
@@ -818,7 +822,7 @@ class HtmlRenderer:
             )
         )
         charts = [
-            donut_chart(
+            pie_chart(
                 "Sleep stages",
                 (
                     ChartDatum("Core", sleep.session.stages.core_minutes),
@@ -845,7 +849,7 @@ class HtmlRenderer:
                     self._chart_kpis((("Total score", sleep.score.total, None),)),
                 )
             )
-        return f"{fields}{self._chart_grid(*charts)}"
+        return f'{fields}{self._chart_grid(*charts, modifier="viewer-chart-grid--daily")}'
 
     def _daily_nutrition(self, day: DailyReport) -> str:
         nutrition = day.nutrition
@@ -871,7 +875,9 @@ class HtmlRenderer:
             "g",
         )
         calories_kpi = self._chart_kpis((("Calories", nutrition.calories_kcal, "kcal"),))
-        return f"{fields}{self._chart_grid(chart, calories_kpi)}"
+        return (
+            f'{fields}{self._chart_grid(chart, calories_kpi, modifier="viewer-chart-grid--daily")}'
+        )
 
     def _daily_workouts(self, day: DailyReport) -> str:
         if not day.workouts:

@@ -2,9 +2,9 @@ from connected_health.viewer.charts import (
     ChartDatum,
     bar_chart,
     diverging_bar_chart,
-    donut_chart,
     dual_axis_line_chart,
     line_chart,
+    pie_chart,
 )
 
 
@@ -13,23 +13,25 @@ def _clock_label(value: float) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
-def test_donut_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
-    html = donut_chart(
+def test_pie_chart_renders_valid_accessible_slices_and_escapes_labels() -> None:
+    html = pie_chart(
         "Sleep stages",
         (ChartDatum("Core <sleep>", 300), ChartDatum("REM", 90)),
         "minutes",
     )
 
-    assert '<figure class="viewer-chart viewer-chart--donut">' in html
-    assert '<svg class="viewer-chart-svg" role="img"' in html
+    assert '<figure class="viewer-chart viewer-chart--pie">' in html
+    assert '<svg class="viewer-chart-svg viewer-chart-svg--pie" role="img"' in html
     assert html.count('class="viewer-chart-slice') == 2
+    assert " A94.00,94.00 " in html
+    assert "viewer-chart-donut-track" not in html
     assert "Core &lt;sleep&gt;" in html
     assert "NaN" not in html
     assert "Infinity" not in html
 
 
-def test_zero_total_donut_is_a_controlled_empty_state() -> None:
-    html = donut_chart(
+def test_zero_total_pie_is_a_controlled_empty_state() -> None:
+    html = pie_chart(
         "Workout duration",
         (ChartDatum("Walking", 0), ChartDatum("Cycling", None)),
         "minutes",

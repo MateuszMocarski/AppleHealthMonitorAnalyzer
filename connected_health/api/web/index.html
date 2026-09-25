@@ -335,14 +335,20 @@
         }
 
         .viewer-layout {
-            display: grid;
-            grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
-            gap: 24px;
-            align-items: start;
+            display: block;
+            min-width: 0;
+        }
+
+        .viewer-controls {
+            display: flex;
+            align-items: end;
+            gap: 14px;
+            margin-bottom: 20px;
         }
 
         .viewer-selector {
             position: relative;
+            width: min(460px, 100%);
         }
 
         .viewer-selector-label {
@@ -461,8 +467,12 @@
 
         .viewer-report-actions {
             display: flex;
-            justify-content: flex-end;
-            margin: 0 0 12px;
+            flex: 0 0 auto;
+            margin: 0;
+        }
+
+        .viewer-report-actions[hidden] {
+            display: none;
         }
 
         .viewer-report-actions button {
@@ -488,6 +498,7 @@
 
         .viewer-report-content {
             min-width: 0;
+            width: 100%;
         }
 
         .viewer-report {
@@ -573,11 +584,13 @@
 
         .viewer-monthly-dashboard {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 20px;
         }
 
         .viewer-monthly-section {
+            grid-column: span 6;
+            min-width: 0;
             padding: 18px;
 
             border: 1px solid var(--border);
@@ -586,7 +599,14 @@
         }
 
         .viewer-monthly-section--sleep,
-        .viewer-monthly-section--workouts {
+        .viewer-monthly-section--workouts,
+        .viewer-monthly-section--activity,
+        .viewer-monthly-section--body-weight,
+        .viewer-monthly-section--calories-balance {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-monthly-section--nutrition {
             grid-column: 1 / -1;
         }
 
@@ -756,12 +776,14 @@
 
         .viewer-daily-dashboard {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 16px;
             margin-top: 14px;
         }
 
         .viewer-daily-section {
+            grid-column: span 6;
+            min-width: 0;
             padding: 14px;
 
             border: 1px solid var(--border);
@@ -820,14 +842,31 @@
         .viewer-chart-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-            margin-top: 16px;
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .viewer-chart-grid--prominent {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .viewer-chart-grid--daily {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-column: 1 / -1;
+        }
+
+        .viewer-chart-grid--daily .viewer-chart-svg {
+            min-height: 250px;
+        }
+
+        .viewer-chart-grid--prominent .viewer-chart-svg {
+            min-height: 360px;
         }
 
         .viewer-chart {
             min-width: 0;
             margin: 0;
-            padding: 13px;
+            padding: 18px;
 
             border: 1px solid var(--border);
             border-radius: var(--radius-small);
@@ -835,9 +874,9 @@
         }
 
         .viewer-chart figcaption {
-            margin-bottom: 10px;
+            margin-bottom: 14px;
             color: var(--text);
-            font-size: 13px;
+            font-size: 15px;
             font-weight: 650;
         }
 
@@ -848,8 +887,25 @@
             overflow: visible;
         }
 
-        .viewer-chart-axis,
-        .viewer-chart-donut-track {
+        .viewer-chart-svg--pie {
+            max-height: 420px;
+        }
+
+        .viewer-chart--bar .viewer-chart-svg {
+            min-height: 260px;
+        }
+
+        .viewer-chart--line .viewer-chart-svg,
+        .viewer-chart--dual-line .viewer-chart-svg,
+        .viewer-chart--diverging-bar .viewer-chart-svg {
+            min-height: 290px;
+        }
+
+        .viewer-chart--bar .viewer-chart-axis-label {
+            font-size: 7px;
+        }
+
+        .viewer-chart-axis {
             stroke: rgba(255, 255, 255, 0.16);
             stroke-width: 1;
         }
@@ -860,9 +916,9 @@
             text-anchor: middle;
         }
 
-        .viewer-chart-slice,
-        .viewer-chart-donut-track {
-            stroke-width: 16;
+        .viewer-chart-slice {
+            stroke: rgba(7, 9, 13, 0.55);
+            stroke-width: 1.5;
         }
 
         .viewer-chart-slice--0,
@@ -2386,7 +2442,12 @@
             }
 
             .viewer-layout {
-                grid-template-columns: 1fr;
+                display: block;
+            }
+
+            .viewer-controls {
+                align-items: stretch;
+                flex-direction: column;
             }
 
             .viewer-selector-menu {
@@ -2403,12 +2464,17 @@
             }
 
             .viewer-monthly-dashboard {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
             }
 
             .viewer-monthly-section--sleep,
-            .viewer-monthly-section--workouts {
-                grid-column: auto;
+            .viewer-monthly-section--workouts,
+            .viewer-monthly-section--activity,
+            .viewer-monthly-section--body-weight,
+            .viewer-monthly-section--calories-balance,
+            .viewer-monthly-section--nutrition,
+            .viewer-monthly-section {
+                grid-column: 1;
             }
 
             .viewer-daily-header {
@@ -2421,16 +2487,28 @@
             }
 
             .viewer-daily-dashboard {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
             }
 
-            .viewer-daily-section--workouts {
-                grid-column: auto;
+            .viewer-daily-section {
+                grid-column: 1;
             }
 
             .viewer-chart-grid,
             .viewer-config-groups {
                 grid-template-columns: 1fr;
+            }
+
+            .viewer-chart-grid--prominent .viewer-chart-svg {
+                min-height: 260px;
+            }
+
+            .viewer-chart-grid--daily {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .viewer-chart-svg--pie {
+                max-height: 340px;
             }
 
             .viewer-chart-kpis {
@@ -3320,35 +3398,32 @@
                 id="viewer-layout"
                 hidden
             >
-                <aside
-                    class="viewer-selector"
-                    id="viewer-selector"
-                    aria-label="Saved report selector"
-                >
-                    <span class="viewer-selector-label">Report</span>
-
-                    <button
-                        class="viewer-selector-toggle"
-                        id="viewer-selector-toggle"
-                        type="button"
-                        aria-expanded="false"
-                        aria-controls="viewer-selector-menu"
+                <div class="viewer-controls">
+                    <aside
+                        class="viewer-selector"
+                        id="viewer-selector"
+                        aria-label="Saved report selector"
                     >
-                        <span id="viewer-selector-current">Select a saved report</span>
-                        <span aria-hidden="true">▾</span>
-                    </button>
+                        <span class="viewer-selector-label">Saved report</span>
 
-                    <div
-                        class="viewer-selector-menu"
-                        id="viewer-selector-menu"
-                        hidden
-                    ></div>
-                </aside>
+                        <button
+                            class="viewer-selector-toggle"
+                            id="viewer-selector-toggle"
+                            type="button"
+                            aria-expanded="false"
+                            aria-controls="viewer-selector-menu"
+                        >
+                            <span id="viewer-selector-current">Select a saved report</span>
+                            <span aria-hidden="true">▾</span>
+                        </button>
 
-                <section
-                    class="viewer-report-content"
-                    aria-label="Selected saved report"
-                >
+                        <div
+                            class="viewer-selector-menu"
+                            id="viewer-selector-menu"
+                            hidden
+                        ></div>
+                    </aside>
+
                     <div
                         class="viewer-report-actions"
                         id="viewer-report-actions"
@@ -3361,7 +3436,12 @@
                             Regenerate
                         </button>
                     </div>
+                </div>
 
+                <section
+                    class="viewer-report-content"
+                    aria-label="Selected saved report"
+                >
                     <p
                         class="viewer-report-status"
                         id="viewer-report-status"

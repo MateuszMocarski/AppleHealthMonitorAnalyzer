@@ -16,27 +16,41 @@ class ChartDatum:
     value: float | None
 
 
-def donut_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
-    """Render a proportional donut without inventing slices for missing values."""
+def pie_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
+    """Render a proportional pie without inventing slices for missing values."""
     drawable = [(item, _finite(item.value)) for item in values]
     drawable = [(item, value) for item, value in drawable if value is not None and value > 0]
     total = sum(value for _, value in drawable)
     if total <= 0:
         return empty_chart(title, "Unavailable: no positive values are available to chart.")
 
-    circumference = 2 * math.pi * 36
-    offset = 0.0
+    center = 110.0
+    radius = 94.0
+    angle = -math.pi / 2
     slices: list[str] = []
     for index, (item, value) in enumerate(drawable):
-        arc = circumference * value / total
+        sweep = 2 * math.pi * value / total
+        end_angle = angle + sweep
+        start_x = center + radius * math.cos(angle)
+        start_y = center + radius * math.sin(angle)
+        end_x = center + radius * math.cos(end_angle)
+        end_y = center + radius * math.sin(end_angle)
+        if len(drawable) == 1:
+            shape = f'<circle cx="{center:.2f}" cy="{center:.2f}" r="{radius:.2f}"></circle>'
+        else:
+            large_arc = 1 if sweep > math.pi else 0
+            shape = (
+                f'<path d="M{center:.2f},{center:.2f} '
+                f"L{start_x:.2f},{start_y:.2f} "
+                f"A{radius:.2f},{radius:.2f} 0 {large_arc} 1 "
+                f'{end_x:.2f},{end_y:.2f} Z"></path>'
+            )
         slices.append(
-            '<circle class="viewer-chart-slice '
-            f'viewer-chart-slice--{index % 6}" cx="60" cy="60" r="36" fill="none" '
-            f'stroke-dasharray="{arc:.3f} {circumference - arc:.3f}" '
-            f'stroke-dashoffset="{-offset:.3f}" transform="rotate(-90 60 60)">'
-            f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title></circle>"
+            f'<g class="viewer-chart-slice viewer-chart-slice--{index % 6}">'
+            f"<title>{escape(item.label)}: {_format(value)} {escape(unit)}</title>"
+            f"{shape}</g>"
         )
-        offset += arc
+        angle = end_angle
 
     legend = "".join(
         '<li><span class="viewer-chart-swatch '
@@ -47,11 +61,10 @@ def donut_chart(title: str, values: Sequence[ChartDatum], unit: str) -> str:
     description = f"{title}. Total plotted value: {_format(total)} {unit}."
     return _figure(
         title,
-        "donut",
+        "pie",
         description,
-        '<svg class="viewer-chart-svg" role="img" viewBox="0 0 120 120">'
+        '<svg class="viewer-chart-svg viewer-chart-svg--pie" role="img" viewBox="0 0 220 220">'
         f"<title>{escape(title)}</title><desc>{escape(description)}</desc>"
-        '<circle class="viewer-chart-donut-track" cx="60" cy="60" r="36" fill="none"></circle>'
         f"{''.join(slices)}</svg>"
         f'<ul class="viewer-chart-legend">{legend}</ul>',
     )
