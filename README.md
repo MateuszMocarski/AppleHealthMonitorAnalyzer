@@ -341,8 +341,9 @@ Summary reports remain selectable manually.
 Opening one artifact re-verifies its active managed identity, downloads it with a 5 MiB
 bound into request-scoped temporary storage, and strictly parses/validates persisted JSON
 before presentation. Parsing rejects malformed JSON, duplicate object keys, and
-non-finite numeric constants; typed validation checks the JSON 1.0 Full/Summary shape and
-metadata consistency. The Viewer does not reconstruct internal `MonthlySummary` objects.
+non-finite numeric constants; non-finite numeric constants; typed validation checks the JSON 1.0 Full/Summary shape,
+metadata consistency, and evidence-backed semantic invariants before the document reaches
+presentation. The Viewer does not reconstruct internal `MonthlySummary` objects.
 Instead, the boundary is:
 
 ```text
@@ -425,8 +426,11 @@ Viewer input crosses two validation layers before rendering:
    non-standard numeric constants such as `NaN` and `Infinity` before typed model creation.
 2. The parsed structure is validated into strict Pydantic Viewer models representing the
    existing JSON schema `1.0`. Validation enforces required/allowed fields, strict types and
-   nullability, finite numbers, date/time formats, canonical identifiers, and the supported
-   cross-field invariants of the persisted report contract.
+   nullability, finite numbers, date/time formats, canonical identifiers, and evidence-backed
+   semantic invariants from the existing application contract. Mechanically impossible states
+   such as negative counts or durations, out-of-range percentages, inconsistent coverage,
+   invalid Sleep Score configuration, or a monthly score outside its configured effective
+   maximum are rejected. Unusual but internally valid health values are deliberately accepted.
 
 The result is a validated Viewer report object. `HtmlRenderer` consumes that object rather
 than an unvalidated raw `dict`, and frontend JavaScript never re-parses the health JSON or
