@@ -7123,6 +7123,16 @@ def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
     assert ".viewer-chart-line {\n            fill: none;" in html
     assert ".viewer-chart-diverging-bar--positive {\n            fill: #93c5fd;" in html
     assert ".viewer-chart-diverging-bar--negative {\n            fill: #c4b5fd;" in html
+    assert (
+        ".viewer-chart-grid--calorie-balance "
+        ".viewer-chart-diverging-bar--negative {\n            fill: #60a5fa;"
+    ) in html
+    assert (
+        ".viewer-chart-grid--calorie-balance "
+        ".viewer-chart-diverging-bar--positive {\n            fill: #fb923c;"
+    ) in html
+    assert ".viewer-sleep-score-chart > .viewer-config-button" in html
+    assert "margin: 10px 0 0 auto;" in html
     assert ".viewer-chart--bar .viewer-chart-axis-label {\n            font-size: 9px;" in html
     assert ".viewer-chart--bar .viewer-chart-unit-label--y {\n            font-size: 10px;" in html
     assert "data-viewer-daily" in viewer_styles
