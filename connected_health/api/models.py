@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -16,3 +17,20 @@ class MonthlyReportResponse(BaseModel):
 
 class MultiMonthReportResponse(BaseModel):
     reports: list[MonthlyReportResponse]
+
+
+class ViewerReportArtifactResponse(BaseModel):
+    file_id: str
+    period: str
+    kind: Literal["full", "summary"]
+    generation_id: str
+    generated_at: str
+
+
+class ViewerReportIndexResponse(BaseModel):
+    artifacts: list[ViewerReportArtifactResponse]
+
+
+class ViewerReportOpenResponse(BaseModel):
+    artifact: ViewerReportArtifactResponse
+    html: str

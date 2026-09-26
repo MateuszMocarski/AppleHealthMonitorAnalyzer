@@ -34,10 +34,13 @@ from connected_health.config.exceptions import ConfigurationError
 from connected_health.google.config_profiles import ConfigProfile
 from connected_health.google.drive import (
     DriveAccessError,
+    DriveConflictError,
     DriveDownloadTooLargeError,
     DriveFileMetadata,
+    DriveNotFoundError,
     DriveTransientError,
 )
+from connected_health.google.drive_structure import ViewerReportArtifact
 from connected_health.google.oauth import (
     GoogleOAuthError,
     GoogleOAuthService,
@@ -49,6 +52,8 @@ from connected_health.providers.apple.errors import (
     HealthDataParseError,
     InvalidArchiveError,
 )
+from connected_health.viewer.report_contract import parse_persisted_report
+from connected_health.viewer.report_loader import ViewerReportLoadError
 
 client = TestClient(app)
 
@@ -160,6 +165,7 @@ def test_browser_security_headers_are_applied() -> None:
         "/auth/google/status",
         "/config/profiles",
         "/reports/autosave",
+        "/viewer/reports",
     ],
 )
 def test_private_google_state_endpoints_are_not_cached(
@@ -168,6 +174,332 @@ def test_private_google_state_endpoints_are_not_cached(
     response = client.get(path)
 
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_viewer_report_index_returns_active_artifact_metadata_for_google_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    def discover_index(session):
+        assert session.google_access_token == "access-token"
+        return (
+            ViewerReportArtifact(
+                file_id="full-file-id",
+                period="2026-08",
+                kind="full",
+                generation_id="generation-123",
+                generated_at="2026-09-12T18:00:00Z",
+            ),
+        )
+
+    monkeypatch.setattr(api_app_module, "discover_viewer_report_index_for_session", discover_index)
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+
+    response = auth_client.get("/viewer/reports")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "artifacts": [
+            {
+                "file_id": "full-file-id",
+                "period": "2026-08",
+                "kind": "full",
+                "generation_id": "generation-123",
+                "generated_at": "2026-09-12T18:00:00Z",
+            }
+        ]
+    }
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_viewer_report_index_requires_connected_google_session(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+
+    response = auth_client.get("/viewer/reports")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Google reconnect is required."}
+
+
+def test_viewer_report_index_rejects_missing_google_session() -> None:
+    response = TestClient(app).get("/viewer/reports")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Google session is unavailable."}
+
+
+def test_viewer_report_index_uses_google_reconnect_recovery_for_drive_access_failure(
+    monkeypatch,
+) -> None:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    def fail_discovery(_session):
+        raise DriveAccessError("access denied")
+
+    monkeypatch.setattr(api_app_module, "discover_viewer_report_index_for_session", fail_discovery)
+
+    recovery_client = TestClient(app, raise_server_exceptions=False)
+    recovery_client.cookies.set("ahm_session", session_id)
+
+    response = recovery_client.get("/viewer/reports")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Google reconnect is required."}
+
+
+def _connected_google_session() -> tuple[SessionStore, str]:
+    sessions = SessionStore()
+    session_id = sessions.create()
+    sessions.set_google_identity(
+        session_id=session_id,
+        google_sub="google-user-123",
+        google_email="user@example.com",
+    )
+    sessions.set_google_access_credentials(
+        session_id=session_id,
+        access_token="access-token",
+        granted_scopes=frozenset(GoogleOAuthService.SCOPES),
+        expires_in_seconds=3600,
+    )
+    return sessions, session_id
+
+
+def test_open_viewer_report_verifies_file_id_before_loading_body(
+    monkeypatch,
+) -> None:
+    selected = ViewerReportArtifact(
+        file_id="selected-file-id",
+        period="2026-08",
+        kind="summary",
+        generation_id="generation-123",
+        generated_at="2026-09-12T18:00:00Z",
+    )
+    load_calls = []
+
+    class FakeDriveClient:
+        def __init__(self, access_token: str) -> None:
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(api_app_module, "HttpGoogleDriveClient", FakeDriveClient)
+    monkeypatch.setattr(api_app_module, "discover_viewer_report_index", lambda _client: (selected,))
+    monkeypatch.setattr(
+        api_app_module,
+        "load_viewer_report",
+        lambda _client, *, artifact: load_calls.append(artifact.file_id) or "validated-report",
+    )
+
+    session = SimpleNamespace(google_access_token="access-token")
+    artifact, report = api_app_module.open_viewer_report_for_session(
+        session,
+        file_id="selected-file-id",
+    )
+
+    assert artifact == selected
+    assert report == "validated-report"
+    assert load_calls == ["selected-file-id"]
+
+    with pytest.raises(api_app_module.ViewerReportArtifactUnavailableError):
+        api_app_module.open_viewer_report_for_session(session, file_id="arbitrary-file-id")
+
+    assert load_calls == ["selected-file-id"]
+
+
+def test_viewer_replacement_lifecycle_exposes_only_new_current_artifacts(
+    monkeypatch,
+) -> None:
+    sessions, session_id = _connected_google_session()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    old_full = ViewerReportArtifact(
+        file_id="old-full-file-id",
+        period="2026-08",
+        kind="full",
+        generation_id="generation-old",
+        generated_at="2026-09-12T18:00:00Z",
+    )
+    new_full = ViewerReportArtifact(
+        file_id="new-full-file-id",
+        period="2026-08",
+        kind="full",
+        generation_id="generation-new",
+        generated_at="2026-09-13T18:00:00Z",
+    )
+    active_artifacts = [old_full]
+    load_calls: list[str] = []
+
+    class FakeDriveClient:
+        def __init__(self, access_token: str) -> None:
+            assert access_token == "access-token"
+
+    monkeypatch.setattr(api_app_module, "HttpGoogleDriveClient", FakeDriveClient)
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_viewer_report_index_for_session",
+        lambda _session: tuple(active_artifacts),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "discover_viewer_report_index",
+        lambda _client: tuple(active_artifacts),
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "load_viewer_report",
+        lambda _client, *, artifact: load_calls.append(artifact.file_id) or "validated-report",
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+
+    assert auth_client.get("/viewer/reports").json()["artifacts"] == [
+        {
+            "file_id": "old-full-file-id",
+            "period": "2026-08",
+            "kind": "full",
+            "generation_id": "generation-old",
+            "generated_at": "2026-09-12T18:00:00Z",
+        }
+    ]
+
+    session = sessions.get(session_id)
+    assert session is not None
+    api_app_module.open_viewer_report_for_session(
+        session,
+        file_id="old-full-file-id",
+    )
+
+    # This models replacement committing a new current-generation pointer and
+    # archiving the former generation: discovery now exposes only the new one.
+    active_artifacts[:] = [new_full]
+
+    assert auth_client.get("/viewer/reports").json()["artifacts"] == [
+        {
+            "file_id": "new-full-file-id",
+            "period": "2026-08",
+            "kind": "full",
+            "generation_id": "generation-new",
+            "generated_at": "2026-09-13T18:00:00Z",
+        }
+    ]
+
+    with pytest.raises(api_app_module.ViewerReportArtifactUnavailableError):
+        api_app_module.open_viewer_report_for_session(
+            session,
+            file_id="old-full-file-id",
+        )
+
+    api_app_module.open_viewer_report_for_session(
+        session,
+        file_id="new-full-file-id",
+    )
+
+    assert load_calls == ["old-full-file-id", "new-full-file-id"]
+
+
+def test_open_viewer_report_endpoint_returns_validated_html_and_disables_caching(
+    monkeypatch,
+) -> None:
+    sessions, session_id = _connected_google_session()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+    artifact = ViewerReportArtifact(
+        file_id="selected-file-id",
+        period="2026-08",
+        kind="summary",
+        generation_id="generation-123",
+        generated_at="2026-09-12T18:00:00Z",
+    )
+    report = parse_persisted_report(
+        '{"schema_version":"1.0","report":{"type":"monthly","year":2026,'
+        '"month":8,"reporting_days":0,"data_through":null},'
+        '"general_activity":null,"sleep":null,"workouts":[],"body_weight":null,'
+        '"energy_expenditure":null,"nutrition":null,"calories_balance":'
+        '{"average_calories_balance_kcal":null,"total_calories_balance_kcal":null,'
+        '"calories_balance_count_days":null}}'
+    )
+    monkeypatch.setattr(
+        api_app_module,
+        "open_viewer_report_for_session",
+        lambda _session, *, file_id: (artifact, report),
+    )
+
+    auth_client = TestClient(app)
+    auth_client.cookies.set("ahm_session", session_id)
+    response = auth_client.get("/viewer/reports/selected-file-id")
+
+    assert response.status_code == 200
+    assert response.json()["artifact"]["file_id"] == "selected-file-id"
+    assert "August 2026" in response.json()["html"]
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "detail"),
+    [
+        (DriveAccessError("access denied"), 401, "Google reconnect is required."),
+        (DriveTransientError("temporary failure"), 502, "Google Drive is temporarily unavailable."),
+        (DriveConflictError("conflict"), 409, "Managed Viewer reports are conflicted."),
+        (DriveNotFoundError("missing"), 404, "Selected Viewer report is unavailable."),
+        (DriveDownloadTooLargeError("too large"), 413, "Selected Viewer report is too large."),
+        (ViewerReportLoadError("invalid"), 422, "Selected Viewer report is invalid."),
+    ],
+)
+def test_open_viewer_report_endpoint_maps_controlled_load_errors(
+    monkeypatch,
+    error: Exception,
+    status_code: int,
+    detail: str,
+) -> None:
+    sessions, session_id = _connected_google_session()
+    monkeypatch.setattr(api_app_module, "session_store", sessions)
+
+    def fail_open(_session, *, file_id: str):
+        assert file_id == "selected-file-id"
+        raise error
+
+    monkeypatch.setattr(api_app_module, "open_viewer_report_for_session", fail_open)
+
+    recovery_client = TestClient(app, raise_server_exceptions=False)
+    recovery_client.cookies.set("ahm_session", session_id)
+    response = recovery_client.get("/viewer/reports/selected-file-id")
+
+    assert response.status_code == status_code
+    assert response.json() == {"detail": detail}
 
 
 # =====================================================================
@@ -6053,6 +6385,1014 @@ def test_web_interface_loads_config_profiles_only_when_google_connected() -> Non
     assert "await loadConfigProfileState();" in google_state_function
 
     assert "loadConfigProfileState();\n" "        loadGoogleConnectionState();" not in html
+
+
+# =====================================================================
+# Verifies that the top-level Viewer shell is unavailable in the initial
+# anonymous page state, while Generate remains the active module.
+# =====================================================================
+
+
+def test_web_interface_starts_in_anonymous_generate_only_mode() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    module_switch = html[
+        html.index('id="module-switch"') - 160 : html.index('id="module-switch"') + 220
+    ]
+    viewer_module = html[
+        html.index('id="viewer-module"') - 160 : html.index('id="viewer-module"') + 260
+    ]
+
+    assert "hidden" in module_switch
+    assert 'id="generate-module"' in html
+    assert 'aria-selected="true"' in html
+    assert "hidden" in viewer_module
+
+
+# =====================================================================
+# Verifies that a confirmed Google connection enables the accessible module
+# switch, retains Generate as the default, and loads only report metadata.
+# =====================================================================
+
+
+def test_web_interface_enables_and_loads_viewer_index_after_google_connection() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    google_state_function = html.split(
+        "async function loadGoogleConnectionState()",
+        1,
+    )[1].split(
+        "async function loadConfigProfileState()",
+        1,
+    )[0]
+
+    assert 'role="tablist"' in html
+    assert 'id="generate-module-tab"' in html
+    assert 'id="viewer-module-tab"' in html
+    assert 'aria-controls="generate-module"' in html
+    assert 'aria-controls="viewer-module"' in html
+    assert 'googleStatus.status === "connected"' in google_state_function
+    assert "enableViewer();" in google_state_function
+    assert "const viewerIndexLoad =" in google_state_function
+    assert "loadViewerReportIndex();" in google_state_function
+    assert "await loadConfigProfileState();" in google_state_function
+    assert "await loadReportAutosaveState();" in google_state_function
+    assert "await viewerIndexLoad;" in google_state_function
+    assert google_state_function.index("loadViewerReportIndex();") < google_state_function.index(
+        "await loadConfigProfileState();"
+    )
+    assert 'fetch("/viewer/reports")' in html
+    assert 'fetch("/viewer/reports/' not in html
+    assert 'activeModule: "generate"' in html
+
+
+# =====================================================================
+# Verifies that module switching is independent from the Apple provider and
+# simply hides or reveals the stable module regions, preserving form inputs.
+# =====================================================================
+
+
+def test_web_interface_switches_modules_without_resetting_generate_state() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    module_switch_function = html.split(
+        "function setActiveModule(moduleName)",
+        1,
+    )[1].split(
+        "function clearViewerState()",
+        1,
+    )[0]
+
+    assert "selectedProvider" not in module_switch_function
+    assert "generateModule.hidden = viewerIsActive;" in module_switch_function
+    assert "viewerModule.hidden = !viewerIsActive;" in module_switch_function
+    assert "archiveInput.value" not in module_switch_function
+    assert "selectedMonths.clear" not in module_switch_function
+    assert 'setActiveModule("viewer")' in html
+    assert 'setActiveModule("generate")' in html
+
+
+# =====================================================================
+# Verifies that Viewer index state handles loading, empty and controlled
+# failure states without opening a report or adding report-selection UI.
+# =====================================================================
+
+
+def test_web_interface_keeps_viewer_index_metadata_only_and_failure_local() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+
+    assert "Loading saved report index" in html
+    assert "No saved JSON reports are available." in html
+    assert "Saved report discovery is temporarily unavailable." in html
+    assert "viewerState.artifacts = payload.artifacts;" in html
+    assert 'id="viewer-index-status"' in html
+    assert 'id="output-viewer' not in html
+    assert 'id="viewer-report-picker"' not in html
+
+
+# =====================================================================
+# Verifies that Viewer index requests use a monotonic generation so stale
+# fetches cannot restore data or surface recovery after clear/newer loads.
+# =====================================================================
+
+
+def test_web_interface_invalidates_stale_viewer_index_requests() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    clear_function = html.split(
+        "function clearViewerState()",
+        1,
+    )[1].split(
+        "function enableViewer()",
+        1,
+    )[0]
+    load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "let viewerIndexRequestGeneration = 0;" in html
+    assert "viewerIndexRequestGeneration += 1;" in clear_function
+    assert "const requestGeneration =" in load_function
+    assert "viewerIndexRequestGeneration = requestGeneration;" in load_function
+    assert load_function.count("!== viewerIndexRequestGeneration") == 4
+    assert load_function.rindex("!== viewerIndexRequestGeneration") < load_function.index(
+        "viewerState.artifacts = payload.artifacts;"
+    )
+    assert load_function.index("!== viewerIndexRequestGeneration") < load_function.index(
+        "showTransientDriveRecovery(loadViewerReportIndex);"
+    )
+    assert load_function.index("!== viewerIndexRequestGeneration") < load_function.index(
+        "showReconnectRecovery();"
+    )
+
+
+# =====================================================================
+# Verifies that connected Viewer state is loading before discovery resolves,
+# and that the empty message requires a successful current index response.
+# =====================================================================
+
+
+def test_web_interface_shows_empty_viewer_state_only_after_current_index_load() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    render_function = html.split(
+        "function renderViewerIndexState()",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+    enable_function = html.split(
+        "function enableViewer()",
+        1,
+    )[1].split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[0]
+    load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "viewerState.indexLoading = true;" in enable_function
+    assert "renderViewerIndexState();" in enable_function
+    assert "if (viewerState.indexLoading)" in render_function
+    assert "viewerState.indexLoaded" in render_function
+    assert "viewerState.indexLoaded = true;" in load_function
+    assert render_function.index("viewerState.indexLoaded") < render_function.index(
+        "No saved JSON reports are available."
+    )
+    assert load_function.index("viewerState.indexLoaded = true;") < load_function.index(
+        "viewerState.indexLoading = false;",
+        load_function.index("viewerState.indexLoaded = true;"),
+    )
+
+
+# =====================================================================
+# Verifies that the connected Viewer builds a compact selector from the
+# discovered metadata with human-facing labels only.
+# =====================================================================
+
+
+def test_web_interface_builds_safe_grouped_viewer_report_selector() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    selector_function = html.split(
+        "function renderViewerSelector()",
+        1,
+    )[1].split(
+        "function renderViewerReportState()",
+        1,
+    )[0]
+
+    assert 'id="viewer-selector"' in html
+    assert 'id="viewer-selector-toggle"' in html
+    assert 'id="viewer-selector-menu"' in html
+    assert 'aria-expanded="false"' in html
+    assert "viewerState.artifacts.forEach" in selector_function
+    assert "formatViewerPeriod(artifact.period)" in selector_function
+    assert '"Full report"' in selector_function
+    assert '"Summary report"' in selector_function
+    assert "document.createElement" in selector_function
+    assert ".textContent" in selector_function
+    assert ".innerHTML" not in selector_function
+    assert "generation_id" not in selector_function
+    assert "generated_at" not in selector_function
+
+
+# =====================================================================
+# Verifies that backend discovery order is preserved for selector grouping,
+# so newest periods and Full-before-Summary remain authoritative.
+# =====================================================================
+
+
+def test_web_interface_preserves_backend_viewer_artifact_order_for_selector() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    selector_function = html.split(
+        "function renderViewerSelector()",
+        1,
+    )[1].split(
+        "function renderViewerReportState()",
+        1,
+    )[0]
+
+    assert "viewerState.artifacts.forEach" in selector_function
+    assert ".sort(" not in selector_function
+    assert "previousYear" in selector_function
+    assert "previousPeriod" in selector_function
+    assert 'artifact.kind === "full"' in selector_function
+
+
+# =====================================================================
+# Verifies that opening Viewer, rather than login/index discovery, performs
+# the one default lazy body load for the first Full artifact in backend order.
+# =====================================================================
+
+
+def test_web_interface_defaults_to_newest_full_only_after_viewer_is_opened() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    default_function = html.split(
+        "function applyViewerDefaultSelection()",
+        1,
+    )[1].split(
+        "function viewerReportErrorMessage",
+        1,
+    )[0]
+    module_function = html.split(
+        "function setActiveModule(moduleName)",
+        1,
+    )[1].split(
+        "function clearViewerState()",
+        1,
+    )[0]
+    google_state_function = html.split(
+        "async function loadGoogleConnectionState()",
+        1,
+    )[1].split(
+        "async function loadConfigProfileState()",
+        1,
+    )[0]
+
+    assert 'viewerState.activeModule !== "viewer"' in default_function
+    assert "viewerState.defaultSelectionAttempted" in default_function
+    assert 'artifact.kind === "full"' in default_function
+    assert "selectViewerArtifact(defaultArtifact);" in default_function
+    assert "No Full report available for default viewing." in default_function
+    assert 'moduleName === "viewer"' in module_function
+    assert "applyViewerDefaultSelection();" in module_function
+    assert "selectViewerArtifact(" not in google_state_function
+    assert 'fetch("/viewer/reports/' not in google_state_function
+
+
+# =====================================================================
+# Verifies that one manual Full or Summary selection uses its file identifier,
+# consumes backend-rendered HTML, and leaves no client-side report rebuilding.
+# =====================================================================
+
+
+def test_web_interface_opens_selected_viewer_report_at_the_server_rendering_boundary() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+
+    assert "closeViewerSelector();" in selection_function
+    assert "viewerState.selectedArtifact = artifact;" in selection_function
+    assert "viewerState.reportLoading = true;" in selection_function
+    assert "encodeURIComponent(artifact.file_id)" in selection_function
+    assert "sameViewerArtifact(" in selection_function
+    assert "viewerState.selectedArtifact = payload.artifact;" in selection_function
+    assert "viewerState.reportHtml = payload.html;" in selection_function
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in report_render_function
+    assert "JSON.parse" not in selection_function
+    assert "model_dump" not in selection_function
+
+
+# =====================================================================
+# Verifies that report-body loads have their own generation and cannot surface
+# stale content or recovery after selection, index refresh, or Viewer clear.
+# =====================================================================
+
+
+def test_web_interface_invalidates_stale_viewer_report_body_loads() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    reset_function = html.split(
+        "function resetViewerReportState(",
+        1,
+    )[1].split(
+        "function applyViewerDefaultSelection()",
+        1,
+    )[0]
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "let viewerReportRequestGeneration = 0;" in html
+    assert "viewerReportRequestGeneration += 1;" in reset_function
+    assert "const requestGeneration =" in selection_function
+    assert "viewerReportRequestGeneration = requestGeneration;" in selection_function
+    assert selection_function.count("!== viewerReportRequestGeneration") == 4
+    assert selection_function.rindex(
+        "!== viewerReportRequestGeneration"
+    ) < selection_function.index("viewerState.reportHtml = payload.html;")
+    assert selection_function.index("!== viewerReportRequestGeneration") < selection_function.index(
+        "showReconnectRecovery();"
+    )
+    assert "viewerReportRequestGeneration += 1;" in index_load_function
+    assert "resetViewerReportState(true);" not in index_load_function
+
+
+# =====================================================================
+# Verifies that a connected-state refresh after report generation keeps a
+# still-current mounted report, but invalidates body work and clears a report
+# whose active artifact was replaced.
+# =====================================================================
+
+
+def test_web_interface_reconciles_viewer_selection_after_persisted_report_refresh() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    enable_function = html.split(
+        "function enableViewer()",
+        1,
+    )[1].split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[0]
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    generation_function = html.split(
+        "async function handleSuccessfulGeneration(",
+        1,
+    )[1].split(
+        "async function handleGenerationRecovery",
+        1,
+    )[0]
+
+    assert "if (viewerState.available)" in enable_function
+    identity_function = html.split(
+        "function sameViewerArtifact(",
+        1,
+    )[1].split(
+        "function resetViewerReportState",
+        1,
+    )[0]
+
+    assert "viewerReportRequestGeneration += 1;" in index_load_function
+    assert "viewerState.reportLoading = false;" not in index_load_function
+    assert "activeSelectedArtifact" in index_load_function
+    assert "viewerState.artifacts.find" in index_load_function
+    assert "resetViewerReportState(false);" in index_load_function
+    assert "replaced or is no longer active" in index_load_function
+    assert "viewerState.selectedArtifact =" in index_load_function
+    assert "restartSelectedArtifact" in index_load_function
+    assert "selectViewerArtifact(restartSelectedArtifact);" in index_load_function
+    assert (
+        "return;"
+        in index_load_function.split(
+            "selectViewerArtifact(restartSelectedArtifact);",
+            1,
+        )[1]
+    )
+    assert "mountedReportArtifact" in report_render_function
+    assert "sameViewerArtifact(" in report_render_function
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in report_render_function
+    assert "initializeViewerDailyNavigation();" in report_render_function
+    assert "firstArtifact.generation_id" in identity_function
+    assert "firstArtifact.period" in identity_function
+    assert "firstArtifact.kind" in identity_function
+    assert "await loadGoogleConnectionState();" in generation_function
+
+
+# =====================================================================
+# Verifies that only an index-invalidated in-flight selected report is loaded
+# again after the refreshed index confirms the complete artifact identity.
+# =====================================================================
+
+
+def test_web_interface_restarts_only_still_current_inflight_viewer_report_load() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "const reportWasLoading =" in index_load_function
+    assert "if (activeSelectedArtifact === undefined)" in index_load_function
+    assert "if (reportWasLoading)" in index_load_function
+    assert "restartSelectedArtifact =" in index_load_function
+    assert index_load_function.index("renderViewerIndexState();") < index_load_function.index(
+        "selectViewerArtifact(restartSelectedArtifact);"
+    )
+    assert index_load_function.count("selectViewerArtifact(") == 1
+
+
+# =====================================================================
+# Verifies that an index refresh retains the synthetic pending-load state after
+# invalidating the old body request, so either a manual retry or the newest of
+# overlapping refreshes can restart the selected artifact exactly once.
+# =====================================================================
+
+
+def test_web_interface_retains_pending_load_across_index_refreshes() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    index_load_function = html.split(
+        "async function loadViewerReportIndex()",
+        1,
+    )[1].split(
+        "generateModuleTab.addEventListener",
+        1,
+    )[0]
+
+    assert "const reportWasLoading =" in index_load_function
+    assert "viewerState.reportLoading = false;" not in index_load_function
+    assert index_load_function.count("showTransientDriveRecovery(loadViewerReportIndex);") == 3
+    assert index_load_function.count("!== viewerIndexRequestGeneration") == 4
+    assert index_load_function.index(
+        "!== viewerIndexRequestGeneration"
+    ) < index_load_function.index("showTransientDriveRecovery(loadViewerReportIndex);")
+    assert "if (activeSelectedArtifact === undefined)" in index_load_function
+    assert "resetViewerReportState(false);" in index_load_function
+
+
+# =====================================================================
+# Verifies that matching file identifiers alone cannot preserve mounted Viewer
+# HTML or accept a report-open response from a different generation.
+# =====================================================================
+
+
+def test_web_interface_uses_complete_viewer_artifact_identity() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    identity_function = html.split(
+        "function sameViewerArtifact(",
+        1,
+    )[1].split(
+        "function resetViewerReportState",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+
+    for identity_field in ("file_id", "generation_id", "period", "kind"):
+        assert f"firstArtifact.{identity_field}" in identity_function
+        assert f"secondArtifact.{identity_field}" in identity_function
+
+    assert "sameViewerArtifact(" in report_render_function
+    assert "sameViewerArtifact(" in selection_function
+    assert "payload.artifact?.file_id" not in selection_function
+
+
+# =====================================================================
+# Verifies that a selected saved report can hand its trusted reporting period
+# to Generate without treating persisted JSON as a source or changing the
+# explicit provider-selection contract.
+# =====================================================================
+
+
+def test_web_interface_exposes_regenerate_handoff_without_viewer_download() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    regenerate_handler = html.split(
+        "viewerRegenerateButton.addEventListener(",
+        1,
+    )[1].split(
+        "function openGoogleOAuthPopup",
+        1,
+    )[0]
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    reports_function = html.split(
+        "function renderReports(reports)",
+        1,
+    )[1].split(
+        "function hideGoogleRecovery",
+        1,
+    )[0]
+
+    assert 'id="viewer-report-actions"' in html
+    assert 'id="viewer-regenerate-button"' in html
+    assert "viewerReportActions.hidden" in report_render_function
+    assert "selectedMonths.add(artifact.period);" in regenerate_handler
+    assert "renderMonthChips();" in regenerate_handler
+    assert 'setActiveModule("generate");' in regenerate_handler
+    assert "Choose Apple Health and a ZIP source" in regenerate_handler
+    assert "selectedProvider =" not in regenerate_handler
+    assert "/viewer/reports/${encodeURIComponent(artifact.file_id)}/download" not in html
+
+    for filename in ("full.txt", "full.json", "summary.txt", "summary.json"):
+        assert filename in reports_function
+
+
+# =====================================================================
+# Verifies that report-open failures stay controlled and local, with only a
+# current 401 following the established reconnect-and-clear behavior.
+# =====================================================================
+
+
+def test_web_interface_exposes_controlled_viewer_report_open_errors() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    error_function = html.split(
+        "function viewerReportErrorMessage(statusCode)",
+        1,
+    )[1].split(
+        "async function selectViewerArtifact",
+        1,
+    )[0]
+    selection_function = html.split(
+        "async function selectViewerArtifact(artifact)",
+        1,
+    )[1].split(
+        "function setActiveModule",
+        1,
+    )[0]
+
+    for status_code in (404, 409, 413, 422, 502):
+        assert f"{status_code}:" in error_function
+
+    assert "response.status === 401" in selection_function
+    assert "showReconnectRecovery();" in selection_function
+    assert "viewerReportErrorMessage(response.status)" in selection_function
+    assert "response.json" not in selection_function.split("if (!response.ok)", 1)[0]
+
+
+# =====================================================================
+# Verifies that the monthly dashboard styles target explicit server-rendered
+# Viewer hooks without adding report calculations to the selector state code.
+# =====================================================================
+
+
+def test_web_interface_styles_server_rendered_monthly_viewer_content() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    viewer_styles = html.split(
+        ".viewer-report {",
+        1,
+    )[1].split(
+        ".google-recovery {",
+        1,
+    )[0]
+    viewer_state_code = html.split(
+        "const viewerState = {",
+        1,
+    )[1].split(
+        "function updateGenerationSummary()",
+        1,
+    )[0]
+
+    for css_hook in (
+        ".viewer-report-header",
+        ".viewer-monthly-dashboard",
+        ".viewer-monthly-section",
+        ".viewer-metric-grid",
+        ".viewer-metric-coverage",
+        ".viewer-workout-card",
+    ):
+        assert css_hook in viewer_styles
+
+    assert ".viewer-report-header h1" in viewer_styles
+    for css_hook in (
+        ".viewer-controls",
+        ".viewer-chart-grid--wide",
+        ".viewer-chart-grid--daily",
+        ".viewer-monthly-section--activity",
+        ".viewer-chart--line .viewer-chart-svg",
+        ".viewer-chart-grid--wide .viewer-chart-svg",
+        ".viewer-chart-gridline",
+        ".viewer-chart-legend-value",
+        ".viewer-sleep-chart-layout",
+        ".viewer-sleep-stages-chart",
+        ".viewer-score-progress-chart",
+        ".viewer-score-progress-row",
+        ".viewer-score-progress::-webkit-progress-value",
+        ".viewer-chart-grid--calorie-balance .viewer-chart-svg",
+        ".viewer-daily-top-activity",
+        ".viewer-daily-section--nutrition-band",
+        ".viewer-daily-section--energy-balance",
+        ".viewer-metric-grid--three",
+        ".viewer-monthly-section--energy",
+        ".viewer-metric--score-primary",
+        ".viewer-chart-unit-label--y",
+    ):
+        assert css_hook in html
+    assert ".viewer-chart-slice {\n            stroke: none;" in html
+    assert ".viewer-chart-line {\n            fill: none;" in html
+    assert ".viewer-chart-diverging-bar--positive {\n            fill: #93c5fd;" in html
+    assert ".viewer-chart-diverging-bar--negative {\n            fill: #c4b5fd;" in html
+    assert (
+        ".viewer-chart-grid--calorie-balance "
+        ".viewer-chart-diverging-bar--negative {\n            fill: #60a5fa;"
+    ) in html
+    assert (
+        ".viewer-chart-grid--calorie-balance "
+        ".viewer-chart-diverging-bar--positive {\n            fill: #fb923c;"
+    ) in html
+    assert ".viewer-sleep-score-chart > .viewer-config-button" in html
+    assert "margin: 10px 0 0 auto;" in html
+    assert ".viewer-chart--bar .viewer-chart-axis-label {\n            font-size: 9px;" in html
+    assert ".viewer-chart--bar .viewer-chart-unit-label--y {\n            font-size: 10px;" in html
+    assert "data-viewer-daily" in viewer_styles
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
+    assert "average_daily_steps" not in viewer_state_code
+    assert "calories_balance" not in viewer_state_code
+
+
+def test_web_interface_uses_one_generic_presentation_only_chart_tooltip() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    chart_interactions = html.split(
+        "function dismissViewerChartTooltip()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+
+    assert 'id="viewer-chart-tooltip"' in html
+    assert 'role="tooltip"' in html
+    assert html.count('id="viewer-chart-tooltip"') == 1
+    assert html.index('id="viewer-chart-tooltip"') > html.index("</main>")
+    assert ".viewer-chart-target--active" in html
+    assert ".viewer-chart-tooltip" in html
+    assert "prefers-reduced-motion: no-preference" in html
+    assert "[data-viewer-chart-tooltip]" in chart_interactions
+    assert "pointerenter" in chart_interactions
+    assert "pointermove" in chart_interactions
+    assert "pointerleave" in chart_interactions
+    assert 'addEventListener("focus"' in chart_interactions
+    assert 'addEventListener("blur"' in chart_interactions
+    assert 'addEventListener("pointerdown"' in chart_interactions
+    chart_initializer = chart_interactions.split(
+        "function initializeViewerChartInteractions()",
+        1,
+    )[1].split("viewerReportContent.addEventListener", 1)[0]
+    assert 'addEventListener("pointerdown"' not in chart_initializer
+    assert chart_interactions.count('viewerReportContent.addEventListener("pointerdown"') == 1
+    assert "getBoundingClientRect" in chart_interactions
+    assert "clientX" in chart_interactions
+    assert "clientY" in chart_interactions
+    assert "window.innerWidth" in chart_interactions
+    assert "window.innerHeight" in chart_interactions
+    assert "positionViewerChartTooltipForTarget" in chart_interactions
+    assert "fetch(" not in chart_interactions
+    assert "JSON.parse" not in chart_interactions
+    assert "average_daily_steps" not in chart_interactions
+    assert "calories_balance" not in chart_interactions
+
+
+def test_web_interface_places_selector_and_regenerate_above_full_width_content() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    layout = (
+        html.split('id="viewer-layout"', 1)[1].split(
+            'id="viewer-index-status"',
+            1,
+        )[0]
+        + html.split('id="viewer-selector"', 1)[1].split(
+            'id="viewer-report-content"',
+            1,
+        )[0]
+        + html.split('id="viewer-report-content"', 1)[1].split(
+            'id="viewer-module"',
+            1,
+        )[0]
+    )
+
+    assert layout.index('class="viewer-controls"') < layout.index('class="viewer-report-content"')
+    assert layout.index('id="viewer-selector"') < layout.index('id="viewer-regenerate-button"')
+    assert ".viewer-layout {\n            display: block;" in html
+    assert ".viewer-report-content {\n            min-width: 0;\n            width: 100%;" in html
+
+
+# =====================================================================
+# Verifies that the browser only navigates already-rendered Full-report day
+# articles. It neither fetches day data nor derives health values.
+# =====================================================================
+
+
+def test_web_interface_initializes_server_rendered_daily_navigation_without_fetches() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    navigation_function = html.split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+    module_function = html.split(
+        "function setActiveModule(moduleName)",
+        1,
+    )[1].split(
+        "function clearViewerState()",
+        1,
+    )[0]
+    clear_function = html.split(
+        "function clearViewerState()",
+        1,
+    )[1].split(
+        "function enableViewer()",
+        1,
+    )[0]
+    reset_function = html.split(
+        "function resetViewerReportState(",
+        1,
+    )[1].split(
+        "function applyViewerDefaultSelection()",
+        1,
+    )[0]
+    viewer_styles = html.split(
+        ".viewer-report {",
+        1,
+    )[1].split(
+        ".google-recovery {",
+        1,
+    )[0]
+
+    assert "initializeViewerDailyNavigation();" in report_render_function
+    assert "[data-viewer-daily='true']" in navigation_function
+    assert 'querySelectorAll("[data-viewer-day]")' in navigation_function
+    assert "days.findIndex" in navigation_function
+    assert "days.length - 1" in navigation_function
+    assert "data-viewer-calendar-toggle" in navigation_function
+    assert "data-viewer-calendar-day" in navigation_function
+    assert "calendar.hidden" in navigation_function
+    assert "calendarToggle" in navigation_function
+    assert 'event.key === "Escape"' in html
+    assert "day.hidden = dayIndex !== index;" in navigation_function
+    assert "previousButton.disabled = index === 0;" in navigation_function
+    assert "nextButton.disabled = index === days.length - 1;" in navigation_function
+    assert "showDay(currentIndex - 1);" in navigation_function
+    assert "showDay(currentIndex + 1);" in navigation_function
+    assert "selectedDay.dataset.viewerDay" in navigation_function
+    assert "fetch(" not in navigation_function
+    assert "JSON.parse" not in navigation_function
+    assert "average_daily_steps" not in navigation_function
+    assert "calories_balance" not in navigation_function
+    assert "renderViewerReportState" not in module_function
+    assert "resetViewerReportState(true);" in clear_function
+    assert "renderViewerReportState();" in reset_function
+    assert "viewerReportContent.replaceChildren();" in report_render_function
+
+    for css_hook in (
+        ".viewer-daily-view",
+        ".viewer-daily-navigation",
+        ".viewer-daily-dashboard",
+        ".viewer-daily-section",
+        ".viewer-daily-workout-card",
+    ):
+        assert css_hook in viewer_styles
+
+
+def test_web_interface_only_controls_the_server_rendered_sleep_config_dialog() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    report_render_function = html.split(
+        "function renderViewerReportState()",
+        1,
+    )[1].split(
+        "function initializeViewerDailyNavigation()",
+        1,
+    )[0]
+    config_function = html.split(
+        "function initializeViewerSleepConfiguration()",
+        1,
+    )[1].split(
+        "function closeViewerSelector()",
+        1,
+    )[0]
+    viewer_state_code = html.split(
+        "const viewerState = {",
+        1,
+    )[1].split(
+        "function updateGenerationSummary()",
+        1,
+    )[0]
+
+    assert "initializeViewerSleepConfiguration();" in report_render_function
+    assert "[data-viewer-sleep-config]" in config_function
+    assert "[data-viewer-config-open]" in config_function
+    assert "[data-viewer-config-close]" in config_function
+    assert "dialog.showModal();" in config_function
+    assert "dialog.close();" in config_function
+    assert "fetch(" not in config_function
+    assert "JSON.parse" not in config_function
+    assert "viewerReportContent.innerHTML = viewerState.reportHtml;" in viewer_state_code
+    assert "chart.js" not in html.lower()
+    assert "new Chart(" not in html
+
+    for css_hook in (
+        ".viewer-chart-grid",
+        ".viewer-chart-svg",
+        ".viewer-chart-zero-line",
+        ".viewer-sleep-config-dialog",
+    ):
+        assert css_hook in html
+
+
+# =====================================================================
+# Verifies that local, anonymous and reconnect-required transitions clear the
+# in-memory Viewer state and return the user to Generate.
+# =====================================================================
+
+
+def test_web_interface_clears_viewer_state_when_google_becomes_unavailable() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    html = response.text
+    clear_function = html.split(
+        "function clearViewerState()",
+        1,
+    )[1].split(
+        "function enableViewer()",
+        1,
+    )[0]
+    anonymous_function = html.split(
+        "function applyAnonymousGoogleState()",
+        1,
+    )[1].split(
+        "async function continueWithoutGoogle()",
+        1,
+    )[0]
+    reconnect_function = html.split(
+        "function showReconnectRecovery()",
+        1,
+    )[1].split(
+        "function showTransientDriveRecovery",
+        1,
+    )[0]
+
+    assert "viewerState.artifacts = [];" in clear_function
+    assert "viewerState.available = false;" in clear_function
+    assert "moduleSwitch.hidden = true;" in clear_function
+    assert 'setActiveModule("generate");' in clear_function
+    assert "clearViewerState();" in anonymous_function
+    assert "clearViewerState();" in reconnect_function
 
 
 # =====================================================================

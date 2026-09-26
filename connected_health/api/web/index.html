@@ -287,6 +287,1176 @@
             display: none !important;
         }
 
+        .module-switch {
+            display: inline-flex;
+            gap: 4px;
+            margin: 0 0 22px;
+            padding: 4px;
+
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .module-switch[hidden] {
+            display: none !important;
+        }
+
+        .module-switch-button {
+            min-height: 38px;
+            padding: 0 14px;
+
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+
+            font: inherit;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .module-switch-button:hover,
+        .module-switch-button:focus-visible {
+            color: var(--text);
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .module-switch-button[aria-selected="true"] {
+            background: var(--accent-soft);
+            color: var(--text);
+        }
+
+        .viewer-shell {
+            min-height: 180px;
+            padding: 28px;
+        }
+
+        .viewer-layout {
+            display: block;
+            min-width: 0;
+        }
+
+        .viewer-controls {
+            display: flex;
+            align-items: end;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .viewer-selector {
+            position: relative;
+            width: min(460px, 100%);
+        }
+
+        .viewer-selector-label {
+            display: block;
+            margin-bottom: 7px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .viewer-selector-toggle {
+            width: 100%;
+            min-height: 46px;
+            padding: 10px 12px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .viewer-selector-toggle:hover,
+        .viewer-selector-toggle:focus-visible {
+            border-color: var(--accent);
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .viewer-selector-menu {
+            z-index: 1;
+            width: 100%;
+            max-height: 360px;
+            margin-top: 6px;
+            padding: 8px;
+            overflow-y: auto;
+
+            position: absolute;
+            left: 0;
+
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-small);
+            background: #12151c;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+        }
+
+        .viewer-selector-year {
+            margin: 10px 6px 5px;
+
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .viewer-selector-period {
+            margin: 0;
+            padding: 7px 6px;
+        }
+
+        .viewer-selector-period + .viewer-selector-period {
+            border-top: 1px solid var(--border);
+        }
+
+        .viewer-selector-period-title {
+            margin: 0 0 5px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .viewer-selector-option {
+            width: 100%;
+            min-height: 32px;
+            padding: 5px 7px;
+
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text);
+
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .viewer-selector-option:hover,
+        .viewer-selector-option:focus-visible,
+        .viewer-selector-option.selected {
+            background: var(--accent-soft);
+            outline: none;
+        }
+
+        .viewer-report-status {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .viewer-report-status.error {
+            color: var(--error);
+        }
+
+        .viewer-report-actions {
+            display: flex;
+            flex: 0 0 auto;
+            margin: 0;
+        }
+
+        .viewer-report-actions[hidden] {
+            display: none;
+        }
+
+        .viewer-report-actions button {
+            min-height: 34px;
+            padding: 7px 11px;
+
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .viewer-report-actions button:hover,
+        .viewer-report-actions button:focus-visible {
+            border-color: var(--accent);
+            outline: none;
+        }
+
+        .viewer-report-content {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .viewer-report {
+            display: block;
+        }
+
+        .viewer-report-header {
+            margin-bottom: 20px;
+            padding: 22px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: linear-gradient(
+                135deg,
+                rgba(255, 55, 95, 0.13),
+                rgba(88, 86, 214, 0.08)
+            );
+        }
+
+        .viewer-report-eyebrow {
+            margin: 0 0 6px;
+
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .viewer-report-header h1 {
+            margin: 0;
+
+            font-size: clamp(28px, 4vw, 40px);
+            letter-spacing: -0.035em;
+        }
+
+        .viewer-report-meta {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .viewer-report-kind {
+            padding: 6px 9px;
+
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .viewer-report-details {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 14px;
+            margin: 0;
+        }
+
+        .viewer-report-details div {
+            display: grid;
+            gap: 2px;
+        }
+
+        .viewer-report-details dt,
+        .viewer-metric dt {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 650;
+            letter-spacing: 0.03em;
+        }
+
+        .viewer-report-details dd,
+        .viewer-metric dd {
+            margin: 0;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 650;
+        }
+
+        .viewer-monthly-dashboard {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .viewer-monthly-section {
+            grid-column: span 6;
+            min-width: 0;
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .viewer-monthly-section--sleep,
+        .viewer-monthly-section--workouts,
+        .viewer-monthly-section--activity,
+        .viewer-monthly-section--body-weight,
+        .viewer-monthly-section--energy,
+        .viewer-monthly-section--calorie-balance {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-monthly-section--nutrition {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-monthly-section h2,
+        .viewer-monthly-subsection h3,
+        .viewer-workout-card h3 {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .viewer-monthly-section h2 {
+            margin-bottom: 14px;
+            font-size: 16px;
+        }
+
+        .viewer-monthly-subsection {
+            margin-top: 18px;
+            padding-top: 16px;
+
+            border-top: 1px solid var(--border);
+        }
+
+        .viewer-monthly-subsection h3,
+        .viewer-workout-card h3 {
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .viewer-metric-grid {
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .viewer-metric-grid--three {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .viewer-metric {
+            min-width: 0;
+            padding: 11px;
+
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .viewer-metric dd {
+            margin-top: 4px;
+            overflow-wrap: anywhere;
+        }
+
+        .viewer-metric-unit,
+        .viewer-metric-coverage {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .viewer-metric-coverage {
+            display: block;
+            margin-top: 6px;
+        }
+
+        .viewer-workout-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .viewer-workout-card {
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .viewer-empty-state,
+        .viewer-unavailable {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .viewer-monthly-section--unavailable {
+            border-style: dashed;
+        }
+
+        [data-viewer-daily="true"] {
+            margin-top: 20px;
+        }
+
+        .viewer-daily-view,
+        .viewer-daily-summary-notice {
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .viewer-daily-header,
+        .viewer-day-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+
+        .viewer-daily-header h2,
+        .viewer-daily-summary-notice h2,
+        .viewer-day-header h3,
+        .viewer-daily-section h4,
+        .viewer-daily-workout-card h5 {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .viewer-daily-header h2,
+        .viewer-daily-summary-notice h2 {
+            font-size: 16px;
+        }
+
+        .viewer-daily-navigation {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .viewer-daily-navigation button {
+            padding: 7px 10px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 12px;
+            font-weight: 650;
+
+            cursor: pointer;
+        }
+
+        .viewer-daily-navigation button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .viewer-daily-current-day {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 138px;
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+            text-align: center;
+        }
+
+        .viewer-daily-calendar-control {
+            position: relative;
+        }
+
+        .viewer-daily-calendar {
+            position: absolute;
+            z-index: 12;
+            top: calc(100% + 8px);
+            left: 50%;
+            width: min(276px, calc(100vw - 32px));
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: #162033;
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.34);
+
+            transform: translateX(-50%);
+        }
+
+        .viewer-daily-calendar[hidden] {
+            display: none;
+        }
+
+        .viewer-daily-calendar h3 {
+            margin: 0 0 10px;
+            color: var(--text);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .viewer-daily-calendar-weekdays,
+        .viewer-daily-calendar-days {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        .viewer-daily-calendar-weekdays {
+            margin-bottom: 5px;
+        }
+
+        .viewer-daily-calendar-weekday {
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 650;
+            text-align: center;
+        }
+
+        .viewer-daily-calendar-day,
+        .viewer-daily-calendar-blank {
+            min-height: 30px;
+        }
+
+        .viewer-daily-calendar-day {
+            padding: 0;
+
+            border: 1px solid transparent;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text);
+
+            font: inherit;
+            font-size: 11px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .viewer-daily-calendar-day:hover:not(:disabled),
+        .viewer-daily-calendar-day:focus-visible,
+        .viewer-daily-calendar-day[aria-current="date"] {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            outline: none;
+        }
+
+        .viewer-daily-calendar-day:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.35;
+        }
+
+        .viewer-day {
+            margin-top: 18px;
+            padding-top: 18px;
+
+            border-top: 1px solid var(--border);
+        }
+
+        .viewer-day-header h3 {
+            font-size: 15px;
+        }
+
+        .viewer-daily-dashboard {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 14px;
+        }
+
+        .viewer-daily-section {
+            grid-column: span 6;
+            min-width: 0;
+            padding: 14px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .viewer-daily-section h4 {
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .viewer-daily-section--workouts {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-daily-top-activity {
+            display: grid;
+            grid-column: span 6;
+            gap: 12px;
+        }
+
+        .viewer-daily-top-activity .viewer-daily-section {
+            grid-column: auto;
+            padding: 12px;
+        }
+
+        .viewer-daily-section--nutrition-band,
+        .viewer-daily-section--energy-balance {
+            grid-column: 1 / -1;
+            padding: 12px 14px;
+        }
+
+        .viewer-daily-section--nutrition-band .viewer-daily-metric-grid,
+        .viewer-daily-section--energy-balance .viewer-daily-metric-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .viewer-daily-section--unavailable {
+            border-style: dashed;
+        }
+
+        .viewer-daily-metric-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .viewer-daily-workout-list {
+            display: grid;
+            gap: 10px;
+            margin: 0;
+            padding: 0;
+
+            list-style: none;
+        }
+
+        .viewer-daily-workout-card {
+            padding: 12px;
+
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .viewer-daily-workout-card h5 {
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .viewer-daily-summary-notice {
+            margin-top: 20px;
+        }
+
+        .viewer-daily-summary-notice p {
+            margin: 10px 0 0;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .viewer-chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .viewer-chart-grid--wide {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .viewer-chart-grid--daily {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-column: 1 / -1;
+        }
+
+        .viewer-chart-grid--daily .viewer-chart-svg {
+            min-height: 250px;
+        }
+
+        .viewer-chart-grid--wide .viewer-chart-svg {
+            min-height: 420px;
+        }
+
+        .viewer-chart-grid--calorie-balance .viewer-chart-svg {
+            min-height: 470px;
+        }
+
+        .viewer-sleep-chart-layout {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .viewer-sleep-score-chart,
+        .viewer-sleep-stages-chart,
+        .viewer-daily-sleep-score-chart {
+            min-width: 0;
+        }
+
+        .viewer-sleep-score-chart .viewer-chart-kpis,
+        .viewer-sleep-stages-chart .viewer-chart-kpis,
+        .viewer-daily-sleep-score-chart .viewer-chart-kpis {
+            margin-top: 10px;
+        }
+
+        .viewer-score-progress-chart {
+            margin: 0;
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        .viewer-score-progress-chart figcaption {
+            margin-bottom: 18px;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 650;
+        }
+
+        .viewer-score-progress-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .viewer-score-progress-row {
+            display: grid;
+            grid-template-columns: minmax(68px, 0.65fr) minmax(80px, 2fr) max-content;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .viewer-score-progress-label,
+        .viewer-score-progress-value {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .viewer-score-progress-value {
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        .viewer-score-progress {
+            display: block;
+            width: 100%;
+            height: 12px;
+            overflow: hidden;
+            border: 0;
+            border-radius: 999px;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .viewer-score-progress::-webkit-progress-bar {
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .viewer-score-progress::-webkit-progress-value {
+            border-radius: 999px;
+            background: #7dd3fc;
+        }
+
+        .viewer-score-progress::-moz-progress-bar {
+            border-radius: 999px;
+            background: #7dd3fc;
+        }
+
+        .viewer-score-progress-row--1 .viewer-score-progress::-webkit-progress-value {
+            background: #a78bfa;
+        }
+
+        .viewer-score-progress-row--1 .viewer-score-progress::-moz-progress-bar {
+            background: #a78bfa;
+        }
+
+        .viewer-score-progress-row--2 .viewer-score-progress::-webkit-progress-value {
+            background: #34d399;
+        }
+
+        .viewer-score-progress-row--2 .viewer-score-progress::-moz-progress-bar {
+            background: #34d399;
+        }
+
+        .viewer-chart {
+            min-width: 0;
+            margin: 0;
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        .viewer-chart figcaption {
+            margin-bottom: 14px;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 650;
+        }
+
+        .viewer-chart-svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            overflow: visible;
+        }
+
+        .viewer-chart-svg--pie {
+            max-height: 520px;
+        }
+
+        .viewer-chart--bar .viewer-chart-svg {
+            min-height: 260px;
+        }
+
+        .viewer-chart--line .viewer-chart-svg,
+        .viewer-chart--diverging-bar .viewer-chart-svg {
+            min-height: 350px;
+        }
+
+        .viewer-chart--bar .viewer-chart-axis-label {
+            font-size: 9px;
+        }
+
+        .viewer-chart-axis {
+            stroke: rgba(255, 255, 255, 0.16);
+            stroke-width: 1;
+        }
+
+        .viewer-chart-axis-label {
+            fill: var(--text-muted);
+            font-size: 8px;
+            text-anchor: middle;
+        }
+
+        .viewer-chart-y-axis-label {
+            text-anchor: end;
+        }
+
+        .viewer-chart-gridline {
+            stroke: rgba(255, 255, 255, 0.10);
+            stroke-width: 0.8;
+            stroke-dasharray: 2 3;
+        }
+
+        .viewer-chart-unit-label {
+            fill: var(--text-muted);
+            font-size: 8px;
+        }
+
+        .viewer-chart--bar .viewer-chart-unit-label--y {
+            font-size: 10px;
+            text-anchor: middle;
+        }
+
+        .viewer-chart-slice {
+            stroke: none;
+        }
+
+        .viewer-chart-target {
+            cursor: pointer;
+            outline: none;
+        }
+
+        .viewer-chart-slice.viewer-chart-target--active {
+            filter: brightness(1.18) drop-shadow(0 0 4px rgba(255, 255, 255, 0.24));
+        }
+
+        .viewer-chart-bar.viewer-chart-target--active,
+        .viewer-chart-diverging-bar.viewer-chart-target--active {
+            filter: brightness(1.2);
+            stroke: rgba(255, 255, 255, 0.72);
+            stroke-width: 1.4;
+        }
+
+        .viewer-chart-point.viewer-chart-target--active {
+            fill: #ffffff;
+            stroke: #7dd3fc;
+            stroke-width: 2.5;
+            r: 5px;
+        }
+
+        .viewer-chart-target:focus-visible {
+            filter: brightness(1.18) drop-shadow(0 0 4px rgba(255, 255, 255, 0.32));
+        }
+
+        .viewer-chart-tooltip {
+            position: fixed;
+            z-index: 20;
+            max-width: min(300px, calc(100vw - 24px));
+            padding: 7px 10px;
+
+            border: 1px solid rgba(255, 255, 255, 0.20);
+            border-radius: 8px;
+            background: #111827;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+            color: var(--text);
+
+            font-size: 12px;
+            font-weight: 650;
+            line-height: 1.35;
+            pointer-events: none;
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+            .viewer-chart-target {
+                transition: filter 120ms ease, fill 120ms ease, stroke 120ms ease, r 120ms ease;
+            }
+
+            .viewer-chart-tooltip {
+                transition: opacity 100ms ease;
+            }
+        }
+
+        .viewer-chart-slice--0,
+        .viewer-chart-bar--0 {
+            fill: #7dd3fc;
+        }
+
+        .viewer-chart-swatch--0 { background: #7dd3fc; }
+
+        .viewer-chart-slice--1,
+        .viewer-chart-bar--1 {
+            fill: #a7f3d0;
+        }
+
+        .viewer-chart-swatch--1 { background: #a7f3d0; }
+
+        .viewer-chart-slice--2,
+        .viewer-chart-bar--2 {
+            fill: #c4b5fd;
+        }
+
+        .viewer-chart-swatch--2 { background: #c4b5fd; }
+
+        .viewer-chart-slice--3,
+        .viewer-chart-bar--3 {
+            fill: #fcd34d;
+        }
+
+        .viewer-chart-swatch--3 { background: #fcd34d; }
+
+        .viewer-chart-slice--4,
+        .viewer-chart-bar--4 {
+            fill: #f9a8d4;
+        }
+
+        .viewer-chart-swatch--4 { background: #f9a8d4; }
+
+        .viewer-chart-slice--5,
+        .viewer-chart-bar--5 {
+            fill: #fdba74;
+        }
+
+        .viewer-chart-swatch--5 { background: #fdba74; }
+
+        .viewer-chart-line {
+            fill: none;
+            stroke: #7dd3fc;
+            stroke-width: 2.5;
+        }
+
+        .viewer-chart-point {
+            fill: #7dd3fc;
+            stroke: #7dd3fc;
+        }
+
+        .viewer-chart-zero-line {
+            stroke: var(--text-secondary);
+            stroke-width: 1.8;
+        }
+
+        .viewer-chart-diverging-bar--positive {
+            fill: #93c5fd;
+        }
+
+        .viewer-chart-diverging-bar--negative {
+            fill: #c4b5fd;
+        }
+
+        .viewer-chart-grid--calorie-balance .viewer-chart-diverging-bar--negative {
+            fill: #60a5fa;
+        }
+
+        .viewer-chart-grid--calorie-balance .viewer-chart-diverging-bar--positive {
+            fill: #fb923c;
+        }
+
+        .viewer-chart-legend,
+        .viewer-config-groups ul {
+            display: grid;
+            gap: 5px;
+            margin: 10px 0 0;
+            padding: 0;
+
+            list-style: none;
+        }
+
+        .viewer-chart-legend li {
+            display: grid;
+            grid-template-columns: 10px minmax(0, max-content) max-content;
+            justify-content: start;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        .viewer-chart-legend-label {
+            max-width: min(18rem, 56vw);
+            overflow-wrap: anywhere;
+        }
+
+        .viewer-chart-swatch {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+        }
+
+        .viewer-chart-legend-value {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .viewer-chart-empty,
+        .viewer-chart-note {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .viewer-chart-note {
+            grid-column: 1 / -1;
+        }
+
+        .viewer-chart-kpis {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin: 0;
+        }
+
+        .viewer-chart-kpis .viewer-metric {
+            border: 1px solid var(--border);
+        }
+
+        .viewer-chart-kpis .viewer-metric--score-primary {
+            border-color: rgba(125, 211, 252, 0.52);
+            background: rgba(125, 211, 252, 0.09);
+        }
+
+        .viewer-chart-kpis .viewer-metric--score-primary dd {
+            font-size: 18px;
+        }
+
+        .viewer-config-button,
+        .viewer-sleep-config-dialog button {
+            padding: 8px 11px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.035);
+            color: var(--text);
+
+            font: inherit;
+            font-size: 12px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        .viewer-config-button {
+            margin-top: 16px;
+        }
+
+        .viewer-sleep-score-chart > .viewer-config-button {
+            display: block;
+            margin: 10px 0 0 auto;
+        }
+
+        .viewer-sleep-config-dialog {
+            width: min(720px, calc(100% - 32px));
+            max-height: min(80vh, 720px);
+            padding: 18px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-medium);
+            background: #1b2333;
+            color: var(--text);
+        }
+
+        .viewer-sleep-config-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.62);
+        }
+
+        .viewer-sleep-config-dialog header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .viewer-sleep-config-dialog h3,
+        .viewer-config-groups h4,
+        .viewer-config-groups h5 {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .viewer-config-groups {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .viewer-config-groups section {
+            padding: 12px;
+
+            border: 1px solid var(--border);
+            border-radius: var(--radius-small);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .viewer-config-groups dl {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 6px 10px;
+            margin: 10px 0 0;
+        }
+
+        .viewer-config-groups dt,
+        .viewer-config-groups li {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .viewer-config-groups dd {
+            margin: 0;
+            color: var(--text);
+            font-size: 11px;
+            text-align: right;
+        }
+
+        .viewer-config-groups h5 {
+            margin-top: 12px;
+            font-size: 12px;
+        }
+
+        .viewer-index-status {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .viewer-index-status.error {
+            color: var(--error);
+        }
+
         .google-recovery {
             margin-bottom: 22px;
             padding: 14px 16px;
@@ -1573,6 +2743,109 @@
             .config-defaults-button {
                 width: 100%;
             }
+
+            .viewer-layout {
+                display: block;
+            }
+
+            .viewer-controls {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .viewer-selector-menu {
+                position: static;
+            }
+
+            .viewer-report-meta {
+                align-items: start;
+                flex-direction: column;
+            }
+
+            .viewer-report-details {
+                justify-content: flex-start;
+            }
+
+            .viewer-monthly-dashboard {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .viewer-monthly-section--sleep,
+            .viewer-monthly-section--workouts,
+            .viewer-monthly-section--activity,
+            .viewer-monthly-section--body-weight,
+            .viewer-monthly-section--energy,
+            .viewer-monthly-section--calorie-balance,
+            .viewer-monthly-section--nutrition,
+            .viewer-monthly-section {
+                grid-column: 1;
+            }
+
+            .viewer-daily-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .viewer-daily-navigation {
+                justify-content: space-between;
+            }
+
+            .viewer-daily-dashboard {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .viewer-metric-grid--three,
+            .viewer-sleep-chart-layout {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .viewer-daily-section--nutrition-band .viewer-daily-metric-grid,
+            .viewer-daily-section--energy-balance .viewer-daily-metric-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .viewer-daily-section {
+                grid-column: 1;
+            }
+
+            .viewer-daily-top-activity {
+                grid-column: 1;
+            }
+
+            .viewer-chart-grid,
+            .viewer-config-groups {
+                grid-template-columns: 1fr;
+            }
+
+            .viewer-chart-grid--wide .viewer-chart-svg {
+                min-height: 300px;
+            }
+
+            .viewer-chart-grid--calorie-balance .viewer-chart-svg {
+                min-height: 330px;
+            }
+
+            .viewer-score-progress-row {
+                grid-template-columns: minmax(0, 1fr) max-content;
+                gap: 8px 12px;
+            }
+
+            .viewer-score-progress {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
+
+            .viewer-chart-grid--daily {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .viewer-chart-svg--pie {
+                max-height: 420px;
+            }
+
+            .viewer-chart-kpis {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -1688,6 +2961,82 @@
             </p>
         </header>
 
+        <nav
+            class="module-switch"
+            id="module-switch"
+            aria-label="Application modules"
+            role="tablist"
+            hidden
+        >
+            <button
+                class="module-switch-button"
+                id="generate-module-tab"
+                type="button"
+                role="tab"
+                aria-controls="generate-module"
+                aria-selected="true"
+            >
+                Generate
+            </button>
+
+            <button
+                class="module-switch-button"
+                id="viewer-module-tab"
+                type="button"
+                role="tab"
+                aria-controls="viewer-module"
+                aria-selected="false"
+            >
+                Viewer
+            </button>
+        </nav>
+
+        <div
+            class="google-recovery"
+            id="google-recovery"
+            hidden
+        >
+            <div
+                class="google-recovery-message"
+                id="google-recovery-message"
+            ></div>
+
+            <div class="google-recovery-actions">
+                <a
+                    id="google-recovery-reconnect"
+                    href="/auth/google/start"
+                >
+                    Reconnect Google
+                </a>
+
+                <button
+                    id="google-recovery-retry"
+                    type="button"
+                >
+                    Retry Google Drive
+                </button>
+
+                <button
+                    id="google-recovery-local"
+                    type="button"
+                >
+                    Choose local ZIP
+                </button>
+
+                <button
+                    id="google-recovery-anonymous"
+                    type="button"
+                >
+                    Continue without Google
+                </button>
+            </div>
+        </div>
+
+        <section
+            id="generate-module"
+            role="tabpanel"
+            aria-labelledby="generate-module-tab"
+        >
         <section
             class="panel provider-selection"
             aria-labelledby="provider-selection-title"
@@ -1724,47 +3073,6 @@
             data-provider-workflow="apple"
             hidden
         >
-            <div
-                class="google-recovery"
-                id="google-recovery"
-                hidden
-            >
-                <div
-                    class="google-recovery-message"
-                    id="google-recovery-message"
-                ></div>
-
-                <div class="google-recovery-actions">
-                    <a
-                        id="google-recovery-reconnect"
-                        href="/auth/google/start"
-                    >
-                        Reconnect Google
-                    </a>
-
-                    <button
-                        id="google-recovery-retry"
-                        type="button"
-                    >
-                        Retry Google Drive
-                    </button>
-
-                    <button
-                        id="google-recovery-local"
-                        type="button"
-                    >
-                        Choose local ZIP
-                    </button>
-
-                    <button
-                        id="google-recovery-anonymous"
-                        type="button"
-                    >
-                        Continue without Google
-                    </button>
-                </div>
-            </div>
-
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">
@@ -2395,7 +3703,96 @@
 
             <div id="result-list"></div>
         </section>
+
+        </section>
+
+        <section
+            class="panel viewer-shell"
+            id="viewer-module"
+            role="tabpanel"
+            aria-labelledby="viewer-module-tab"
+            hidden
+        >
+            <div class="section-header">
+                <div class="section-title">Saved reports</div>
+            </div>
+
+            <p
+                class="viewer-index-status"
+                id="viewer-index-status"
+                aria-live="polite"
+            >
+                Saved report discovery is unavailable until Google is connected.
+            </p>
+
+            <div
+                class="viewer-layout"
+                id="viewer-layout"
+                hidden
+            >
+                <div class="viewer-controls">
+                    <aside
+                        class="viewer-selector"
+                        id="viewer-selector"
+                        aria-label="Saved report selector"
+                    >
+                        <span class="viewer-selector-label">Saved report</span>
+
+                        <button
+                            class="viewer-selector-toggle"
+                            id="viewer-selector-toggle"
+                            type="button"
+                            aria-expanded="false"
+                            aria-controls="viewer-selector-menu"
+                        >
+                            <span id="viewer-selector-current">Select a saved report</span>
+                            <span aria-hidden="true">▾</span>
+                        </button>
+
+                        <div
+                            class="viewer-selector-menu"
+                            id="viewer-selector-menu"
+                            hidden
+                        ></div>
+                    </aside>
+
+                    <div
+                        class="viewer-report-actions"
+                        id="viewer-report-actions"
+                        hidden
+                    >
+                        <button
+                            id="viewer-regenerate-button"
+                            type="button"
+                        >
+                            Regenerate
+                        </button>
+                    </div>
+                </div>
+
+                <section
+                    class="viewer-report-content"
+                    aria-label="Selected saved report"
+                >
+                    <p
+                        class="viewer-report-status"
+                        id="viewer-report-status"
+                        aria-live="polite"
+                    >
+                        Select a saved report to view it.
+                    </p>
+
+                    <div id="viewer-report-content"></div>
+                </section>
+            </div>
+        </section>
     </main>
+    <div
+        class="viewer-chart-tooltip"
+        id="viewer-chart-tooltip"
+        role="tooltip"
+        hidden
+    ></div>
     <script src="https://apis.google.com/js/api.js"></script>
     <script>
         const archiveInput =
@@ -2421,6 +3818,67 @@
             document.getElementById(
                 "generation-workflow",
             );
+
+        const moduleSwitch =
+            document.getElementById("module-switch");
+
+        const generateModule =
+            document.getElementById("generate-module");
+
+        const viewerModule =
+            document.getElementById("viewer-module");
+
+        const generateModuleTab =
+            document.getElementById("generate-module-tab");
+
+        const viewerModuleTab =
+            document.getElementById("viewer-module-tab");
+
+        const viewerIndexStatus =
+            document.getElementById("viewer-index-status");
+
+        const viewerLayout =
+            document.getElementById("viewer-layout");
+
+        const viewerSelectorToggle =
+            document.getElementById("viewer-selector-toggle");
+
+        const viewerSelectorCurrent =
+            document.getElementById("viewer-selector-current");
+
+        const viewerSelectorMenu =
+            document.getElementById("viewer-selector-menu");
+
+        const viewerReportStatus =
+            document.getElementById("viewer-report-status");
+
+        const viewerReportContent =
+            document.getElementById("viewer-report-content");
+
+        const viewerChartTooltip =
+            document.getElementById("viewer-chart-tooltip");
+
+        const viewerReportActions =
+            document.getElementById("viewer-report-actions");
+
+        const viewerRegenerateButton =
+            document.getElementById("viewer-regenerate-button");
+
+        const viewerState = {
+            activeModule: "generate",
+            artifacts: [],
+            available: false,
+            defaultSelectionAttempted: false,
+            indexError: null,
+            indexLoaded: false,
+            indexLoading: false,
+            reportError: null,
+            reportHtml: null,
+            reportLoading: false,
+            mountedReportArtifact: null,
+            reportNotice: null,
+            selectedArtifact: null,
+        };
 
         const appleProviderButton =
             document.getElementById(
@@ -2628,6 +4086,947 @@
 
         let lastGoogleRetryAction = null;
         let googleOAuthPopup = null;
+        let viewerIndexRequestGeneration = 0;
+        let viewerReportRequestGeneration = 0;
+
+        function renderViewerIndexState() {
+            viewerIndexStatus.classList.toggle(
+                "error",
+                viewerState.indexError !== null,
+            );
+
+            if (viewerState.indexLoading) {
+                viewerLayout.hidden = true;
+                viewerIndexStatus.hidden = false;
+                viewerIndexStatus.textContent =
+                    "Loading saved report index…";
+                return;
+            }
+
+            if (viewerState.indexError !== null) {
+                viewerLayout.hidden = true;
+                viewerIndexStatus.hidden = false;
+                viewerIndexStatus.textContent =
+                    viewerState.indexError;
+                return;
+            }
+
+            if (
+                viewerState.indexLoaded
+                && viewerState.artifacts.length === 0
+            ) {
+                viewerLayout.hidden = true;
+                viewerIndexStatus.hidden = false;
+                viewerIndexStatus.textContent =
+                    "No saved JSON reports are available.";
+                return;
+            }
+
+            if (viewerState.indexLoaded) {
+                viewerIndexStatus.hidden = true;
+                viewerLayout.hidden = false;
+                renderViewerSelector();
+                renderViewerReportState();
+                return;
+            }
+
+            viewerLayout.hidden = true;
+            viewerIndexStatus.hidden = false;
+            viewerIndexStatus.textContent =
+                "Saved report discovery is unavailable until Google is connected.";
+        }
+
+        function formatViewerPeriod(period) {
+            const [year, month] = period.split("-");
+            const monthNames = [
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ];
+
+            return `${monthNames[Number(month) - 1]} ${year}`;
+        }
+
+        function formatViewerArtifactLabel(artifact) {
+            const kind =
+                artifact.kind === "full"
+                    ? "Full"
+                    : "Summary";
+
+            return `${formatViewerPeriod(artifact.period)} · ${kind}`;
+        }
+
+        function renderViewerSelector() {
+            viewerSelectorMenu.replaceChildren();
+
+            if (
+                !viewerState.indexLoaded
+                || viewerState.artifacts.length === 0
+            ) {
+                viewerSelectorCurrent.textContent =
+                    "Select a saved report";
+                return;
+            }
+
+            viewerSelectorCurrent.textContent =
+                viewerState.selectedArtifact === null
+                    ? "Select a saved report"
+                    : formatViewerArtifactLabel(
+                        viewerState.selectedArtifact,
+                    );
+
+            let previousYear = null;
+            let previousPeriod = null;
+            let periodOptions = null;
+
+            viewerState.artifacts.forEach((artifact) => {
+                const [year] = artifact.period.split("-");
+
+                if (year !== previousYear) {
+                    const yearHeading =
+                        document.createElement("div");
+
+                    yearHeading.className =
+                        "viewer-selector-year";
+                    yearHeading.textContent = year;
+                    viewerSelectorMenu.appendChild(yearHeading);
+                    previousYear = year;
+                    previousPeriod = null;
+                }
+
+                if (artifact.period !== previousPeriod) {
+                    const periodGroup =
+                        document.createElement("section");
+                    const periodTitle =
+                        document.createElement("p");
+
+                    periodGroup.className =
+                        "viewer-selector-period";
+                    periodTitle.className =
+                        "viewer-selector-period-title";
+                    periodTitle.textContent =
+                        formatViewerPeriod(artifact.period);
+                    periodGroup.appendChild(periodTitle);
+                    viewerSelectorMenu.appendChild(periodGroup);
+                    periodOptions = periodGroup;
+                    previousPeriod = artifact.period;
+                }
+
+                const option = document.createElement("button");
+
+                option.className = "viewer-selector-option";
+                option.type = "button";
+                option.textContent =
+                    artifact.kind === "full"
+                        ? "Full report"
+                        : "Summary report";
+                option.classList.toggle(
+                    "selected",
+                    sameViewerArtifact(
+                        viewerState.selectedArtifact,
+                        artifact,
+                    ),
+                );
+                option.addEventListener(
+                    "click",
+                    () => selectViewerArtifact(artifact),
+                );
+                periodOptions.appendChild(option);
+            });
+        }
+
+        function renderViewerReportState() {
+            dismissViewerChartTooltip();
+            viewerReportActions.hidden =
+                viewerState.selectedArtifact === null;
+
+            viewerReportStatus.classList.toggle(
+                "error",
+                viewerState.reportError !== null,
+            );
+
+            if (viewerState.reportLoading) {
+                viewerReportContent.replaceChildren();
+                viewerState.mountedReportArtifact = null;
+                viewerReportStatus.hidden = false;
+                viewerReportStatus.textContent =
+                    "Loading saved report…";
+                return;
+            }
+
+            if (viewerState.reportError !== null) {
+                viewerReportContent.replaceChildren();
+                viewerState.mountedReportArtifact = null;
+                viewerReportStatus.hidden = false;
+                viewerReportStatus.textContent =
+                    viewerState.reportError;
+                return;
+            }
+
+            if (viewerState.reportHtml !== null) {
+                viewerReportStatus.hidden = true;
+
+                if (
+                    !sameViewerArtifact(
+                        viewerState.mountedReportArtifact,
+                        viewerState.selectedArtifact,
+                    )
+                ) {
+                    viewerReportContent.innerHTML = viewerState.reportHtml;
+                    viewerState.mountedReportArtifact =
+                        viewerState.selectedArtifact;
+                    initializeViewerDailyNavigation();
+                    initializeViewerSleepConfiguration();
+                    initializeViewerChartInteractions();
+                }
+
+                return;
+            }
+
+            viewerReportContent.replaceChildren();
+            viewerState.mountedReportArtifact = null;
+            viewerReportStatus.hidden = false;
+            viewerReportStatus.textContent =
+                viewerState.reportNotice
+                ?? "Select a saved report to view it.";
+        }
+
+        let activeViewerDailyCalendar = null;
+
+        function initializeViewerDailyNavigation() {
+            const dailyView = viewerReportContent.querySelector(
+                "[data-viewer-daily='true']",
+            );
+
+            if (dailyView === null) {
+                activeViewerDailyCalendar = null;
+                return;
+            }
+
+            const days = Array.from(
+                dailyView.querySelectorAll("[data-viewer-day]"),
+            );
+
+            if (days.length === 0) {
+                return;
+            }
+
+            const previousButton = dailyView.querySelector(
+                "[data-viewer-day-previous]",
+            );
+            const nextButton = dailyView.querySelector(
+                "[data-viewer-day-next]",
+            );
+            const currentDay = dailyView.querySelector(
+                "[data-viewer-current-day]",
+            );
+            const calendarToggle = dailyView.querySelector(
+                "[data-viewer-calendar-toggle]",
+            );
+            const calendar = dailyView.querySelector(
+                "[data-viewer-daily-calendar]",
+            );
+
+            if (
+                previousButton === null
+                || nextButton === null
+                || currentDay === null
+                || calendarToggle === null
+                || calendar === null
+            ) {
+                return;
+            }
+
+            function closeCalendar() {
+                calendar.hidden = true;
+                calendarToggle.setAttribute("aria-expanded", "false");
+            }
+
+            let currentIndex = days.findIndex(
+                (day) => !day.hidden,
+            );
+
+            if (currentIndex === -1) {
+                currentIndex = days.length - 1;
+            }
+
+            function showDay(index) {
+                days.forEach((day, dayIndex) => {
+                    day.hidden = dayIndex !== index;
+                });
+
+                const selectedDay = days[index];
+
+                currentDay.dateTime = selectedDay.dataset.viewerDay;
+                currentDay.textContent =
+                    selectedDay.dataset.viewerDayLabel;
+                previousButton.disabled = index === 0;
+                nextButton.disabled = index === days.length - 1;
+                calendar.querySelectorAll("[data-viewer-calendar-day]").forEach((button) => {
+                    if (button.dataset.viewerCalendarDay === selectedDay.dataset.viewerDay) {
+                        button.setAttribute("aria-current", "date");
+                    } else {
+                        button.removeAttribute("aria-current");
+                    }
+                });
+                currentIndex = index;
+            }
+
+            previousButton.addEventListener("click", () => {
+                if (currentIndex > 0) {
+                    showDay(currentIndex - 1);
+                }
+            });
+            nextButton.addEventListener("click", () => {
+                if (currentIndex < days.length - 1) {
+                    showDay(currentIndex + 1);
+                }
+            });
+            calendarToggle.addEventListener("click", () => {
+                const isOpen = !calendar.hidden;
+                calendar.hidden = isOpen;
+                calendarToggle.setAttribute("aria-expanded", String(!isOpen));
+            });
+            calendar.addEventListener("click", (event) => {
+                const button = event.target.closest?.("[data-viewer-calendar-day]");
+                if (button === undefined || button === null || button.disabled) {
+                    return;
+                }
+                const index = days.findIndex(
+                    (day) => day.dataset.viewerDay === button.dataset.viewerCalendarDay,
+                );
+                if (index !== -1) {
+                    showDay(index);
+                    closeCalendar();
+                }
+            });
+            activeViewerDailyCalendar = {
+                dailyView,
+                closeCalendar,
+                calendarToggle,
+                calendar,
+            };
+            showDay(currentIndex);
+        }
+
+        document.addEventListener("click", (event) => {
+            if (
+                activeViewerDailyCalendar !== null
+                && !activeViewerDailyCalendar.dailyView.contains(event.target)
+            ) {
+                activeViewerDailyCalendar.closeCalendar();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (
+                event.key === "Escape"
+                && activeViewerDailyCalendar !== null
+                && !activeViewerDailyCalendar.calendar.hidden
+            ) {
+                activeViewerDailyCalendar.closeCalendar();
+                activeViewerDailyCalendar.calendarToggle.focus();
+            }
+        });
+
+        function initializeViewerSleepConfiguration() {
+            const dialog = viewerReportContent.querySelector(
+                "[data-viewer-sleep-config]",
+            );
+            const openButton = viewerReportContent.querySelector(
+                "[data-viewer-config-open]",
+            );
+            const closeButton = viewerReportContent.querySelector(
+                "[data-viewer-config-close]",
+            );
+
+            if (
+                dialog === null
+                || openButton === null
+                || closeButton === null
+            ) {
+                return;
+            }
+
+            openButton.addEventListener("click", () => {
+                dialog.showModal();
+            });
+            closeButton.addEventListener("click", () => {
+                dialog.close();
+            });
+        }
+
+        let activeViewerChartTarget = null;
+
+        function dismissViewerChartTooltip() {
+            if (activeViewerChartTarget !== null) {
+                activeViewerChartTarget.classList.remove(
+                    "viewer-chart-target--active",
+                );
+                activeViewerChartTarget = null;
+            }
+            viewerChartTooltip.hidden = true;
+            viewerChartTooltip.textContent = "";
+        }
+
+        function positionViewerChartTooltip(clientX, clientY) {
+            const tooltipRect = viewerChartTooltip.getBoundingClientRect();
+            const viewportMargin = 12;
+            const offset = 14;
+            let left = clientX + offset;
+            let top = clientY + offset;
+
+            if (left + tooltipRect.width + viewportMargin > window.innerWidth) {
+                left = clientX - tooltipRect.width - offset;
+            }
+            if (top + tooltipRect.height + viewportMargin > window.innerHeight) {
+                top = clientY - tooltipRect.height - offset;
+            }
+
+            left = Math.min(
+                Math.max(left, viewportMargin),
+                window.innerWidth - tooltipRect.width - viewportMargin,
+            );
+            top = Math.min(
+                Math.max(top, viewportMargin),
+                window.innerHeight - tooltipRect.height - viewportMargin,
+            );
+
+            viewerChartTooltip.style.left = `${left}px`;
+            viewerChartTooltip.style.top = `${top}px`;
+        }
+
+        function positionViewerChartTooltipForTarget(target) {
+            const targetRect = target.getBoundingClientRect();
+            positionViewerChartTooltip(
+                targetRect.left + targetRect.width / 2,
+                targetRect.top + targetRect.height / 2,
+            );
+        }
+
+        function showViewerChartTooltip(target, pointerEvent) {
+            const tooltip = target.dataset.viewerChartTooltip;
+            if (!tooltip) {
+                return;
+            }
+
+            if (activeViewerChartTarget !== target) {
+                if (activeViewerChartTarget !== null) {
+                    activeViewerChartTarget.classList.remove(
+                        "viewer-chart-target--active",
+                    );
+                }
+                activeViewerChartTarget = target;
+                target.classList.add("viewer-chart-target--active");
+            }
+
+            viewerChartTooltip.textContent = tooltip;
+            viewerChartTooltip.hidden = false;
+            if (pointerEvent !== undefined) {
+                positionViewerChartTooltip(
+                    pointerEvent.clientX,
+                    pointerEvent.clientY,
+                );
+            } else {
+                positionViewerChartTooltipForTarget(target);
+            }
+        }
+
+        function initializeViewerChartInteractions() {
+            const targets = viewerReportContent.querySelectorAll(
+                "[data-viewer-chart-tooltip]",
+            );
+
+            targets.forEach((target) => {
+                target.addEventListener("pointerenter", (event) => {
+                    showViewerChartTooltip(target, event);
+                });
+                target.addEventListener("pointermove", (event) => {
+                    if (activeViewerChartTarget === target) {
+                        showViewerChartTooltip(target, event);
+                    }
+                });
+                target.addEventListener("pointerleave", (event) => {
+                    const nextTarget = event.relatedTarget?.closest?.(
+                        "[data-viewer-chart-tooltip]",
+                    );
+                    if (
+                        activeViewerChartTarget === target
+                        && (nextTarget === undefined || nextTarget === null)
+                    ) {
+                        dismissViewerChartTooltip();
+                    }
+                });
+                target.addEventListener("focus", () => {
+                    showViewerChartTooltip(target);
+                });
+                target.addEventListener("blur", () => {
+                    if (activeViewerChartTarget === target) {
+                        dismissViewerChartTooltip();
+                    }
+                });
+            });
+
+        }
+
+        viewerReportContent.addEventListener("pointerdown", (event) => {
+            const target = event.target.closest?.("[data-viewer-chart-tooltip]");
+            if (target !== undefined && target !== null) {
+                showViewerChartTooltip(target, event);
+            } else {
+                dismissViewerChartTooltip();
+            }
+        });
+
+        document.addEventListener("pointerdown", (event) => {
+            const target = event.target.closest?.("[data-viewer-chart-tooltip]");
+            if (
+                target === undefined
+                || target === null
+                || !viewerReportContent.contains(target)
+            ) {
+                dismissViewerChartTooltip();
+            }
+        });
+
+        function closeViewerSelector() {
+            viewerSelectorMenu.hidden = true;
+            viewerSelectorToggle.setAttribute(
+                "aria-expanded",
+                "false",
+            );
+        }
+
+        function sameViewerArtifact(
+            firstArtifact,
+            secondArtifact,
+        ) {
+            if (
+                firstArtifact === null
+                || firstArtifact === undefined
+                || secondArtifact === null
+                || secondArtifact === undefined
+            ) {
+                return false;
+            }
+
+            return (
+                firstArtifact.file_id
+                    === secondArtifact.file_id
+                && firstArtifact.generation_id
+                    === secondArtifact.generation_id
+                && firstArtifact.period
+                    === secondArtifact.period
+                && firstArtifact.kind
+                    === secondArtifact.kind
+            );
+        }
+
+        function resetViewerReportState(
+            resetDefaultSelection = false,
+        ) {
+            viewerReportRequestGeneration += 1;
+            viewerState.reportError = null;
+            viewerState.reportHtml = null;
+            viewerState.reportLoading = false;
+            viewerState.mountedReportArtifact = null;
+            viewerState.reportNotice = null;
+            viewerState.selectedArtifact = null;
+
+            if (resetDefaultSelection) {
+                viewerState.defaultSelectionAttempted = false;
+            }
+
+            closeViewerSelector();
+            renderViewerReportState();
+        }
+
+        function applyViewerDefaultSelection() {
+            if (
+                !viewerState.available
+                || viewerState.activeModule !== "viewer"
+                || !viewerState.indexLoaded
+                || viewerState.defaultSelectionAttempted
+            ) {
+                return;
+            }
+
+            viewerState.defaultSelectionAttempted = true;
+
+            const defaultArtifact =
+                viewerState.artifacts.find(
+                    (artifact) => artifact.kind === "full",
+                );
+
+            if (defaultArtifact === undefined) {
+                viewerState.reportNotice =
+                    "No Full report available for default viewing. Choose a Summary report.";
+                renderViewerReportState();
+                return;
+            }
+
+            selectViewerArtifact(defaultArtifact);
+        }
+
+        function viewerReportErrorMessage(statusCode) {
+            const messages = {
+                404: "Selected saved report is no longer available. Choose another report.",
+                409: "Saved reports are currently conflicted. Choose another report later.",
+                413: "Selected saved report is too large to open.",
+                422: "Selected saved report is invalid and cannot be displayed.",
+                502: "Saved report is temporarily unavailable. Choose another report later.",
+            };
+
+            return messages[statusCode]
+                ?? "Selected saved report could not be opened.";
+        }
+
+        async function selectViewerArtifact(artifact) {
+            const requestGeneration =
+                viewerReportRequestGeneration + 1;
+
+            viewerReportRequestGeneration = requestGeneration;
+            viewerState.selectedArtifact = artifact;
+            viewerState.reportError = null;
+            viewerState.reportHtml = null;
+            viewerState.reportLoading = true;
+            viewerState.mountedReportArtifact = null;
+            viewerState.reportNotice = null;
+            closeViewerSelector();
+            renderViewerSelector();
+            renderViewerReportState();
+
+            let response;
+
+            try {
+                response = await fetch(
+                    `/viewer/reports/${encodeURIComponent(artifact.file_id)}`,
+                );
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerReportRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    "Selected saved report could not be opened.";
+                renderViewerReportState();
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerReportRequestGeneration
+            ) {
+                return;
+            }
+
+            if (response.status === 401) {
+                showReconnectRecovery();
+                return;
+            }
+
+            if (!response.ok) {
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    viewerReportErrorMessage(response.status);
+                renderViewerReportState();
+                return;
+            }
+
+            let payload;
+
+            try {
+                payload = await response.json();
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerReportRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    "Selected saved report could not be opened.";
+                renderViewerReportState();
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerReportRequestGeneration
+            ) {
+                return;
+            }
+
+            if (
+                !sameViewerArtifact(
+                    payload.artifact,
+                    artifact,
+                )
+                || typeof payload.html !== "string"
+            ) {
+                viewerState.reportLoading = false;
+                viewerState.reportError =
+                    "Selected saved report could not be opened.";
+                renderViewerReportState();
+                return;
+            }
+
+            viewerState.selectedArtifact = payload.artifact;
+            viewerState.reportHtml = payload.html;
+            viewerState.reportLoading = false;
+            viewerState.mountedReportArtifact = null;
+            renderViewerSelector();
+            renderViewerReportState();
+        }
+
+        function setActiveModule(moduleName) {
+            if (
+                moduleName === "viewer"
+                && !viewerState.available
+            ) {
+                return;
+            }
+
+            const viewerIsActive =
+                moduleName === "viewer";
+
+            viewerState.activeModule =
+                viewerIsActive
+                    ? "viewer"
+                    : "generate";
+
+            generateModule.hidden = viewerIsActive;
+            viewerModule.hidden = !viewerIsActive;
+            generateModuleTab.setAttribute(
+                "aria-selected",
+                String(!viewerIsActive),
+            );
+            viewerModuleTab.setAttribute(
+                "aria-selected",
+                String(viewerIsActive),
+            );
+
+            if (viewerIsActive) {
+                applyViewerDefaultSelection();
+            }
+        }
+
+        function clearViewerState() {
+            viewerIndexRequestGeneration += 1;
+            resetViewerReportState(true);
+            viewerState.artifacts = [];
+            viewerState.available = false;
+            viewerState.indexError = null;
+            viewerState.indexLoaded = false;
+            viewerState.indexLoading = false;
+            moduleSwitch.hidden = true;
+            setActiveModule("generate");
+            renderViewerIndexState();
+        }
+
+        function enableViewer() {
+            if (viewerState.available) {
+                moduleSwitch.hidden = false;
+                return;
+            }
+
+            resetViewerReportState(true);
+            viewerState.artifacts = [];
+            viewerState.available = true;
+            viewerState.indexError = null;
+            viewerState.indexLoaded = false;
+            viewerState.indexLoading = true;
+            moduleSwitch.hidden = false;
+            setActiveModule("generate");
+            renderViewerIndexState();
+        }
+
+        async function loadViewerReportIndex() {
+            const requestGeneration =
+                viewerIndexRequestGeneration + 1;
+            const selectedArtifactBeforeRefresh =
+                viewerState.selectedArtifact;
+            const reportWasLoading =
+                viewerState.reportLoading;
+
+            viewerIndexRequestGeneration = requestGeneration;
+            viewerReportRequestGeneration += 1;
+            viewerState.artifacts = [];
+            viewerState.indexLoading = true;
+            viewerState.indexError = null;
+            viewerState.indexLoaded = false;
+            renderViewerIndexState();
+
+            let response;
+
+            try {
+                response = await fetch("/viewer/reports");
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerIndexRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.indexLoading = false;
+                viewerState.indexError =
+                    "Saved report discovery is temporarily unavailable.";
+                renderViewerIndexState();
+                showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerIndexRequestGeneration
+            ) {
+                return;
+            }
+
+            if (response.status === 401) {
+                clearViewerState();
+                showReconnectRecovery();
+                return;
+            }
+
+            if (!response.ok) {
+                viewerState.indexLoading = false;
+                viewerState.indexError =
+                    "Saved report discovery is temporarily unavailable.";
+                renderViewerIndexState();
+                showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            let payload;
+
+            try {
+                payload = await response.json();
+            } catch {
+                if (
+                    requestGeneration
+                    !== viewerIndexRequestGeneration
+                ) {
+                    return;
+                }
+
+                viewerState.indexLoading = false;
+                viewerState.indexError =
+                    "Saved report discovery is temporarily unavailable.";
+                renderViewerIndexState();
+                showTransientDriveRecovery(loadViewerReportIndex);
+                return;
+            }
+
+            if (
+                requestGeneration
+                !== viewerIndexRequestGeneration
+            ) {
+                return;
+            }
+
+            viewerState.artifacts = payload.artifacts;
+            viewerState.indexLoaded = true;
+            viewerState.indexLoading = false;
+
+            const activeSelectedArtifact =
+                selectedArtifactBeforeRefresh === null
+                    ? undefined
+                    : viewerState.artifacts.find(
+                        (artifact) =>
+                            sameViewerArtifact(
+                                artifact,
+                                selectedArtifactBeforeRefresh,
+                            ),
+                    );
+
+            let restartSelectedArtifact = null;
+
+            if (selectedArtifactBeforeRefresh !== null) {
+                if (activeSelectedArtifact === undefined) {
+                    resetViewerReportState(false);
+                    viewerState.reportNotice =
+                        "The selected saved report was replaced or is no longer active. Choose another report.";
+                } else {
+                    viewerState.selectedArtifact =
+                        activeSelectedArtifact;
+
+                    if (reportWasLoading) {
+                        restartSelectedArtifact =
+                            activeSelectedArtifact;
+                    }
+                }
+            }
+
+            renderViewerIndexState();
+
+            if (restartSelectedArtifact !== null) {
+                selectViewerArtifact(restartSelectedArtifact);
+                return;
+            }
+
+            applyViewerDefaultSelection();
+        }
+
+        generateModuleTab.addEventListener(
+            "click",
+            () => setActiveModule("generate"),
+        );
+
+        viewerModuleTab.addEventListener(
+            "click",
+            () => setActiveModule("viewer"),
+        );
+
+        viewerSelectorToggle.addEventListener(
+            "click",
+            () => {
+                const isExpanded =
+                    viewerSelectorToggle.getAttribute("aria-expanded")
+                    === "true";
+
+                viewerSelectorMenu.hidden = isExpanded;
+                viewerSelectorToggle.setAttribute(
+                    "aria-expanded",
+                    String(!isExpanded),
+                );
+            },
+        );
+
+        viewerRegenerateButton.addEventListener(
+            "click",
+            () => {
+                const artifact = viewerState.selectedArtifact;
+
+                if (artifact === null) {
+                    return;
+                }
+
+                selectedMonths.add(artifact.period);
+                renderMonthChips();
+                setActiveModule("generate");
+                showStatus(
+                    `Added ${formatViewerPeriod(artifact.period)} to Generate. Choose Apple Health and a ZIP source to regenerate it.`,
+                    "info",
+                );
+            },
+        );
 
         function openGoogleOAuthPopup(event) {
             if (event) {
@@ -3210,6 +5609,7 @@
         }
 
         function applyAnonymousGoogleState() {
+            clearViewerState();
             resetDriveArchiveSelection();
 
             googleConnectLabel.textContent =
@@ -3286,6 +5686,7 @@
         }
 
         function showReconnectRecovery() {
+            clearViewerState();
             showGoogleRecovery(
                 "Google needs to be reconnected before Drive features can be used.",
                 {
@@ -3344,8 +5745,12 @@
                 configSaveControls.hidden = false;
                 configAutosaveControl.hidden = false;
 
+                enableViewer();
+                const viewerIndexLoad =
+                    loadViewerReportIndex();
                 await loadConfigProfileState();
                 await loadReportAutosaveState();
+                await viewerIndexLoad;
                 updateGenerationSummary();
 
                 return;

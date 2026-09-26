@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+from connected_health.google.current_report_generation import discover_current_generation
 from connected_health.google.drive import (
     DriveClient,
     DriveConflictError,
@@ -24,6 +27,17 @@ _AHM_REPORTS_CONTAINER_APP_PROPERTIES = {
 }
 _AHM_YEAR_CONTAINER_TYPE = "year_container"
 _AHM_REPORT_MONTH_TYPE = "report_month"
+
+
+@dataclass(frozen=True, slots=True)
+class ViewerReportArtifact:
+    """One selectable active persisted JSON report artifact."""
+
+    file_id: str
+    period: str
+    kind: str
+    generation_id: str
+    generated_at: str
 
 
 def _build_config_container_query(root_id: str) -> str:
@@ -369,6 +383,100 @@ def discover_report_index(
         index[year_value] = tuple(month.app_properties["ahm_period"] for month in months)
 
     return index
+
+
+def discover_viewer_report_index(
+    drive_client: DriveClient,
+) -> tuple[ViewerReportArtifact, ...]:
+    """Discover active ``full.json`` and ``summary.json`` artifacts by metadata only."""
+    root = discover_ahm_root(drive_client)
+
+    if root is None:
+        return ()
+
+    reports = discover_reports_container(
+        drive_client,
+        root_id=root.file_id,
+    )
+
+    if reports is None:
+        return ()
+
+    artifacts: list[ViewerReportArtifact] = []
+
+    for year in discover_report_years(
+        drive_client,
+        reports_id=reports.file_id,
+    ):
+        for month in discover_report_months(
+            drive_client,
+            year_id=year.file_id,
+        ):
+            current = discover_current_generation(
+                drive_client,
+                month=month,
+            )
+
+            if current is None:
+                continue
+
+            artifacts.extend(
+                _viewer_artifacts_for_current_generation(
+                    period=current.period,
+                    generation_id=current.generation_id,
+                    artifacts=current.artifacts,
+                )
+            )
+
+    return tuple(
+        sorted(
+            artifacts,
+            key=lambda artifact: (
+                artifact.period,
+                artifact.kind == "full",
+            ),
+            reverse=True,
+        )
+    )
+
+
+def _viewer_artifacts_for_current_generation(
+    *,
+    period: str,
+    generation_id: str,
+    artifacts: tuple[DriveFileMetadata, ...],
+) -> tuple[ViewerReportArtifact, ...]:
+    selected: list[ViewerReportArtifact] = []
+    seen_kinds: set[str] = set()
+
+    for artifact in artifacts:
+        kind = {"full.json": "full", "summary.json": "summary"}.get(artifact.name)
+        if kind is None or artifact.mime_type != "application/json":
+            continue
+
+        if kind in seen_kinds:
+            raise DriveConflictError(
+                f"Multiple active {kind}.json report artifacts found for {period}"
+            )
+
+        generated_at = artifact.app_properties.get("ahm_generated_at")
+        if generated_at is None:
+            raise DriveConflictError(
+                f"Active {kind}.json report artifact is missing generation metadata for {period}"
+            )
+
+        seen_kinds.add(kind)
+        selected.append(
+            ViewerReportArtifact(
+                file_id=artifact.file_id,
+                period=period,
+                kind=kind,
+                generation_id=generation_id,
+                generated_at=generated_at,
+            )
+        )
+
+    return tuple(selected)
 
 
 def ensure_report_month(
