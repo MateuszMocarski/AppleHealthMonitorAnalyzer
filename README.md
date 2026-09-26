@@ -3,6 +3,9 @@
 Connected Health Analyzer turns exported personal health data into deterministic,
 well-documented daily and monthly reports that can be compared over time.
 
+The Python package is `connected_health`; the distribution package is
+`connected-health-analyzer`; Python 3.14 or later is required.
+
 The application is designed around a provider-neutral analysis core. Provider-specific
 input is normalized into the canonical `HealthData` model before it reaches shared
 analyzers, report models, and renderers.
@@ -27,7 +30,8 @@ and report persistence.
 - 🚶 Activity, workout, body-weight, energy, and nutrition aggregation
 - 🧩 Missing-data-aware monthly averages with per-metric coverage
 - 📊 Deterministic and comparable text and JSON reports
-- 🤖 Stable JSON contract designed for future viewers and AI-assisted workflows
+- 🧭 Google-connected Viewer for persisted Full and Summary JSON reports
+- 🤖 Stable JSON contract for Viewer and AI-assisted workflows
 
 ## Overview
 
@@ -195,6 +199,8 @@ schema `1.0` remain unchanged.
 - Built-in configuration and workflow guide with a link to the public GitHub repository
 - Selectable report outputs with browser downloads for generated artifacts
 - Google Drive report autosave with safe per-month replacement and archived previous generations
+- Google-connected persisted-report Viewer with metadata-first discovery and lazy report loading
+- Viewer dashboard, server-rendered SVG charts, and Full-report daily navigation
 - Saved Drive configuration profiles with explicit selection and optional configuration autosave
 - Popup-based Google OAuth that preserves locally selected ZIP/config files and form state
 - Friendly Google reconnect, retry, local-fallback, and anonymous recovery paths
@@ -297,7 +303,8 @@ built-in defaults
 
 The built-in Apple Watch source contains a non-breaking space: `Apple\xa0Watch` (`NBSP / U+00A0`). This built-in value is a special family matcher: it accepts both the bare default and standard device-named sources such as `Apple\xa0Watch (Mateusz)`. Any explicit Apple Watch source supplied through TOML or the UI/API is matched exactly. `Apple Watch` with a normal space is still a different value.
 
-For every requested month the browser returns four downloadable artifacts:
+For every requested month, generation can produce these four independently selectable
+downloadable artifacts:
 
 - `full.txt`
 - `full.json`
@@ -306,9 +313,53 @@ For every requested month the browser returns four downloadable artifacts:
 
 The uploaded Apple Health ZIP and optional TOML file are copied into a request-scoped temporary directory, closed before application processing begins, and removed when the request completes. Generated report content is always returned to the browser. Anonymous/local generation remains stateless.
 
-When Google is connected, the browser can also select the Apple Health ZIP directly from Google Drive, load saved configuration profiles, autosave configurations, and persist selected report outputs under the managed Connected Health Analyzer Drive structure. Re-generating an existing month uses an explicit replacement flow: the new generation is staged and verified first, the previous current generation is archived, and temporary staging folders are permanently deleted after cleanup rather than being left in Drive trash.
+When Google is connected, the browser can also select the Apple Health ZIP directly from
+Google Drive, load saved configuration profiles, autosave configurations, and persist
+selected report outputs under the managed Connected Health Analyzer Drive structure. The
+optional Google connection requests OpenID, email, and the `drive.file` scope. Re-generating
+an existing month uses an explicit replacement flow: the new generation is staged and
+verified first, the previous current generation is archived, and temporary staging folders
+are permanently deleted after cleanup rather than being left in Drive trash.
 
 Google OAuth is opened in a popup so a locally selected ZIP, local TOML file, reporting periods, output choices, and source overrides remain intact while authentication completes. If Google access expires or Drive is temporarily unavailable, the UI offers reconnect/retry/local/anonymous recovery actions instead of silently looping.
+
+### Generate and Viewer
+
+The browser has two top-level modules when Google is connected:
+
+- **Generate** retains the Apple Health ZIP/Drive ZIP, period, configuration, output,
+  autosave, and replacement workflow. It is the only module in anonymous/local mode.
+- **Viewer** reads managed, persisted report JSON from the connected user's Drive. It is
+  not a fifth generation output and it never opens arbitrary Drive JSON files.
+
+Viewer discovery is metadata-first. It lists only the active current-generation
+`full.json` and `summary.json` artifacts, newest period first, without downloading their
+bodies. Archive history, staging folders, orphan artifacts, and TXT reports are excluded
+from normal selection. The first Viewer visit may choose the newest available Full report;
+Summary reports remain selectable manually.
+
+Opening one artifact re-verifies its active managed identity, downloads it with a 5 MiB
+bound into request-scoped temporary storage, and strictly parses/validates persisted JSON
+before presentation. Parsing rejects malformed JSON, duplicate object keys, and
+non-finite numeric constants; typed validation checks the JSON 1.0 Full/Summary shape and
+metadata consistency. The Viewer does not reconstruct internal `MonthlySummary` objects.
+Instead, the boundary is:
+
+```text
+persisted JSON 1.0 → typed Viewer report → server-rendered HTML/SVG → browser presentation
+```
+
+Both Full and Summary reports have monthly dashboards. Full reports additionally contain
+their already-validated daily details, with previous/next and report-month calendar
+navigation that only switches rendered content; it makes no per-day network request.
+Viewer JavaScript manages selection and presentation only—it does not parse health JSON
+or calculate health metrics.
+
+Successful persisted generation or replacement refreshes Viewer metadata. If a previously
+selected artifact is no longer current, its stale report content is cleared; archived
+generations remain unavailable in normal Viewer selection.
+
+Viewer index and open responses are private and returned with `Cache-Control: no-store`.
 
 > **Deployment note:** Google identity and Drive integration are implemented, but application-level OAuth does not replace normal production hardening. Public deployment still requires appropriate HTTPS, request/rate/concurrency limits, secret management, and infrastructure security controls.
 
@@ -432,6 +483,8 @@ Other HTTP endpoints include:
 | `POST /config/profiles/select-none` | Clear the selected Drive configuration profile |
 | `POST /config/autosave` | Enable or disable configuration autosave |
 | `GET/POST /reports/autosave` | Read or update report autosave state |
+| `GET /viewer/reports` | List active managed Viewer JSON artifact metadata for the connected session |
+| `GET /viewer/reports/{file_id}` | Open one re-verified active Viewer artifact and return server-rendered HTML |
 | `GET /google/picker/config` | Return Google Picker configuration for the connected session |
 
 ### Upload and Processing Limits
@@ -448,7 +501,10 @@ The web/API boundary includes application-level resource safeguards around uploa
 - neither the ZIP nor the TOML upload is persisted after request processing, and
 - the ZIP is never extracted to an arbitrary filesystem path.
 
-These are application safeguards, not a complete public-hosting security layer. Reverse-proxy/request limits, authentication, rate/concurrency controls, HTTPS, secret management, and production API-documentation settings belong to the later security and deployment phases.
+These are application safeguards, not a complete public-hosting security layer. Public
+deployment still needs appropriate reverse-proxy/request limits, authentication,
+rate/concurrency controls, HTTPS, secret management, and production API-documentation
+settings.
 
 ### Command Line Interface
 
@@ -759,7 +815,8 @@ The renderer contains no business logic and builds output in an isolated in-memo
 
 #### JsonRenderer
 
-Transforms the same report models into a structured, versioned JSON representation intended for machine consumption, future API endpoints, frontend clients, and AI-assisted workflows.
+Transforms the same report models into a structured, versioned JSON representation for
+machine consumption, frontend clients, Viewer validation, and AI-assisted workflows.
 
 The JSON contract uses stable technical identifiers, explicit measurement units in field names, ISO-compatible date/time representations, `null` for unavailable optional sections, `[]` for empty collections, and normalized numeric precision. Monthly and daily report data share the same high-level section structure wherever practical.
 
@@ -986,7 +1043,7 @@ Key reporting areas include:
 - Consistent formatting and stable JSON schema contracts.
 - Monthly overview followed by progressively more detailed information.
 - Aggregated metrics presented before individual workout sessions.
-- Report generation remains independent of its presentation layer, allowing additional output formats to be added in the future.
+- Report generation remains independent of its presentation layer.
 
 
 ### JSON Report Contract
@@ -1009,7 +1066,10 @@ A partially available section keeps a stable object shape and uses `null` for un
 
 The renderer never serializes internal `(average, contributing_days)` tuples directly as JSON arrays. Numeric measurements remain finite JSON numbers and are normalized to two decimal places for a predictable external contract. Serialization uses `allow_nan=False`, so a non-finite value cannot silently escape as non-standard JSON.
 
-The JSON renderer deliberately exposes a presentation/API contract rather than directly serializing internal dataclasses. This allows internal report models to evolve without automatically breaking external consumers and provides the data contract intended for the future persistent viewer.
+The JSON renderer deliberately exposes a presentation/API contract rather than directly
+serializing internal dataclasses. This allows internal report models to evolve without
+automatically breaking external consumers. The persisted Viewer validates this JSON into
+its own typed report model; it does not recreate internal `MonthlySummary` dataclasses.
 
 ## Report Interpretation
 
@@ -1124,6 +1184,9 @@ Coverage includes:
 - strict `ReportPeriod` parsing and validation
 - multi-month application orchestration with one parse per archive
 - FastAPI local/Drive input handling, Google OAuth/session flows, report/config autosave, safe replacement, typed error mapping, temporary cleanup, diagnostics, and privacy behavior
+- active Viewer artifact discovery, current-generation filtering, bounded report loading,
+  strict persisted JSON validation, server-rendered HTML/SVG, charts, and daily
+  navigation/presentation state
 - run-profile loading, structure validation, and precedence
 - end-to-end single- and multi-month report generation plus the final anonymous/connected/Drive integration matrix
 - golden-report protection for deterministic text output
@@ -1131,14 +1194,12 @@ Coverage includes:
 Run the complete test suite with:
 
 ```bash
-pytest
-```
-
-Code quality checks:
-
-```bash
-ruff check .
-black --check .
+python -m pytest -q
+python -m black --check .
+python -m ruff check .
+git diff --check
+python -m pip check
+python -m build
 ```
 
 For a detailed breakdown of the test suite, see [`tests/README.md`](tests/README.md).
@@ -1171,51 +1232,22 @@ FastAPI temporary files
 Selected report outputs
   ├──→ browser downloads
   └──→ optional user-owned Google Drive persistence
+                      ↓
+              persisted active JSON artifacts
+                      ↓
+                  Viewer selection
 ```
 
 The Apple Health ZIP remains disposable input in both modes: a Drive-selected archive is downloaded into request-scoped temporary storage for processing and is not copied into the application's managed report area. Local ZIP/TOML files are likewise temporary and are removed after the request.
 
-Google-connected features include saved configuration profiles, configuration autosave (default off), report autosave (default on), Google Picker ZIP selection, popup OAuth that preserves local form/file state, explicit active-config/source status, friendly Drive recovery actions, and optional technical timing diagnostics. Existing report months are replaced through a staged per-month flow: new artifacts are verified before becoming current, the previous generation is archived, and temporary staging folders are permanently deleted after cleanup.
-
-## Future Development
-
-**Phase 5 — Google Identity + user-owned Drive is complete.** The application supports
-Google OAuth, user-owned Drive ZIP selection, saved TOML profiles,
-configuration/report autosave, safe report replacement with archive retention,
-recovery UX, and transfer/generation diagnostics while keeping raw health exports
-disposable.
-
-**PRE6 provider abstraction and provider-neutral naming are complete.** Shared analysis
-now operates on canonical `HealthData`, the Python namespace is `connected_health`, and
-the browser has an explicit provider-selection boundary. Apple Health remains the only
-implemented provider.
-
-The next major product tracks are:
-
-1. **Additional health-data providers**  
-   Add another real provider adapter (Garmin is the first planned candidate) that
-   normalizes its raw input into the same `HealthData` contract. Backend provider
-   dispatch and provider-aware Drive report identity should be introduced only when the
-   second provider requires them.
-
-2. **P6 — Persistent viewer**  
-   Build a viewer over stored report artifacts, using `full.json` as the stable data
-   contract for monthly/day-level presentation, charts, and downloads.
-
-3. **P7 — Security and access hardening**  
-   Harden authentication/authorization boundaries, access rules, API exposure, abuse
-   controls, and other controls required before broader exposure.
-
-4. **P8 — Deployment and resource protection**  
-   Add production hosting, HTTPS, reverse-proxy/request limits, concurrency/rate
-   controls, secret management, and deployment-level resource safeguards.
-
-Persistent reports remain user-owned Google Drive data rather than
-application-database records. Previous generations are retained under per-month archives
-when replacement occurs. No custom user/password database is planned.
-
-Additional health metrics and presentation formats may be added when they provide
-concrete value.
+Google-connected features include saved configuration profiles, configuration autosave
+(default off), report autosave (default on), Google Picker ZIP selection, popup OAuth
+that preserves local form/file state, explicit active-config/source status, Viewer report
+discovery, friendly Drive recovery actions, and optional technical timing diagnostics.
+Existing report months are replaced through a staged per-month flow: new artifacts are
+verified before becoming current, the previous generation is archived, and temporary
+staging folders are permanently deleted after cleanup. Persistent reports remain
+user-owned Google Drive data rather than application-database records.
 
 ## License
 

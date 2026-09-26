@@ -2,6 +2,9 @@
 
 The `connected_health.config` package defines the application's strongly typed configuration model.
 
+The project requires Python 3.14 or later. The configuration package is shared by the
+Apple Health generation workflow; it does not define provider-aware Viewer persistence.
+
 Configuration is represented by Python `dataclass` objects rather than module-level globals. `AppConfig` is the current Apple-facing compatibility envelope; its provider and analysis sections are injected only into their owning boundaries.
 
 Configuration values are defined by defaults in the dataclasses, may be overridden by an optional TOML file loaded through `ConfigLoader`, and may receive per-request source-name overrides from the web/API workflow. In the connected browser flow, the TOML source may come from a saved Google Drive configuration profile or from a local upload.
@@ -39,7 +42,7 @@ The configuration model is designed around several principles:
 - **Dependency injection** – the Apple provider receives `AppleProviderConfig`; shared analyzers and renderers receive `AnalysisConfig`.
 - **Safe defaults** – the application can run without supplying an explicit configuration object.
 - **Validation** – relationships between values are checked before invalid settings are used by sleep scoring.
-- **Extensibility** – future configuration sources can populate the same object model without changing consumers.
+- **Separation** – configuration sources are resolved before parser, analyzer, and renderer consumers receive the final object model.
 - **Isolation** – configuration storage and loading are kept separate from parsing, analysis and rendering logic.
 
 ## Dependency Injection
@@ -855,18 +858,9 @@ SleepAnalyzer
 
 The consuming component no longer needs to know where the configuration came from.
 
-This distinction is important for future configuration sources.
-
-A future loader may construct the same `AppConfig` from:
-
-- a JSON file;
-- a YAML file;
-- command-line arguments;
-- environment variables;
-- a database;
-- a remote configuration service.
-
-The parser, analyzers and renderers do not need to change when the source of configuration changes.
+The parser, analyzers and renderers consume the resolved `AppConfig` rather than a
+configuration file directly. The current supported file format is TOML; the browser may
+provide that TOML from a local upload or a selected Google Drive profile.
 
 ## Current Limitations
 
@@ -881,13 +875,10 @@ Other sleep/scoring settings must currently be changed through TOML rather than 
 
 The application does not currently load application configuration from JSON or YAML files, environment variables, databases, or remote configuration services. It also does not expose generic per-setting CLI override flags for the `AppConfig` hierarchy.
 
-These limitations are deliberate: parser, analyzer, and renderer consumers depend only on the final `AppConfig`, so future configuration sources can be added without changing the configuration object hierarchy they consume.
-
-## Future Configuration Sources
-
-Future loaders may construct the same `AppConfig` from other sources while keeping the configuration model stable.
-
-Google Drive configuration profiles now demonstrate this separation: Drive supplies a TOML source and persists named profiles, while `ConfigLoader` continues to produce the same validated `AppConfig`. Report persistence remains a separate concern from configuration interpretation.
+Google Drive configuration profiles supply a selected TOML source and persist named
+profiles; `ConfigLoader` still produces the same validated `AppConfig`. Report
+persistence and the persisted-report Viewer are separate from configuration
+interpretation.
 
 ## Testing
 
@@ -899,7 +890,10 @@ Configuration behavior is covered at several levels:
 - analyzer tests verify that injected values affect scoring and session reconstruction;
 - parser tests verify custom source injection and missing-data preservation;
 - renderer tests verify configuration-dependent presentation behavior;
-- `test_config_loader.py` contains **40 collected cases** covering TOML loading, type conversion, finite-number rejection, blank-source rejection, partial overrides, error handling, final validation, committed example files, runtime source overrides, and `runtime override > TOML > default` precedence;
+- `test_config_loader.py` covers TOML loading, type conversion, finite-number rejection,
+  blank-source rejection, partial overrides, error handling, final validation, committed
+  example files, runtime source overrides, and `runtime override > TOML > default`
+  precedence;
 - application tests verify that `MultiMonthRunOptions` forwards runtime source overrides into `ConfigLoader`;
 - FastAPI tests verify source-field normalization, local TOML upload, Drive profile selection, source precedence, configuration autosave state, temporary-file cleanup, malformed-config HTTP 422 behavior, and the dedicated 1 MiB config-upload limit;
 - full pipeline tests verify that one shared effective configuration instance flows through parser, analyzer, and renderer layers;
@@ -908,16 +902,12 @@ Configuration behavior is covered at several levels:
 Run the complete project test suite with:
 
 ```bash
-pytest
-```
-
-The current repository collects **768 tests**.
-
-Code quality checks:
-
-```bash
-ruff check .
-black --check .
+python -m pytest -q
+python -m black --check .
+python -m ruff check .
+git diff --check
+python -m pip check
+python -m build
 ```
 
 ## Package Files
