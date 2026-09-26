@@ -361,6 +361,76 @@ generations remain unavailable in normal Viewer selection.
 
 Viewer index and open responses are private and returned with `Cache-Control: no-store`.
 
+#### Viewer Data Flow
+
+The Viewer deliberately starts from the **persisted JSON 1.0 contract**, not from the
+in-memory analysis model used during generation. Generation and viewing therefore meet at a
+stable external boundary:
+
+```mermaid
+flowchart LR
+
+    HD["HealthData"]
+    HA["HealthAnalyzer"]
+    MS["MonthlySummary"]
+    JR["JsonRenderer"]
+    PJ["Persisted JSON 1.0<br/>Full or Summary"]
+
+    IDX["Active current-generation<br/>Drive metadata"]
+    DL["Bounded lazy download"]
+    JP["Strict JSON parser"]
+    PM["Strict Pydantic<br/>Viewer models"]
+    CV["Cross-field contract<br/>validation"]
+    VM["Validated Viewer<br/>report model"]
+    HR["HtmlRenderer"]
+    OUT["Server-rendered<br/>HTML / SVG"]
+    BR["Browser Viewer"]
+    JS["Viewer JavaScript<br/>selection / navigation / presentation state"]
+
+    HD --> HA --> MS --> JR --> PJ
+    IDX --> DL --> JP --> PM --> CV --> VM --> HR --> OUT --> BR
+    PJ -. "managed persisted artifact" .-> IDX
+    JS -.-> BR
+```
+
+This separation is intentional. `MonthlySummary` is the analysis/report-generation model,
+while persisted JSON is a stable presentation/API contract. The JSON representation is not
+a lossless serialization of the internal report dataclasses: values may already be
+normalized for the external contract, internal-only details are not necessarily serialized,
+and Summary JSON intentionally omits daily entries. The Viewer therefore does **not** try to
+reconstruct an exact `MonthlySummary` from persisted JSON.
+
+#### From JSON Bytes to a Typed Viewer Model
+
+Viewer input crosses two validation layers before rendering:
+
+1. The selected active artifact is downloaded with a dedicated size bound and parsed by a
+   strict JSON loader. This stage rejects malformed JSON, duplicate object keys, and
+   non-standard numeric constants such as `NaN` and `Infinity` before typed model creation.
+2. The parsed structure is validated into strict Pydantic Viewer models representing the
+   existing JSON schema `1.0`. Validation enforces required/allowed fields, strict types and
+   nullability, finite numbers, date/time formats, canonical identifiers, and the supported
+   cross-field invariants of the persisted report contract.
+
+The result is a validated Viewer report object. `HtmlRenderer` consumes that object rather
+than an unvalidated raw `dict`, and frontend JavaScript never re-parses the health JSON or
+recalculates report metrics.
+
+Full and Summary artifacts use the same monthly contract but have intentionally different
+shapes:
+
+| Persisted artifact | Typed Viewer shape | Viewer capability |
+| --- | --- | --- |
+| `full.json` | Monthly contract with required `days` | Monthly dashboard + daily navigation |
+| `summary.json` | Monthly contract without `days` | Monthly dashboard only |
+
+Artifact metadata and the validated document shape must agree. A Summary report is valid
+without `days`; adding `days` does not silently turn it into a Full report, and an invalid or
+missing Full report is not silently replaced by a Summary report.
+
+This section describes the Viewer ingestion boundary. The field-level JSON structure itself
+is documented later under **JSON Report Contract**.
+
 > **Deployment note:** Google identity and Drive integration are implemented, but application-level OAuth does not replace normal production hardening. Public deployment still requires appropriate HTTPS, request/rate/concurrency limits, secret management, and infrastructure security controls.
 
 ### Google Picker Troubleshooting
