@@ -79,6 +79,7 @@ Number = Annotated[float, BeforeValidator(_strict_number)]
 NonNegativeNumber = Annotated[float, BeforeValidator(_strict_number), Field(ge=0)]
 Percentage = Annotated[float, BeforeValidator(_strict_number), Field(ge=0, le=100)]
 NonNegativeInt = Annotated[StrictInt, Field(ge=0)]
+PositiveInt = Annotated[StrictInt, Field(gt=0)]
 IsoDate = Annotated[date, BeforeValidator(_strict_date)]
 IsoDatetime = Annotated[datetime, BeforeValidator(_strict_datetime)]
 ClockTime = Annotated[time, BeforeValidator(_strict_time)]
@@ -131,8 +132,8 @@ class SleepScore(StrictModel):
     average_duration: Percentage
     average_wake_up: Percentage
     average_total: Percentage
-    average_bonus: Number
-    consistency_bonus: Number
+    average_bonus: NonNegativeNumber
+    consistency_bonus: NonNegativeNumber
     monthly_score: Number
     monthly_score_max: Number
 
@@ -144,42 +145,100 @@ class ScoreThreshold(StrictModel):
 
 class BedtimeConfiguration(StrictModel):
     target: ClockTime
-    penalty_interval_minutes: StrictInt
-    penalty_points: Number
+    penalty_interval_minutes: PositiveInt
+    penalty_points: NonNegativeNumber
 
 
 class DurationConfiguration(StrictModel):
-    target_minutes: StrictInt
-    tolerance_minutes: StrictInt
-    penalty_interval_minutes: StrictInt
-    penalty_points: Number
-    oversleep_weight: Number
-    undersleep_weight: Number
+    target_minutes: PositiveInt
+    tolerance_minutes: NonNegativeInt
+    penalty_interval_minutes: PositiveInt
+    penalty_points: NonNegativeNumber
+    oversleep_weight: NonNegativeNumber
+    undersleep_weight: NonNegativeNumber
+
+    @model_validator(mode="after")
+    def validate_tolerance(self) -> DurationConfiguration:
+        if self.tolerance_minutes >= self.target_minutes:
+            raise ValueError("duration tolerance must be lower than target_minutes")
+        return self
 
 
 class WakeUpConfiguration(StrictModel):
     target: ClockTime
     bedtime_weight: Number
     duration_weight: Number
-    penalty_interval_minutes: StrictInt
-    penalty_points: Number
+    penalty_interval_minutes: PositiveInt
+    penalty_points: NonNegativeNumber
 
 
 class ScoreWeights(StrictModel):
-    bedtime: Number
-    duration: Number
-    wake_up: Number
+    bedtime: NonNegativeNumber
+    duration: NonNegativeNumber
+    wake_up: NonNegativeNumber
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> ScoreWeights:
+        if self.bedtime + self.duration + self.wake_up == 0:
+            raise ValueError("at least one sleep score component weight must be greater than zero")
+        return self
 
 
 class MonthlyBonusConfiguration(StrictModel):
     enabled: StrictBool
-    max_points: StrictInt
+    max_points: NonNegativeInt
     average_thresholds: list[ScoreThreshold]
     consistency_thresholds: list[ScoreThreshold]
 
+    @model_validator(mode="after")
+    def validate_thresholds(self) -> MonthlyBonusConfiguration:
+        self._validate_average_thresholds()
+        self._validate_consistency_thresholds()
+        maximum_average_bonus = max(
+            (threshold.bonus for threshold in self.average_thresholds), default=0
+        )
+        maximum_consistency_bonus = max(
+            (threshold.bonus for threshold in self.consistency_thresholds), default=0
+        )
+        if maximum_average_bonus + maximum_consistency_bonus > self.max_points:
+            raise ValueError("maximum configured monthly bonuses exceed max_points")
+        return self
+
+    def _validate_average_thresholds(self) -> None:
+        previous_threshold: float | None = None
+        previous_bonus: float | None = None
+        for item in self.average_thresholds:
+            if not 0 <= item.threshold <= 100 or item.bonus < 0:
+                raise ValueError(
+                    "average bonus thresholds must be in 0..100 with non-negative bonuses"
+                )
+            if previous_threshold is not None and item.threshold >= previous_threshold:
+                raise ValueError("average bonus thresholds must be strictly decreasing")
+            if previous_bonus is not None and item.bonus > previous_bonus:
+                raise ValueError("average bonus values must not increase as thresholds decrease")
+            previous_threshold = item.threshold
+            previous_bonus = item.bonus
+
+    def _validate_consistency_thresholds(self) -> None:
+        previous_threshold: float | None = None
+        previous_bonus: float | None = None
+        for item in self.consistency_thresholds:
+            if item.threshold <= 0 or item.bonus < 0:
+                raise ValueError(
+                    "consistency thresholds must be positive with non-negative bonuses"
+                )
+            if previous_threshold is not None and item.threshold <= previous_threshold:
+                raise ValueError("consistency thresholds must be strictly increasing")
+            if previous_bonus is not None and item.bonus > previous_bonus:
+                raise ValueError(
+                    "consistency bonus values must not increase as thresholds increase"
+                )
+            previous_threshold = item.threshold
+            previous_bonus = item.bonus
+
 
 class SleepConfiguration(StrictModel):
-    session_gap_threshold_minutes: StrictInt
+    session_gap_threshold_minutes: NonNegativeInt
     linear_penalties: StrictBool
     bedtime: BedtimeConfiguration
     duration: DurationConfiguration

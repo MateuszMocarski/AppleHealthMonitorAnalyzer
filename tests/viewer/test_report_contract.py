@@ -108,6 +108,12 @@ def _set_path(payload: dict[str, object], path: tuple[str, ...], value: object) 
         target[path[-1]] = value
 
 
+def _summary_payload_with_sleep() -> dict[str, object]:
+    payload = json.loads(_summary_json())
+    payload["sleep"] = _valid_sleep()
+    return payload
+
+
 def test_current_json_renderer_summary_validates_as_summary() -> None:
     report = parse_persisted_report(_summary_json(), expected_kind=ReportKind.SUMMARY)
 
@@ -301,6 +307,101 @@ def test_unusual_valid_values_and_signed_derived_values_remain_accepted() -> Non
 
     assert report.body_weight is not None and report.body_weight.change_kg == -5
     assert report.calories_balance.average_calories_balance_kcal == -500
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("sleep", "configuration", "session_gap_threshold_minutes"), -1),
+        (("sleep", "configuration", "bedtime", "penalty_interval_minutes"), 0),
+        (("sleep", "configuration", "duration", "penalty_interval_minutes"), -1),
+        (("sleep", "configuration", "wake_up", "penalty_interval_minutes"), 0),
+        (("sleep", "configuration", "bedtime", "penalty_points"), -1),
+        (("sleep", "configuration", "duration", "penalty_points"), -1),
+        (("sleep", "configuration", "wake_up", "penalty_points"), -1),
+        (("sleep", "configuration", "duration", "target_minutes"), 0),
+        (("sleep", "configuration", "duration", "tolerance_minutes"), 480),
+        (("sleep", "configuration", "duration", "oversleep_weight"), -1),
+        (("sleep", "configuration", "duration", "undersleep_weight"), -1),
+        (("sleep", "configuration", "weights", "bedtime"), -1),
+        (("sleep", "configuration", "weights", "duration"), -1),
+        (("sleep", "configuration", "weights", "wake_up"), -1),
+        (("sleep", "score", "average_bonus"), -1),
+        (("sleep", "score", "consistency_bonus"), -1),
+    ],
+)
+def test_rejects_invalid_persisted_sleep_configuration_values(
+    path: tuple[str, ...], value: object
+) -> None:
+    payload = _summary_payload_with_sleep()
+    _set_path(payload, path, value)
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload))
+
+
+def test_rejects_all_zero_persisted_sleep_score_component_weights() -> None:
+    payload = _summary_payload_with_sleep()
+    _set_path(
+        payload,
+        ("sleep", "configuration", "weights"),
+        {"bedtime": 0, "duration": 0, "wake_up": 0},
+    )
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload))
+
+
+@pytest.mark.parametrize(
+    ("average_thresholds", "consistency_thresholds", "max_points"),
+    [
+        ([{"threshold": 101, "bonus": 1}], [], 20),
+        ([{"threshold": 90, "bonus": -1}], [], 20),
+        ([{"threshold": 90, "bonus": 1}, {"threshold": 90, "bonus": 1}], [], 20),
+        ([{"threshold": 90, "bonus": 1}, {"threshold": 80, "bonus": 2}], [], 20),
+        ([], [{"threshold": 0, "bonus": 1}], 20),
+        ([], [{"threshold": 3, "bonus": -1}], 20),
+        ([], [{"threshold": 3, "bonus": 1}, {"threshold": 3, "bonus": 1}], 20),
+        ([], [{"threshold": 3, "bonus": 1}, {"threshold": 6, "bonus": 2}], 20),
+        ([{"threshold": 90, "bonus": 11}], [{"threshold": 3, "bonus": 10}], 20),
+        ([], [], -1),
+    ],
+)
+def test_rejects_invalid_persisted_monthly_bonus_configuration(
+    average_thresholds: list[dict[str, int]],
+    consistency_thresholds: list[dict[str, int]],
+    max_points: int,
+) -> None:
+    payload = _summary_payload_with_sleep()
+    bonus = payload["sleep"]["configuration"]["monthly_bonus"]
+    bonus["average_thresholds"] = average_thresholds
+    bonus["consistency_thresholds"] = consistency_thresholds
+    bonus["max_points"] = max_points
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload))
+
+
+def test_valid_persisted_sleep_configuration_edge_cases_are_accepted() -> None:
+    payload = _summary_payload_with_sleep()
+    configuration = payload["sleep"]["configuration"]
+    configuration["session_gap_threshold_minutes"] = 0
+    configuration["bedtime"]["penalty_points"] = 0
+    configuration["duration"]["penalty_points"] = 0
+    configuration["wake_up"]["penalty_points"] = 0
+    configuration["duration"]["tolerance_minutes"] = 0
+    configuration["weights"] = {"bedtime": 0, "duration": 1, "wake_up": 0}
+    configuration["wake_up"]["bedtime_weight"] = 0
+    configuration["wake_up"]["duration_weight"] = 1
+    configuration["monthly_bonus"]["max_points"] = 7
+    configuration["monthly_bonus"]["average_thresholds"] = []
+    configuration["monthly_bonus"]["consistency_thresholds"] = []
+    payload["sleep"]["score"]["monthly_score_max"] = 107
+
+    report = parse_persisted_report(json.dumps(payload))
+
+    assert report.sleep is not None
+    assert report.sleep.configuration.monthly_bonus.max_points == 7
 
 
 @pytest.mark.parametrize(
