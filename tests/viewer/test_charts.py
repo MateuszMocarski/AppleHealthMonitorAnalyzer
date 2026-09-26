@@ -61,6 +61,13 @@ def test_pie_chart_rounds_minute_legend_values_without_changing_zero_semantics()
     assert 'class="viewer-chart-legend-value"' in html
 
 
+def test_minute_formatting_renders_exactly_sixty_minutes_as_one_hour() -> None:
+    html = pie_chart("Sleep stages", (ChartDatum("Core", 60),), "minutes")
+
+    assert "1 hour" in html
+    assert "60 minutes" not in html
+
+
 def test_one_slice_pie_is_a_filled_circle_without_a_hole() -> None:
     html = pie_chart("Sleep stages", (ChartDatum("Core", 90),), "minutes")
 
@@ -283,6 +290,21 @@ def test_time_axis_has_formatted_intermediate_clock_ticks() -> None:
     assert any(f">{hour:02d}:" in html for hour in range(0, 24))
     assert "1500" not in html
     assert "25:00" not in html
+
+
+def test_time_axis_keeps_an_extreme_clock_span_inside_the_plotting_bounds() -> None:
+    html = line_chart(
+        "Bedtime by day",
+        (ChartDatum("Aug 1", 0), ChartDatum("Aug 2", 1380)),
+        "",
+        axis_formatter=_clock_label,
+    )
+    y_coordinates = [float(value) for value in re.findall(r'cy="([0-9.]+)"', html)]
+
+    assert html.count('class="viewer-chart-gridline"') == 26
+    assert ">00:00</text>" in html and ">23:00</text>" in html
+    assert len(y_coordinates) == 2
+    assert all(34.0 <= coordinate <= 134.0 for coordinate in y_coordinates)
 
 
 def test_short_daily_axes_keep_every_label() -> None:

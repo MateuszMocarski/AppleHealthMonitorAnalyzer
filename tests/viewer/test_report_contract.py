@@ -44,6 +44,70 @@ def _valid_monthly_workout() -> dict[str, object]:
     }
 
 
+def _valid_sleep() -> dict[str, object]:
+    return {
+        "sessions": 1,
+        "average_bedtime": "23:00",
+        "average_wake_up": "07:00",
+        "average_sleep_minutes": 480.0,
+        "average_awake_minutes": 0.0,
+        "average_efficiency_percent": 100.0,
+        "stages": {
+            "core_minutes": 300.0,
+            "deep_minutes": 60.0,
+            "rem_minutes": 120.0,
+            "unspecified_minutes": 0.0,
+        },
+        "score": {
+            "average_bedtime": 80.0,
+            "average_duration": 90.0,
+            "average_wake_up": 90.0,
+            "average_total": 90.0,
+            "average_bonus": 0.0,
+            "consistency_bonus": 0.0,
+            "monthly_score": 90.0,
+            "monthly_score_max": 120.0,
+        },
+        "configuration": {
+            "session_gap_threshold_minutes": 30,
+            "linear_penalties": False,
+            "bedtime": {"target": "00:00", "penalty_interval_minutes": 15, "penalty_points": 5.0},
+            "duration": {
+                "target_minutes": 480,
+                "tolerance_minutes": 30,
+                "penalty_interval_minutes": 15,
+                "penalty_points": 5.0,
+                "oversleep_weight": 1.0,
+                "undersleep_weight": 1.0,
+            },
+            "wake_up": {
+                "target": "08:00",
+                "bedtime_weight": 1.0,
+                "duration_weight": 2.0,
+                "penalty_interval_minutes": 15,
+                "penalty_points": 3.0,
+            },
+            "weights": {"bedtime": 1.0, "duration": 1.0, "wake_up": 1.0},
+            "monthly_bonus": {
+                "enabled": True,
+                "max_points": 20,
+                "average_thresholds": [],
+                "consistency_thresholds": [],
+            },
+        },
+    }
+
+
+def _set_path(payload: dict[str, object], path: tuple[str, ...], value: object) -> None:
+    target: object = payload
+    for key in path[:-1]:
+        target = target[int(key)] if isinstance(target, list) else target[key]
+    if isinstance(target, list):
+        target[int(path[-1])] = value
+    else:
+        target[path[-1]] = value
+
+
 def test_current_json_renderer_summary_validates_as_summary() -> None:
     report = parse_persisted_report(_summary_json(), expected_kind=ReportKind.SUMMARY)
 
@@ -118,6 +182,125 @@ def test_current_json_renderer_offset_sleep_datetime_validates() -> None:
 
     assert isinstance(report, FullReport)
     assert report.days[0].sleep is not None
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("sleep", "stages", "core_minutes"), -1),
+        (("sleep", "average_sleep_minutes"), -1),
+        (("sleep", "average_efficiency_percent"), 101),
+        (("sleep", "score", "average_duration"), 101),
+        (("sleep", "sessions"), -1),
+        (("workouts", "0", "duration_minutes"), -1),
+        (("workouts", "0", "distance_km"), -1),
+        (("general_activity", "total_steps"), -1),
+        (("general_activity", "total_distance_km"), -1),
+    ],
+)
+def test_rejects_mechanically_impossible_persisted_values(
+    path: tuple[str, ...], value: object
+) -> None:
+    payload = json.loads(_summary_json())
+    payload["sleep"] = _valid_sleep()
+    payload["workouts"] = [_valid_monthly_workout()]
+    payload["general_activity"] = {
+        "total_steps": 1,
+        "average_daily_steps": None,
+        "steps_count_days": None,
+        "total_distance_km": 1.0,
+        "average_daily_distance_km": None,
+        "distance_count_days": None,
+        "average_step_length_cm": None,
+        "step_length_count_days": None,
+    }
+    _set_path(payload, path, value)
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload))
+
+
+def test_rejects_daily_sleep_duration_and_score_outside_mechanical_ranges() -> None:
+    payload = json.loads(JsonRenderer().render_month(_summary()))
+    payload["report"].update({"reporting_days": 1, "data_through": "2026-08-01"})
+    payload["days"] = [
+        {
+            "date": "2026-08-01",
+            "general_activity": None,
+            "sleep": {
+                "session": {
+                    "bedtime": "2026-08-01T00:00:00+00:00",
+                    "wake_up": "2026-08-01T01:00:00+00:00",
+                    "time_in_bed_minutes": 0,
+                    "time_asleep_minutes": 0,
+                    "awake_minutes": 0,
+                    "efficiency_percent": 0,
+                    "stages": {
+                        "core_minutes": 0,
+                        "deep_minutes": 0,
+                        "rem_minutes": 0,
+                        "unspecified_minutes": 0,
+                    },
+                },
+                "score": {"bedtime": 0, "duration": 0, "wake_up": 0, "total": 101},
+            },
+            "workouts": [],
+            "body_weight": None,
+            "energy_expenditure": None,
+            "nutrition": None,
+            "calories_balance_kcal": None,
+        }
+    ]
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload), expected_kind=ReportKind.FULL)
+
+    payload["days"][0]["sleep"]["score"]["total"] = 0
+    payload["days"][0]["sleep"]["session"]["time_in_bed_minutes"] = -1
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload), expected_kind=ReportKind.FULL)
+
+
+def test_monthly_score_uses_the_declared_effective_configuration_maximum() -> None:
+    payload = json.loads(_summary_json())
+    payload["sleep"] = _valid_sleep()
+    payload["sleep"]["score"]["monthly_score_max"] = 100
+
+    with pytest.raises(PersistedReportValidationError):
+        parse_persisted_report(json.dumps(payload))
+
+
+def test_unusual_valid_values_and_signed_derived_values_remain_accepted() -> None:
+    payload = json.loads(_summary_json())
+    payload["report"].update({"reporting_days": 1, "data_through": "2026-08-01"})
+    payload["sleep"] = _valid_sleep()
+    payload["sleep"].update({"average_sleep_minutes": 0, "average_awake_minutes": 0})
+    payload["sleep"]["stages"] = {
+        "core_minutes": 0,
+        "deep_minutes": 0,
+        "rem_minutes": 0,
+        "unspecified_minutes": 0,
+    }
+    payload["body_weight"] = {
+        "average_kg": 70,
+        "start_kg": 75,
+        "end_kg": 70,
+        "change_kg": -5,
+        "max_kg": 75,
+        "min_kg": 70,
+        "measurements": 1,
+    }
+    payload["calories_balance"] = {
+        "average_calories_balance_kcal": -500,
+        "total_calories_balance_kcal": -500,
+        "calories_balance_count_days": 1,
+    }
+
+    report = parse_persisted_report(json.dumps(payload))
+
+    assert report.body_weight is not None and report.body_weight.change_kg == -5
+    assert report.calories_balance.average_calories_balance_kcal == -500
 
 
 @pytest.mark.parametrize(

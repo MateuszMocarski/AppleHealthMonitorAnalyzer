@@ -433,6 +433,7 @@ def test_html_renderer_rounds_minutes_for_presentation_without_mutating_viewer_v
     assert "4 hours 41 minutes" in html
     assert "40 minutes" in html
     assert "&lt;1 minute" in html
+    assert HtmlRenderer._value(60, "minutes") == "1 hour"
     assert HtmlRenderer._value(97, "minutes") == "1 hour 37 minutes"
     assert HtmlRenderer._value(0, "minutes") == '0 <span class="viewer-metric-unit">minutes</span>'
 

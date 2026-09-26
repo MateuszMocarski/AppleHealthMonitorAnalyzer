@@ -1106,7 +1106,7 @@ class HtmlRenderer:
         rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
         if value > 0 and rounded == 0:
             return "<1", "minute"
-        if abs(rounded) > 60:
+        if abs(rounded) >= 60:
             sign = "-" if rounded < 0 else ""
             hours, minutes = divmod(abs(rounded), 60)
             hour_label = "hour" if hours == 1 else "hours"

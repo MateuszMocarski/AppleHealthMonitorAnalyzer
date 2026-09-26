@@ -225,7 +225,12 @@ def _line_figure(
     x_left, x_right = 48.0, 288.0
     top, bottom = 34.0, 134.0
     x_positions = _x_positions(len(points), x_left, x_right)
-    ticks = _axis_ticks(lower, upper, step_override=60.0 if time_axis else None)
+    ticks = _axis_ticks(
+        lower,
+        upper,
+        step_override=60.0 if time_axis else None,
+        max_intervals=None if time_axis else 20,
+    )
     lower, upper = ticks[0], ticks[-1]
     path = _line_path([value for _, value in points], x_positions, lower, upper, top, bottom)
     dots = "".join(
@@ -281,7 +286,7 @@ def _format_for_unit(value: float, unit: str) -> str:
     rounded = math.floor(value + 0.5) if value > 0 else math.ceil(value - 0.5)
     if value > 0 and rounded == 0:
         return "<1"
-    if abs(rounded) > 60:
+    if abs(rounded) >= 60:
         sign = "-" if rounded < 0 else ""
         hours, minutes = divmod(abs(rounded), 60)
         hour_label = "hour" if hours == 1 else "hours"
@@ -364,6 +369,7 @@ def _axis_ticks(
     target_count: int = 5,
     *,
     step_override: float | None = None,
+    max_intervals: int | None = 20,
 ) -> list[float]:
     if upper <= lower:
         padding = abs(lower) * 0.05 or 1.0
@@ -372,7 +378,9 @@ def _axis_ticks(
     step = step_override or _nice_step((upper - lower) / (target_count - 1))
     first = math.floor(lower / step) * step
     last = math.ceil(upper / step) * step
-    count = max(1, min(20, round((last - first) / step)))
+    count = max(1, round((last - first) / step))
+    if max_intervals is not None:
+        count = min(max_intervals, count)
     return [first + index * step for index in range(count + 1)]
 
 

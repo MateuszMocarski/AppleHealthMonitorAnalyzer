@@ -4576,15 +4576,16 @@
                 });
             });
 
-            viewerReportContent.addEventListener("pointerdown", (event) => {
-                const target = event.target.closest?.("[data-viewer-chart-tooltip]");
-                if (target !== undefined && target !== null) {
-                    showViewerChartTooltip(target, event);
-                } else {
-                    dismissViewerChartTooltip();
-                }
-            });
         }
+
+        viewerReportContent.addEventListener("pointerdown", (event) => {
+            const target = event.target.closest?.("[data-viewer-chart-tooltip]");
+            if (target !== undefined && target !== null) {
+                showViewerChartTooltip(target, event);
+            } else {
+                dismissViewerChartTooltip();
+            }
+        });
 
         document.addEventListener("pointerdown", (event) => {
             const target = event.target.closest?.("[data-viewer-chart-tooltip]");

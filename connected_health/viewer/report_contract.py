@@ -18,6 +18,7 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
+    Field,
     StrictBool,
     StrictInt,
     StrictStr,
@@ -75,6 +76,9 @@ def _strict_time(value: Any) -> time:
 
 
 Number = Annotated[float, BeforeValidator(_strict_number)]
+NonNegativeNumber = Annotated[float, BeforeValidator(_strict_number), Field(ge=0)]
+Percentage = Annotated[float, BeforeValidator(_strict_number), Field(ge=0, le=100)]
+NonNegativeInt = Annotated[StrictInt, Field(ge=0)]
 IsoDate = Annotated[date, BeforeValidator(_strict_date)]
 IsoDatetime = Annotated[datetime, BeforeValidator(_strict_datetime)]
 ClockTime = Annotated[time, BeforeValidator(_strict_time)]
@@ -105,28 +109,28 @@ class ReportMetadata(StrictModel):
 
 
 class GeneralActivity(StrictModel):
-    total_steps: StrictInt | None
-    average_daily_steps: Number | None
-    steps_count_days: StrictInt | None
-    total_distance_km: Number | None
-    average_daily_distance_km: Number | None
-    distance_count_days: StrictInt | None
-    average_step_length_cm: Number | None
-    step_length_count_days: StrictInt | None
+    total_steps: NonNegativeInt | None
+    average_daily_steps: NonNegativeNumber | None
+    steps_count_days: NonNegativeInt | None
+    total_distance_km: NonNegativeNumber | None
+    average_daily_distance_km: NonNegativeNumber | None
+    distance_count_days: NonNegativeInt | None
+    average_step_length_cm: NonNegativeNumber | None
+    step_length_count_days: NonNegativeInt | None
 
 
 class SleepStages(StrictModel):
-    core_minutes: Number
-    deep_minutes: Number
-    rem_minutes: Number
-    unspecified_minutes: Number
+    core_minutes: NonNegativeNumber
+    deep_minutes: NonNegativeNumber
+    rem_minutes: NonNegativeNumber
+    unspecified_minutes: NonNegativeNumber
 
 
 class SleepScore(StrictModel):
-    average_bedtime: Number
-    average_duration: Number
-    average_wake_up: Number
-    average_total: Number
+    average_bedtime: Percentage
+    average_duration: Percentage
+    average_wake_up: Percentage
+    average_total: Percentage
     average_bonus: Number
     consistency_bonus: Number
     monthly_score: Number
@@ -185,27 +189,40 @@ class SleepConfiguration(StrictModel):
 
 
 class MonthlySleep(StrictModel):
-    sessions: StrictInt
+    sessions: NonNegativeInt
     average_bedtime: ClockTime
     average_wake_up: ClockTime
-    average_sleep_minutes: Number
-    average_awake_minutes: Number
-    average_efficiency_percent: Number
+    average_sleep_minutes: NonNegativeNumber
+    average_awake_minutes: NonNegativeNumber
+    average_efficiency_percent: Percentage
     stages: SleepStages
     score: SleepScore
     configuration: SleepConfiguration
 
+    @model_validator(mode="after")
+    def validate_monthly_score(self) -> MonthlySleep:
+        declared_maximum = (
+            100 + self.configuration.monthly_bonus.max_points
+            if self.configuration.monthly_bonus.enabled
+            else 100
+        )
+        if declared_maximum <= 0 or self.score.monthly_score_max != declared_maximum:
+            raise ValueError("monthly_score_max must match the configured effective maximum")
+        if not 0 <= self.score.monthly_score <= self.score.monthly_score_max:
+            raise ValueError("monthly_score must be within its declared maximum")
+        return self
+
 
 class MonthlyWorkout(StrictModel):
     type: StrictStr
-    sessions: StrictInt
-    duration_minutes: Number
+    sessions: NonNegativeInt
+    duration_minutes: NonNegativeNumber
     active_energy_kcal: Number | None
-    distance_km: Number | None
+    distance_km: NonNegativeNumber | None
     average_basis: Literal["daily", "workout"]
-    average_duration_minutes: Number | None
+    average_duration_minutes: NonNegativeNumber | None
     average_active_energy_kcal: Number | None
-    average_distance_km: Number | None
+    average_distance_km: NonNegativeNumber | None
 
     @model_validator(mode="after")
     def validate_workout(self) -> MonthlyWorkout:
@@ -220,56 +237,56 @@ class BodyWeight(StrictModel):
     change_kg: Number | None
     max_kg: Number | None
     min_kg: Number | None
-    measurements: StrictInt
+    measurements: NonNegativeInt
 
 
 class EnergyExpenditure(StrictModel):
     average_basal_kcal: Number | None
-    basal_count_days: StrictInt | None
+    basal_count_days: NonNegativeInt | None
     average_active_kcal: Number | None
-    active_count_days: StrictInt | None
+    active_count_days: NonNegativeInt | None
     average_tdee_kcal: Number | None
-    tdee_count_days: StrictInt | None
+    tdee_count_days: NonNegativeInt | None
 
 
 class Nutrition(StrictModel):
     average_protein_g: Number | None
-    protein_count_days: StrictInt | None
+    protein_count_days: NonNegativeInt | None
     average_carbohydrates_g: Number | None
-    carbohydrates_count_days: StrictInt | None
+    carbohydrates_count_days: NonNegativeInt | None
     average_fat_g: Number | None
-    fat_count_days: StrictInt | None
+    fat_count_days: NonNegativeInt | None
     average_calories_kcal: Number | None
-    calories_count_days: StrictInt | None
+    calories_count_days: NonNegativeInt | None
 
 
 class CaloriesBalance(StrictModel):
     average_calories_balance_kcal: Number | None
     total_calories_balance_kcal: Number | None
-    calories_balance_count_days: StrictInt | None
+    calories_balance_count_days: NonNegativeInt | None
 
 
 class DailyGeneralActivity(StrictModel):
-    steps: StrictInt | None
-    distance_km: Number | None
-    step_length_cm: Number | None
+    steps: NonNegativeInt | None
+    distance_km: NonNegativeNumber | None
+    step_length_cm: NonNegativeNumber | None
 
 
 class DailySleepSession(StrictModel):
     bedtime: IsoDatetime
     wake_up: IsoDatetime
-    time_in_bed_minutes: Number
-    time_asleep_minutes: Number
-    awake_minutes: Number
-    efficiency_percent: Number
+    time_in_bed_minutes: NonNegativeNumber
+    time_asleep_minutes: NonNegativeNumber
+    awake_minutes: NonNegativeNumber
+    efficiency_percent: Percentage
     stages: SleepStages
 
 
 class DailySleepScore(StrictModel):
-    bedtime: Number
-    duration: Number
-    wake_up: Number
-    total: Number
+    bedtime: Percentage
+    duration: Percentage
+    wake_up: Percentage
+    total: Percentage
 
 
 class DailySleep(StrictModel):
@@ -279,10 +296,10 @@ class DailySleep(StrictModel):
 
 class DailyWorkout(StrictModel):
     type: StrictStr
-    sessions: StrictInt
-    duration_minutes: Number
+    sessions: NonNegativeInt
+    duration_minutes: NonNegativeNumber
     active_energy_kcal: Number | None
-    distance_km: Number | None
+    distance_km: NonNegativeNumber | None
 
     @model_validator(mode="after")
     def validate_workout(self) -> DailyWorkout:

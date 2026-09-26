@@ -7169,6 +7169,12 @@ def test_web_interface_uses_one_generic_presentation_only_chart_tooltip() -> Non
     assert 'addEventListener("focus"' in chart_interactions
     assert 'addEventListener("blur"' in chart_interactions
     assert 'addEventListener("pointerdown"' in chart_interactions
+    chart_initializer = chart_interactions.split(
+        "function initializeViewerChartInteractions()",
+        1,
+    )[1].split("viewerReportContent.addEventListener", 1)[0]
+    assert 'addEventListener("pointerdown"' not in chart_initializer
+    assert chart_interactions.count('viewerReportContent.addEventListener("pointerdown"') == 1
     assert "getBoundingClientRect" in chart_interactions
     assert "clientX" in chart_interactions
     assert "clientY" in chart_interactions
