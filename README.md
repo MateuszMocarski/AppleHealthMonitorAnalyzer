@@ -361,44 +361,60 @@ generations remain unavailable in normal Viewer selection.
 
 Viewer index and open responses are private and returned with `Cache-Control: no-store`.
 
-#### Viewer Data Flow
+### Viewer Data Flow
 
 The Viewer deliberately starts from the **persisted JSON 1.0 contract**, not from the
 in-memory analysis model used during generation. Generation and viewing therefore meet at a
 stable external boundary:
 
 ```mermaid
-flowchart LR
+flowchart TB
 
-    HD["HealthData"]
-    HA["HealthAnalyzer"]
-    MS["MonthlySummary"]
-    JR["JsonRenderer"]
-    PJ["Persisted JSON 1.0<br/>Full or Summary"]
+    subgraph GEN["Report generation"]
+        HD["HealthData"]
+        HA["HealthAnalyzer"]
+        MS["MonthlySummary"]
+        JR["JsonRenderer"]
 
-    IDX["Active current-generation<br/>Drive metadata"]
-    DL["Bounded lazy download"]
-    JP["Strict JSON parser"]
-    PM["Strict Pydantic<br/>Viewer models"]
-    CV["Cross-field contract<br/>validation"]
-    VM["Validated Viewer<br/>report model"]
-    HR["HtmlRenderer"]
-    OUT["Server-rendered<br/>HTML / SVG"]
-    BR["Browser Viewer"]
-    JS["Viewer JavaScript<br/>selection / navigation / presentation state"]
+        HD --> HA --> MS --> JR
+    end
 
-    HD --> HA --> MS --> JR --> PJ
-    IDX --> DL --> JP --> PM --> CV --> VM --> HR --> OUT --> BR
-    PJ -. "managed persisted artifact" .-> IDX
-    JS -.-> BR
+    JSON["Persisted JSON 1.0<br/>Full or Summary"]
+
+    subgraph VIEW["Persisted Viewer"]
+        DISC["Discover active<br/>Drive report metadata"]
+        LOAD["Select report +<br/>bounded lazy download"]
+
+        subgraph BOUNDARY["Strict Viewer input boundary"]
+            PARSE["Strict JSON parse<br/>duplicate keys / NaN / Infinity rejected"]
+            VALIDATE["Typed Pydantic validation<br/>schema + cross-field invariants"]
+
+            PARSE --> VALIDATE
+        end
+
+        MODEL["Validated Viewer<br/>report model"]
+        RENDER["HtmlRenderer"]
+        HTML["Server-rendered<br/>HTML / SVG"]
+        BROWSER["Browser Viewer"]
+
+        DISC --> LOAD
+        LOAD --> PARSE
+        VALIDATE --> MODEL
+        MODEL --> RENDER --> HTML --> BROWSER
+    end
+
+    JR --> JSON
+    JSON -->|"managed Drive artifact"| DISC
 ```
 
-This separation is intentional. `MonthlySummary` is the analysis/report-generation model,
-while persisted JSON is a stable presentation/API contract. The JSON representation is not
-a lossless serialization of the internal report dataclasses: values may already be
+MonthlySummary belongs to the generation path. The persisted Viewer begins at the JSON
+1.0 boundary: it discovers an active managed artifact, downloads it lazily, strictly parses
+and validates it into a dedicated typed Viewer model, and renders only that validated model.
+It does not reconstruct the original MonthlySummary.
+This separation is intentional. Persisted JSON is a stable presentation/API contract rather
+than a lossless serialization of the internal report dataclasses: values may already be
 normalized for the external contract, internal-only details are not necessarily serialized,
-and Summary JSON intentionally omits daily entries. The Viewer therefore does **not** try to
-reconstruct an exact `MonthlySummary` from persisted JSON.
+and Summary JSON intentionally omits daily entries.
 
 #### From JSON Bytes to a Typed Viewer Model
 
